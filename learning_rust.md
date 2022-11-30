@@ -1,7 +1,7 @@
 
 # 准备
 
-## 安装环境
+## 安装系统
 
 ### 安装 ububtu 20.10 server
 - 下载ubuntu-22.10-live-server-amd64.iso
@@ -134,7 +134,7 @@ network:
 ### 配置ssh
 
 - ubuntu server安装时候如选上ssh了，则不用配置
-- 手动配置则如下操作：先 sudo vi /etc/ssh/sshd_config，修改PermitRootLogin为yes后保存退出，再 service ssh restart
+- 手动配置则如下操作：先 sudo vi /etc/ssh/sshd_config，修改PermitRootLogin为yes后保存退出，再 sudo service ssh restart
 
 ### 扩大空余磁盘
 
@@ -199,7 +199,7 @@ PS1='[\u@\h \W]\$ '
 - 在安装ubuntu server时候因为修改过Mirror address，因此也不用改了
 - 如需手动修改则如下
 
-```  shell
+``` shell
 
 sudo vim /etc/apt/sources.list
 :%s/cn\.archive\.ubuntu\.com/mirrors\.aliyun\.com/g
@@ -242,7 +242,47 @@ sudo apt-get install -y libprotobuf-dev
 sudo apt-get install -y unixodbc
 ```
 
-### 安装vscode插件
+## 安装rust
+
+- 执行下面，然后选择1
+
+``` shell
+curl https://sh.rustup.rs -sSf | sh
+```
+
+- sudo vi ~/.profile，末尾添加如下
+
+```shell
+export PATH="$HOME/.cargo/bin:$PATH"
+```
+
+- 验证成功
+
+``` shell
+huaw@test:~$ .  ~/.profile
+huaw@test:~$ rustc --version
+rustc 1.65.0 (897e37553 2022-11-02)
+huaw@test:~$ cargo --version
+cargo 1.65.0 (4bc8f24d3 2022-10-20)
+```
+
+## 更新rust
+
+``` shell
+huaw@test:~$ rustup update
+```
+
+## 连接remote ssh失败的解决方法之一
+
+如果连不上，有可能是因为目标虚拟机的ip之前被别的机器使用过，需要重新生成，在windows执行如下(ip为目标虚拟机ip)
+
+```console
+ssh-keygen -R 192.168.56.102
+```
+
+会更新/c/Users/huaw/.ssh/known_hosts updated，再次连接成功
+
+## 安装vscode插件
 
 rust-analyzer
 
@@ -259,4 +299,4 @@ fn main()
 
 - 使用“rustc main.rs”进行编译
 
-- 运行可执行文件“main”即可
+- 运行可执行文件“./main”即可
