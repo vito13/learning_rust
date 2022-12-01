@@ -42,9 +42,11 @@
 - Virtualbox客户机网络设置
 
     网络地址转换NAT，用于上外网
+
     ![客户机网络设置1](./客户机网络设置1.png)
 
     Host-Only用于ssh，即局域网互通
+
     ![客户机网络设置2](./客户机网络设置2.png)
 
 ### 查看网络状态的命令
@@ -300,3 +302,104 @@ fn main()
 - 使用“rustc main.rs”进行编译
 
 - 运行可执行文件“./main”即可
+
+## 猜数字
+
+``` rust
+use rand::Rng;
+use std::cmp::Ordering;
+use std::io;
+
+fn main() {
+    println!("猜数字");
+    let secretnum = rand::thread_rng().gen_range(1..100);
+    println!("神秘数字是:{}", secretnum);
+
+    loop {
+        println!("type a number:");
+        let mut guess = String::new();
+        io::stdin().read_line(&mut guess).expect("无法读取");
+        let guess: u32 = match guess.trim().parse() {
+            Ok(num) => num, // 解析出如果类型正确则直接赋值，此处的mum理解为占位符，其实名字随意
+            Err(_) => continue, // 参数“_”理解为放弃使用此参数，此为专用不可换名
+        };
+        println!("你猜的是{}", guess);
+        match guess.cmp(&secretnum) {
+            Ordering::Less => println!("too small"),
+            Ordering::Greater => println!("too big"),
+            Ordering::Equal => {
+                println!("you win");
+                break;
+            }
+        };
+    }
+}
+
+```
+
+# cargo
+
+## 创建项目
+
+- 会自动创建目录
+- src/main.rs是主文件
+- toml是配置文件，记录版本信息，依赖项
+
+``` shell
+huaw@test:~/playground/rust$ cargo new hellocargo
+     Created binary (application) `hellocargo` package
+
+huaw@test:~/playground/rust/hellocargo$ tree
+.
+├── Cargo.toml
+└── src
+    └── main.rs
+```
+
+## 将代码移到到cargo项目
+
+将代码挪到使用cargo创建的项目目录下的src内即可，然后手写toml
+
+## 编译项目
+
+- Cargo.lock 此文件会在编译时刻出现，内容是记录的所有依赖库版本
+- 如toml进行了手动改变，则编译后会更新Cargo.lock
+
+### debug
+
+会build到target/debug下
+
+``` shell
+huaw@test:~/playground/rust/hellocargo$ cargo build
+   Compiling hellocargo v0.1.0 (/home/huaw/playground/rust/hellocargo)
+    Finished dev [unoptimized + debuginfo] target(s) in 0.38s
+```
+
+### release
+
+会build到target/release下
+
+``` shell
+huaw@test:~/playground/rust/hellocargo$ cargo build --release
+   Compiling hellocargo v0.1.0 (/home/huaw/playground/rust/hellocargo)
+    Finished release [optimized] target(s) in 0.19s
+```
+
+## 检查代码语法
+
+仅检查代码问题，并不编译，快很多
+
+``` shell
+huaw@test:~/playground/rust/hellocargo$ cargo check
+    Checking hellocargo v0.1.0 (/home/huaw/playground/rust/hellocargo)
+    Finished dev [unoptimized + debuginfo] target(s) in 0.07s
+```
+
+## 编译且运行
+
+``` shell
+huaw@test:~/playground/rust/hellocargo$ cargo run
+    Finished dev [unoptimized + debuginfo] target(s) in 0.00s
+     Running `target/debug/hellocargo`
+Hello, world!
+```
