@@ -5,11 +5,20 @@ Rust入门秘笈                        Rust所有权
 Rust编程：入门、实战与进阶          第四章，差2.4，2.5，枚举
 通过例子学Rust
 深入浅出Rust                        2.3.1
+
+Rust编程语言入门教程视频            p20
 Rust程序设计                        3.3
+Rust 程序设计语言 简体中文版 
+https://kaisery.github.io/trpl-zh-cn/title-page.html
+www.runoob.com/rust                 rust-enum.html
+
+
 Rust编程之道
 Rust权威指南
 精通Rust(第2版) 
-www.runoob.com/rust                 rust-enum.html
+
+
+
 ---
 
 # 准备
@@ -484,7 +493,9 @@ huaw@test:~/playground/rust$ cat .vscode/tasks.json
 ## 创建项目
 
 - 会自动创建目录
-- src/main.rs是主文件
+- src/main.rs是主文件，说明这是一个可执行程序
+- 如果是创建库，通过给cargo new命令添加--lib参数，则可以创建用于编写库的项目：cargo new --lib hellolib，此时没有main.rs，而有lib.rs
+- src/main.rs与src/lib.rs可以同时存在，都叫做crate roots，即编译的入口文件
 - toml是配置文件，记录版本信息，依赖项
 
 ``` shell
@@ -498,7 +509,7 @@ huaw@test:~/playground/rust/hellocargo$ tree
     └── main.rs
 ```
 
-通过给cargo new命令添加--lib参数，则可以创建用于编写库的项目：huaw@test:~/playground/rust$ cargo new --lib hellolib
+
 
 ## 版本管理
 
@@ -555,6 +566,32 @@ huaw@test:~/playground/rust/hellocargo$ cargo build --release
 ### clean
 
 cargo clean会清理target
+
+
+## rust语言服务
+
+- 关闭语言服务
+
+    vscode主菜单view->command palette->rust-analyzer: Stop server
+
+- 开启语言服务
+
+    vscode主菜单view->command palette->rust-analyzer: Start server
+
+## 换源
+
+在cargo所在目录中执行 touch config 创建配置文件，写如下后保存，按需再重新 cargo build 即可
+
+``` shell
+huaw@test:~/.cargo/bin$ cat config 
+[source.crates-io]
+registry ="https://github.com/rust-lang/crates.io-index"
+replace-with = 'tuna'
+[source.tuna]
+registry = "https://mirrors.tuna.tsinghua.edu.cn/git/cratesio-index.git"
+[net]
+git-fetch-with-cli = true
+```
 
 # cargo-pgx
 
@@ -1466,14 +1503,14 @@ fn main() {
 }
 ```
 
-## 结构体
+# 结构体
+
+## 定义、赋值、取值
 
 - 结构体类型是一个自定义数据类型，通过struct关键字加自定义命名，可以把多个类型组合在一起成为新的类型。
 - 结构体中以“name:type”格式定义字段，name是字段名称，type是字段类型。结构体名和字段名都遵循变量的命名规则，结构体名应该能够描述它所组合的数据的意义；字段默认不可变，并要求明确指定数据类型，不能使用自动类型推导功能。
 - 每个字段之间用逗号分隔，最后一个逗号可以省略。
-- 需要注意的是，结构体实例默认是不可变的，且不允许只将某个字段标记为可变，如果要修改结构体实例必须在实例创建时就声明其为可变的。
-
-### 定义与赋值
+- 需要注意的是，结构体实例默认是不可变的，且不允许只将某个字段标记为可变，即mut只能加在struct的实例上。
 
 ``` rust
 struct Site {
@@ -1493,7 +1530,7 @@ fn main() {
     let domain = String::from("www.runoob.com");
     let name = String::from("RUNOOB");
     let runoob = Site {
-        domain, // 等同于 domain : domain,
+        domain, // 等同于 domain : domain, 但名字只能是domain，不可换成别的
         name,   // 等同于 name : name,
         nation: String::from("China"),
         found: 2013,
@@ -1514,6 +1551,8 @@ fn main() {
 }
 
 ```
+
+重新对成员赋值与获取成员值
 
 ``` rust
 struct Student {
@@ -1548,9 +1587,11 @@ name: zhangsan, score: 60
 name: lisi, score: 60
 ```
 
-### 元组结构体
+## 元组结构体
 
-元组结构体是一种形式是元组的结构体。与元组的区别是它有名字和固定的类型格式。它存在的意义是为了处理那些需要定义类型（经常使用）又不想太复杂的简单数据
+- 有struct的名称，但struct的内部成员没有名称
+- 用于处理那些需要定义类型（经常使用）又不想太复杂的简单数据
+- 可以对其进行模式匹配与解构（即tuple的使用方式）
 
 ``` rust
 fn main() {
@@ -1568,7 +1609,11 @@ black = (0, 0, 0)
 origin = (0, 0)
 ```
 
-### 打印结构体
+## unit like struct
+
+无任何字段的结构，待完善
+
+## 打印结构体
 
 要导入调试库 #[derive(Debug)] ，之后在 println 和 print 宏中就可以用 {:?}或{:#?}输出整个结构体
 
@@ -1616,77 +1661,223 @@ rect1 is Site {
 
 ```
 
-### 结构体方法
+## 结构体方法
 
-- 结构体方法的第一个参数必须是 &self，不需声明类型，因为 self 不是一种风格而是关键字。
-- 在调用结构体方法的时候不需要填写 self ，这是出于对使用方便性的考虑。
-
+这是一个结构与一个函数的演示，但两部分是分开的
 
 ``` rust
-struct Rectangle {
-    width: u32,
-    height: u32,
+#[derive(Debug)]
+
+struct Rect{
+    w: u32,
+    h: u32,
 }
 
-impl Rectangle {
-    fn area(&self) -> u32 {
-        self.width * self.height
-    }
-
-    fn wider(&self, rect: &Rectangle) -> bool {
-        self.width > rect.width
-    }
+fn getarea(rc: &Rect) -> u32{
+    rc.w * rc.h
 }
 
 fn main() {
-    let rect1 = Rectangle {
-        width: 30,
-        height: 50,
+    let rc = Rect{
+        w: 10,
+        h: 20,
     };
-    let rect2 = Rectangle {
-        width: 40,
-        height: 20,
-    };
+    println!("{}", getarea(&rc));
+    println!("{:?}", rc);
+    println!("{:#?}", rc);
+}
+```
 
-    println!("{}", rect1.wider(&rect2));
+- 结构体方法的第一个参数必须是self、&self或是&mut self，如果是self则相当于所有权进行了转移，所以通常使用引用进行定义
+
+``` rust
+#[derive(Debug)]
+
+struct Rect{
+    w: u32,
+    h: u32,
+}
+
+impl Rect{
+    fn canhole(&self, other: &Rect) -> bool{
+        self.w > other.w && self.h > other.h
+    }
 }
 
 
+fn main() {
+    let rc1 = Rect{
+        w: 10,
+        h: 20,
+    };
+    let rc2 = Rect{
+        w: 30,
+        h: 40,
+    };
+    let rc3 = Rect{
+        w: 5,
+        h: 6,
+    };
+    println!("{}", rc1.canhole(&rc2));
+    println!("{}", rc1.canhole(&rc3));
+}
+
 false
+true
 ```
 
-### 结构体关联函数
+## 结构体关联函数
 
-- 之所以"结构体方法"不叫"结构体函数"是因为"函数"这个名字留给了这种函数：它在 impl 块中却没有 &self 参数。
+- 第一个参数是非self的函数叫关联函数。
 - 这种函数不依赖实例，但是使用它需要声明是在哪个 impl 块中的。
 - 结构体 impl 块可以写几次，效果相当于它们内容的拼接！
 
 ``` rust
 #[derive(Debug)]
-struct Rectangle {
-    width: u32,
-    height: u32,
+
+struct Rect{
+    w: u32,
+    h: u32,
 }
 
-impl Rectangle {
-    fn create(width: u32, height: u32) -> Rectangle {
-        Rectangle { width, height }
+impl Rect{
+    fn canhole(&self, other: &Rect) -> bool{
+        self.w > other.w && self.h > other.h
+    }
+    fn square(w: u32)-> Rect{
+        Rect { w, h:w }
     }
 }
 
+
 fn main() {
-    let rect = Rectangle::create(30, 50);
-    println!("{:?}", rect);
+    let rc1 = Rect{
+        w: 10,
+        h: 20,
+    };
+    let rc2 = Rect{
+        w: 30,
+        h: 40,
+    };
+    let rc3 = Rect{
+        w: 5,
+        h: 6,
+    };
+    println!("{}", rc1.canhole(&rc2));
+    println!("{}", rc1.canhole(&rc3));
+    let s = Rect::square(10);
+    println!("{}", rc1.canhole(&s));
 }
 
-
-Rectangle { width: 30, height: 50 }
+false
+true
+false
 ```
 
+# 枚举
 
-## 枚举
+## 传统的使用样式
 
-枚举类型是一个自定义数据类型，通过enum关键字加自定义命名来定义。其包含若干枚举值，可以使用“枚举名::枚举值”访问枚举值。当一个变量有几种可能的取值时，我们就可以将它定义为枚举类型。变量的值限于枚举值范围内，这样能有效防止用户提供无效值。根据枚举值是否带有类型参数，枚举类型还可以分成无参数枚举类型和带参数枚举类型。
+``` rust
+#[derive(Debug)]
+enum Week {
+    Monday,
+    Tuesday,
+    Wednesday,
+    Thursday,
+    Friday,
+    Saturday,
+    Sunday,
+}
+
+fn main() {
+    let today = Week::Saturday;  // 使用枚举
+    let tomorrow = Week::Sunday;
+
+    println!("{:?}", today);
+}
+```
+
+## 将数据附加到枚举
+
+- 省去了额外还需要创建struct对此枚举进行再次封装
+- 每个枚举值都可以拥有不同的类型以及与其相关联的数据
+
+下例中的枚举值有两种，且每种对应不同的数据结构，但其都属于addr这个枚举
+
+``` rust
+fn main() {
+    enum IpAddr {
+        V4(u8, u8, u8, u8),
+        V6(String),
+    }
+
+    let home = IpAddr::V4(127, 0, 0, 1);
+    let loopback = IpAddr::V6(String::from("::1"));
+}
+
+--------------------------
+另一个案例，每种枚举值都不同类型
+
+fn main() {
+    enum Message {
+        Quit,
+        Move {x:i32, y: i32},   // 匿名struct
+        Write(String),  // 字符串
+        ChangeColor(i32, i32, i32),  // 3个整数
+    }
+
+    let q = Message::Quit;
+    let m = Message::Move { x: 12, y: 12 };
+    let w = Message::Write(String::from("hello"));
+    let c = Message::ChangeColor(0, 255, 255);
+}
+```
+
+## 枚举也能有方法
+
+类似struct方法的实现方式
+
+``` rust
+fn main() {
+    enum Message {
+        Quit,
+        Move {x:i32, y: i32},   // 匿名struct
+        Write(String),  // 字符串
+        ChangeColor(i32, i32, i32),  // 3个整数
+    }
+
+    impl Message{
+        fn call(&self) {
+
+        }
+    }
+
+    let q = Message::Quit;
+    let m = Message::Move { x: 12, y: 12 };
+    let w = Message::Write(String::from("hello"));
+    let c = Message::ChangeColor(0, 255, 255);
+
+    m.call();
+}
+```
+
+## Option枚举
+
+- 定义于标准库里
+- 在Prelude（预导入模块）中
+- Option（是个枚举）用于某个值可能存在或不存在，即类似Null的作用，可选的枚举值是Some(T)与None
+- Option\<T>与T不是同一种类型，需要将Option\<T>转为T才行
+
+``` rust
+fn main() {
+    let s :Option<i8> = Some(42);
+    let s2 = Some("str");
+    let n: Option<i32> = None;  // 此处n为空
+    let s3:i8 = 10;
+    let sum = s + s3;   // 此句错误，两种类型不一致
+}
+```
 
 # 容器
 
@@ -1698,7 +1889,9 @@ Rectangle { width: 30, height: 50 }
 
 # 字符串
 
+## String
 
+## &Str
 
 # 函数
 
@@ -1950,10 +2143,13 @@ mango apple banana litchi watermelon
 
 ## match匹配
 
-- match模式匹配可用于流程控制，检查当前值是否匹配一系列模式中的某一个。
+### 简单匹配
+
+- match是运算符，用于流程控制的模式匹配，检查当前值是否匹配一系列模式中的某一个。
 - 模式可由字面值、变量、通配符和其他内容构成。
 - 每一个模式都是一个分支，程序根据匹配的模式执行相应的代码。
-- Rust要求match模式匹配是穷尽式的，即必须穷举所有的可能性，否则会导致程序错误。有一个处理方法是将通配符“\_”放置在其他分支之后，通配符“\_”会匹配上面没有指定的所有可能的模式。
+- Rust要求match模式匹配是穷尽式的，即必须穷举所有的可能性，否则会导致程序错误。
+- 可以使用通配符“\_”放置在其他分支之后，作用类似default
 
 ``` rust
 fn main() {
@@ -1970,14 +2166,200 @@ fn main() {
     }
 }
 
-huaw@test:~/playground/rust/hellocargo$ cargo run
-   Compiling hellocargo v0.1.0 (/home/huaw/playground/rust/hellocargo)
-    Finished dev [unoptimized + debuginfo] target(s) in 0.20s
-     Running `target/debug/hellocargo`
 You are a teenager.
+
+
+
+---------------------
+这里演示了匹配后执行多行代码的写法
+
+fn main() {
+    enum Number {
+        Zero,
+        One,
+        Two,
+    }
+
+    fn tostr(a: Number)-> String{
+        match a {
+            Number::Zero => String::from("this is 0"),
+            Number::One => {
+                println!("~~~");
+                String::from("this is 1")
+            }
+            Number::Two => String::from("this is 2"),
+            _=> String::from("..."),
+        }
+    }
+    let a = Number::One;
+    println!("{}", tostr(a))
+}
+
+~~~
+this is 1
+```
+
+### 绑定值的模式
+
+其实就是使用match取枚举中的成员值
+
+``` rust
+#[derive(Debug)] // 这样可以立刻看到州的名称
+enum UsState {
+    Alabama,
+    Alaska,
+    // --snip--
+}
+
+enum Coin {
+    Penny,
+    Nickel,
+    Dime,
+    Quarter(UsState),
+}
+
+fn value_in_cents(coin: Coin) -> u8 {
+    match coin {
+        Coin::Penny => 1,
+        Coin::Nickel => 5,
+        Coin::Dime => 10,
+        Coin::Quarter(state) => {
+            println!("State quarter from {:?}!", state);
+            25
+        }
+    }
+}
+fn main() {
+    let c = Coin::Quarter(UsState::Alaska);
+    println!("{}", value_in_cents(c));
+}
+
+State quarter from Alaska!
+25
+----------------------
+另一个简单的案例
+
+fn main() {
+    enum Book {
+        Papery {index: u32},
+        Electronic {url: String},
+    }
+   
+    let book = Book::Papery{index: 1001};
+    let ebook = Book::Electronic{url: String::from("url...")};
+   
+    match book {
+        Book::Papery { index } => {
+            println!("Papery book {}", index);
+        },
+        Book::Electronic { url } => {
+            println!("E-book {}", url);
+        }
+    }
+}
+
+Papery book 1001
+```
+
+### 匹配Option
+
+``` rust
+匹配准确的数字
+fn main() {
+    let t = Some(64);
+    match t {
+            Some(64) => println!("Yes"),
+            _ => println!("No"),
+    }
+}
+
+Yes
+---------------------
+匹配有值
+fn main() {
+    let opt = Option::Some("Hello");
+    match opt {
+        Option::Some(something) => {
+            println!("{}", something);
+        },
+        Option::None => {
+            println!("opt is nothing");
+        }
+    }
+    let opt: Option<&str> = Option::None;
+    match opt {
+        Option::Some(something) => {
+            println!("{}", something);
+        },
+        Option::None => {
+            println!("opt is nothing");
+        }
+    }
+}
+
+Hello
+opt is nothing
+---------------------
+匹配有值并逻辑计算
+
+fn main() {
+    fn plus_one(x: Option<i32>) -> Option<i32> {
+        match x {
+            None => None,
+            Some(i) => Some(i + 1),
+        }
+    }
+
+    let five = Some(5);
+    let six = plus_one(five);
+    let none = plus_one(None);
+}
 ```
 
 ## if let
+
+- 适用于只针对一种匹配进行处理，忽略其它匹配
+- 可以有else
+
+``` rust
+语法格式：
+if let 匹配值 = 源变量 {
+    语句块
+}
+
+---------------------------
+下面两种效果相同
+
+fn main() {
+    let i = 0;
+    match i {
+        0 => println!("zero"),
+        _ => {},
+    }
+}
+zero
+
+let i = 0;
+if let 0 = i {
+    println!("zero");
+}
+zero
+---------------------------
+也适用于枚举
+
+fn main() {
+    enum Book {
+        Papery(u32),
+        Electronic(String)
+    }
+    let book = Book::Electronic(String::from("url"));
+    if let Book::Papery(index) = book {
+        println!("Papery {}", index);
+    } else {
+        println!("Not papery book");
+    }
+}
+```
 
 ## while let
 
@@ -2169,6 +2551,395 @@ fn dangle() -> &String {
     let s = String::from("hello");
 
     &s
+}
+```
+
+# 组织管理
+
+Rust 提供了将包分成多个 crate，将 crate 分成模块，以及通过指定绝对或相对路径从一个模块引用另一个模块中定义的项的方式。可以通过使用 use 语句将路径引入作用域，这样在多次使用时可以使用更短的路径。模块定义的代码默认是私有的，不过可以选择增加 pub 关键字使其定义变为公有。
+
+## Package
+
+- 可以理解为是一个工程，包含1个 Cargo.toml，它描述了如何构建这些 Crates（项目）
+- 包中可以包含至多一个库 crate(library crate，即库项目)。包中可以包含任意多个二进制 crate(binary crate，即可执行项目)，但是必须至少包含一个 crate（无论是库的还是二进制的）。
+
+## Crate
+
+- cargo new my-project，创建可执行程序，在src内有main.rs
+- cargo new --lib my-lib，创建库，在src内有lib.rs
+- src内可以同时有main.rs与lib.rs，build时则可以同时编译出库与可执行程序，名称与new创建项目时候使用的一致
+- 可将main.rs挪到src/bin下，在此文件夹内的每个rs都会被编译为一个可执行程序，但别忘了每个rs里都要有main函数才可
+
+## Module
+
+module用于控制作用域和私有性
+
+作用
+
+- 在一个 crate 内，将代码进行分组
+- 增加可读性，易于复用
+- 控制项目 (item)的私有性。public、private
+
+建立module:
+
+- mod 关键字
+- 可嵌套
+- 可包含其它项 (struct、enum、常量、trait、函数等) 的定义
+
+案例，一个mod里有3个mod，每个mod里还有一个func
+
+``` rust
+mod nation {
+    mod government {
+        fn govern() {}
+    }
+    mod congress {
+        fn legislate() {}
+    }
+    mod court {
+        fn judicial() {}
+    }
+}
+
+```
+
+## Module的访问路径
+
+为了在Rust 的模块中找到某个条目，需要使用路径：
+
+- 绝对路径:从 crate 根开始，以 crate 名或者字面值 crate 开头。
+- 相对路径:从当前模块开始，以 self、super 或当前模块的标识符开头。
+- 绝对路径和相对路径都后跟一个或多个由双冒号（::）分割的标识符。
+
+
+
+注意下例里使用了pub才可顺利的调用
+
+``` rust
+mod front_of_house {
+    pub mod hosting {
+        pub fn add_to_waitlist() {}
+    }
+}
+
+pub fn eat_at_restaurant() {
+    // 绝对路径
+    crate::front_of_house::hosting::add_to_waitlist();
+
+    // 相对路径
+    front_of_house::hosting::add_to_waitlist();
+}
+```
+
+- 可以使用 super 开头来构建从父模块开始的相对路径。这么做类似于文件系统中以 .. 开头的语法。
+
+``` rust
+fn serve_order() {}
+
+mod back_of_house {
+    fn fix_incorrect_order() {
+        cook_order();
+        super::serve_order();
+    }
+
+    fn cook_order() {}
+}
+```
+
+## 私有与共有
+
+- Rust 中有两种简单的访问权：公共（public）和私有（private）。
+- 默认情况下，如果不加修饰符，模块中的成员访问权将是私有的。
+- 如果想使用公共权限，需要使用 pub 关键字。
+- 对于私有的模块，只有在与其平级的位置或下级的位置才能访问，不能从其外部访问。
+
+### 公有的函数
+
+``` rust
+mod nation {
+    pub mod government {
+        pub fn govern() {
+            println!("!");
+        }
+    }
+
+    mod congress {
+        pub fn legislate() {}
+    }
+   
+    mod court {
+        fn judicial() {
+            super::congress::legislate();
+        }
+    }
+}
+
+fn main() {
+    // 可访问，nation与main是同级的，
+    // 且government与govern皆公有
+    nation::government::govern();
+
+    // 不能访问，nation是公有但court是私有
+    nation::court::judicial();
+}
+
+```
+
+### 公有的结构
+
+如果模块中定义了结构体，结构体除了其本身是私有的以外，其字段也默认是私有的。所以如果想使用模块中的结构体以及其字段，需要 pub 声明。
+
+注意下例中summer里可以访问Breakfast.seasonal_fruit是因为都在同一层级，即summer是Breakfast的成员函数。但eat_at_restaurant却不可以
+
+``` rust
+mod back_of_house {
+    pub struct Breakfast {
+        pub toast: String,
+        seasonal_fruit: String,
+    }
+
+    impl Breakfast {
+        pub fn summer(toast: &str) -> Breakfast {
+            Breakfast {
+                toast: String::from(toast),
+                seasonal_fruit: String::from("peaches"),
+            }
+        }
+    }
+}
+pub fn eat_at_restaurant() {
+    let mut meal = back_of_house::Breakfast::summer("Rye");
+    meal.toast = String::from("Wheat");
+    println!("I'd like {} toast please", meal.toast);
+}
+fn main() {
+    eat_at_restaurant()
+}
+```
+
+### 公有的枚举
+
+将枚举设为公有，则它的所有成员都将变为公有
+
+``` rust
+mod SomeModule {
+    pub enum Person {
+        King {
+            name: String
+        },
+        Quene
+    }
+}
+
+fn main() {
+    let person = SomeModule::Person::King{
+        name: String::from("Blue")
+    };
+    match person {
+        SomeModule::Person::King {name} => {
+            println!("{}", name);
+        }
+        _ => {}
+    }
+}
+```
+
+## use
+
+- use 关键字能够将模块标识符引入当前作用域
+
+下例use 关键字把 govern 标识符导入到了当前的模块下，可以直接使用，这样就解决了局部模块路径过长的问题
+
+``` rust
+
+mod nation {
+    pub mod government {
+        pub fn govern() {println!("!")}
+    }
+}
+
+use crate::nation::government::govern;
+
+fn main() {
+    govern();
+}
+```
+
+- 省略相同部分的语法糖
+
+``` rust
+use std::cmp::Ordering;
+use std::io;
+
+
+use std::{cmp::Ordering, io};
+```
+
+- 如write在io下，且同时都导入的语法糖
+
+``` rust
+use std::io;
+use std::io::Write;
+
+
+use std::io::{self, Write};
+```
+
+- 通配符*可以导入所有
+
+``` rust
+use std::collections::*;
+```
+
+## as
+
+- 有些情况下存在两个相同的名称，且同样需要导入，可以使用 as 关键字为标识符添加别名
+
+这里有两个 govern 函数，一个是 nation 下的，一个是 government 下的，用 as 将 nation 下的取别名 nation_govern。两个名称可以同时使用。
+
+``` rust
+mod nation {
+    pub mod government {
+        pub fn govern() {}
+    }
+    pub fn govern() {}
+}
+   
+use crate::nation::government::govern;
+use crate::nation::govern as nation_govern;
+
+fn main() {
+    nation_govern();
+    govern();
+}
+```
+
+## pub use 重导出
+
+使用 use 关键字，将某个名称导入当前作用域后，这个名称在此作用域中就可以使用了，但它对此作用域之外还是私有的。如果想让其他人调用我们的代码时，也能够正常使用这个名称，就好像它本来就在当前作用域一样，那我们可以将 pub 和 use 合起来使用。这种技术被称为 “重导出（re-exporting）”：我们不仅将一个名称导入了当前作用域，还允许别人把它导入他们自己的作用域。
+
+use 关键字可以与 pub 关键字配合使用
+
+``` rust
+mod nation {
+    pub mod government {
+        pub fn govern() {}
+    }
+    pub use government::govern;
+}
+
+fn main() {
+    nation::govern();
+}
+
+
+--------------
+mod front_of_house {
+    pub mod hosting {
+        pub fn add_to_waitlist() {}
+    }
+}
+
+pub use crate::front_of_house::hosting;
+
+pub fn eat_at_restaurant() {
+    hosting::add_to_waitlist();
+    hosting::add_to_waitlist();
+    hosting::add_to_waitlist();
+}
+```
+
+## 引用标准库
+
+- 标准库（std）其实也是外部 crate，只不过随 Rust 语言一同分发，所有的系统库模块都是被默认导入的，所以在使用的时候只需要使用 use 关键字简化路径就可以方便的使用了，无需修改 Cargo.toml 来引入 std
+- Rust 官方标准库字典：https://doc.rust-lang.org/stable/std/all.html
+
+``` rust
+use std::f64::consts::PI;
+
+fn main() {
+    println!("{}", (PI / 2.0).sin());
+}
+```
+
+## 使用外部包
+
+- 在 Cargo.toml的dependencies中加入rand = "0.8.3"，即导入rand的0.8.3版本，写完此句后语言服务后台就会自动下载编译，如果长时间未停止则需要手动操作：
+  - 先关闭语言服务
+
+    操作见[rust语言服务](#rust语言服务)
+
+  - 尝试手动构建
+
+    进入项目目录后 cargo build，如果出现“Blocking waiting for file lock on package cache”则可以ctrl+c先关闭之，然后 whereis cargo 找到并进入可执行文件的路径。ls -al 查看是否有.package-cache文件，如有则删除之。回到原位重新 cargo build 即可。构建时如从creats.io下载库很慢，则需[换源](#换源)
+
+- 在需要使用此包的rs头部加入一行 use rand::Rng;即为导入此包
+
+## 多文件
+
+- 单文件形式
+
+``` rust
+mod front_of_house {
+    pub mod hosting {
+        pub fn add_to_waitlist() {println!("!");}
+    }
+}
+
+pub use crate ::front_of_house :: hosting;
+
+fn main() {
+    hosting ::add_to_waitlist();
+    hosting ::add_to_waitlist();
+    hosting ::add_to_waitlist();
+}
+```
+
+- 将模块front_of_house挪到front_of_house.rs中，注意文件名与模块名得一样
+
+``` rust
+huaw@test:~/playground/rust/my-project$ cat src/front_of_house.rs 
+pub mod hosting {
+    pub fn add_to_waitlist() {println!("!");}
+}
+
+huaw@test:~/playground/rust/my-project$ cat src/main.rs 
+mod front_of_house;
+pub use crate ::front_of_house :: hosting;
+fn main() {
+    hosting ::add_to_waitlist();
+    hosting ::add_to_waitlist();
+    hosting ::add_to_waitlist();
+}
+
+```
+
+- 将模块hosting挪出去，注意这里需要建立文件夹了
+
+``` rust
+huaw@test:~/playground/rust/my-project/src$ tree
+.
+├── front_of_house
+│   └── hosting.rs
+├── front_of_house.rs
+└── main.rs
+
+
+huaw@test:~/playground/rust/my-project/src$ cat front_of_house/hosting.rs
+pub fn add_to_waitlist() {
+    println!("!");
+}
+
+huaw@test:~/playground/rust/my-project/src$ cat front_of_house.rs 
+pub mod hosting;
+
+huaw@test:~/playground/rust/my-project/src$ cat main.rs 
+mod front_of_house;
+pub use crate ::front_of_house :: hosting;
+fn main() {
+    hosting ::add_to_waitlist();
+    hosting ::add_to_waitlist();
+    hosting ::add_to_waitlist();
 }
 ```
 
