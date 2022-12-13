@@ -6,11 +6,11 @@ Rust编程：入门、实战与进阶          第四章，差2.4，2.5，枚举
 通过例子学Rust
 深入浅出Rust                        2.3.1
 
-Rust编程语言入门教程视频            错误处理
+Rust编程语言入门教程视频            43
 Rust程序设计                        3.3
 Rust 程序设计语言 简体中文版 
-https://kaisery.github.io/trpl-zh-cn/title-page.html        错误处理
-www.runoob.com/rust                 rust-error-handle.html
+https://kaisery.github.io/trpl-zh-cn/title-page.html        泛型、Trait 和生命周期
+www.runoob.com/rust                 rust-generics.html
 
 
 Rust编程之道
@@ -3269,6 +3269,219 @@ fn main() {
     hosting ::add_to_waitlist();
     hosting ::add_to_waitlist();
     hosting ::add_to_waitlist();
+}
+```
+
+# 错误处理
+
+## panic
+
+是不可恢复的错误
+
+- 可以手动触发，如 panic!("crash and burn");
+- 也可逻辑触发，如数组越界
+
+默认非release时运行可以通过设置参数当出现panic时可以自动打印堆栈回溯，命令如下：
+
+- RUST_BACKTRACE=1 cargo run
+- RUST_BACKTRACE=full cargo run
+
+另外可以在Cargo.toml里添加如下用于设置当panic时候由rust还是os负责清理内存（abort即退出，由os清理）
+
+``` toml
+[profile.release]
+panic = 'abort'
+```
+
+## Result
+
+- 是可恢复的错误
+- 在 Rust 中通过 Result<T, E> 枚举类作返回值来进行异常表达。T 代表成功时返回的 Ok 成员中的数据的类型，而 E 代表失败时返回的 Err 成员中的错误的类型
+
+``` rust
+enum Result<T, E> {
+    Ok(T),
+    Err(E),
+}
+```
+
+- 在 Rust 标准库中可能产生异常的函数的返回值都是 Result 类型的，简单演示如下：
+
+``` rust
+use std::fs::File;
+
+fn main() {
+    let f = File::open("hello.txt");
+    let f = match f {
+        Ok(file) => file,
+        Err(error) => panic!("Problem opening the file: {:?}", error),
+    };
+
+    /* 上面的match可以替换if let
+    if let Ok(file) = f {
+        println!("File opened successfully.");
+    } else {
+        println!("Failed to open the file.");
+    }
+    */
+}
+```
+
+- 匹配不同的错误，此案例比较繁琐，使用闭包可以化繁为简
+
+``` rust
+use std::fs::File;
+use std::io::ErrorKind;
+
+fn main() {
+    let f = File::open("hello.txt");
+
+    let f = match f {
+        Ok(file) => file,
+        Err(error) => match error.kind() {
+            ErrorKind::NotFound => match File::create("hello.txt") {
+                Ok(fc) => fc,
+                Err(e) => panic!("Problem creating the file: {:?}", e),
+            },
+            other_error => {
+                panic!("Problem opening the file: {:?}", other_error)
+            }
+        },
+    };
+}
+
+-------------------------------- 闭包的方案
+use std::fs::File;
+use std::io::ErrorKind;
+
+fn main() {
+    let f = File::open("hello.txt").unwrap_or_else(|error| {
+        if error.kind() == ErrorKind::NotFound {
+            File::create("hello.txt").unwrap_or_else(|error| {
+                panic!("Problem creating the file: {:?}", error);
+            })
+        } else {
+            panic!("Problem opening the file: {:?}", error);
+        }
+    });
+}
+```
+
+- unwrap
+
+    如果 Result 值是成员 Ok，unwrap 会返回 Ok 中的值。如果 Result 是成员 Err，unwrap 会调用 panic!
+
+``` rust
+use std::fs::File;
+
+fn main() {
+    let f1 = File::open("hello.txt").unwrap();
+    // let f2 = File::open("hello.txt").expect("Failed to open.");
+}
+```
+
+- expect
+
+    expect比unwrap多一个功能，就是可以自定义panic的错误信息
+
+``` rust
+use std::fs::File;
+
+fn main() {
+    let f = File::open("hello.txt").expect("Failed to open hello.txt");
+}
+```
+
+## 可恢复的错误的传递
+
+目标是选择在哪一层进行错误的处理
+
+这是一个简单的案例
+
+``` rust
+fn f(i: i32) -> Result<i32, bool> {
+    if i >= 0 { Ok(i) }
+    else { Err(false) }
+}
+
+fn g(i: i32) -> Result<i32, bool> {
+    let t = f(i)?;
+    Ok(t) // 因为确定 t 不是 Err, t 在这里已经是 i32 类型
+}
+
+fn main() {
+    let r = g(10000);
+    if let Ok(v) = r {
+        println!("Ok: g(10000) = {}", v);
+    } else {
+        println!("Err");
+    }
+}
+```
+
+另一个复杂的案例：读取文件内容。如果文件不存在或不能读取，这个函数会将这些错误返回给调用它的代码
+
+- 版本1
+
+    如果这个函数没有出任何错误成功返回，函数的调用者会收到一个包含 String 的 Ok 值，需要在每一步都进行结果判断，逻辑较繁琐
+
+``` rust
+use std::fs::File;
+use std::io::{self, Read};
+
+fn read_username_from_file() -> Result<String, io::Error> {
+    let f = File::open("hello.txt");
+
+    let mut f = match f {
+        Ok(file) => file,
+        Err(e) => return Err(e),
+    };
+
+    let mut s = String::new();
+
+    match f.read_to_string(&mut s) {
+        Ok(_) => Ok(s),
+        Err(e) => Err(e),
+    }
+}
+```
+
+- 版本2
+
+    使用了 ? 运算符代替match（效果类似，内部实现不同）。如果 Result 的值是 Ok，这个表达式将会返回 Ok 中的值而程序将继续执行。如果值是 Err，Err 中的值将作为整个函数的返回值，就好像使用了 return 关键字一样，这样错误值就被传播给了调用者。
+
+``` rust
+use std::fs::File;
+use std::io;
+use std::io::Read;
+
+fn read_username_from_file() -> Result<String, io::Error> {
+    let mut f = File::open("hello.txt")?;
+    let mut s = String::new();
+    f.read_to_string(&mut s)?;
+    Ok(s)
+}
+```
+
+- 版本3
+
+    ？后面可以链式调用，只不过太精简会导致debug时候比较麻烦。另外此功能其实在标准库里已经提供了...
+
+``` rust
+use std::fs::File;
+use std::io;
+use std::io::Read;
+
+fn read_username_from_file() -> Result<String, io::Error> {
+    let mut s = String::new();
+    File::open("hello.txt")?.read_to_string(&mut s)?;
+    Ok(s)
+}
+
+
+-------------------
+fn read_username_from_file() -> Result<String, io::Error> {
+    fs::read_to_string("hello.txt")
 }
 ```
 
