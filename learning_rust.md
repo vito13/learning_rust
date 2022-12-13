@@ -6,11 +6,11 @@ Rust编程：入门、实战与进阶          第四章，差2.4，2.5，枚举
 通过例子学Rust
 深入浅出Rust                        2.3.1
 
-Rust编程语言入门教程视频            p20
+Rust编程语言入门教程视频            错误处理
 Rust程序设计                        3.3
 Rust 程序设计语言 简体中文版 
-https://kaisery.github.io/trpl-zh-cn/title-page.html
-www.runoob.com/rust                 rust-enum.html
+https://kaisery.github.io/trpl-zh-cn/title-page.html        错误处理
+www.runoob.com/rust                 rust-error-handle.html
 
 
 Rust编程之道
@@ -580,10 +580,12 @@ cargo clean会清理target
 
 ## 换源
 
-在cargo所在目录中执行 touch config 创建配置文件，写如下后保存，按需再重新 cargo build 即可
+*** 实测（挂梯子中）没有效果，且导致build时刻长时间无反应***
+
+在cargo所在目录中（默认是$HOME/.cargo）执行 touch config 创建配置文件，写如下后保存，按需再重新 cargo build 即可
 
 ``` shell
-huaw@test:~/.cargo/bin$ cat config 
+huaw@test:~/.cargo$ cat config 
 [source.crates-io]
 registry ="https://github.com/rust-lang/crates.io-index"
 replace-with = 'tuna'
@@ -595,9 +597,7 @@ git-fetch-with-cli = true
 
 # cargo-pgx
 
-## 下载、编译、运行、测试、打包
-
-- 安装
+## 安装
 
 install进行安装，init命令会下载版本几个的postgres然后编译到目录~/.pgx/中（此目录里含有对应的pg代码目录与initdb后对应的数据目录）。这个下载步骤是必须的，因为后续pgx会为每中版本的postgres的header文件生成对应的Rust bindings，以及后续pgx 的测试框架中也会用到。​
 
@@ -606,10 +606,13 @@ cargo install cargo-pgx
 cargo pgx init  // 此步会下载n个pg源码进行编译，时间会稍长
 ```
 
+## 创建项目
+
 - 创建一个extension项目
 
 ``` shell
 huaw@test:~/playground/rust$ cargo pgx new my_extension
+
 
 huaw@test:~/playground/rust/my_extension$ tree
 .
@@ -622,7 +625,7 @@ huaw@test:~/playground/rust/my_extension$ tree
 2 directories, 3 files
 ```
 
-- 文件说明
+## 文件说明
 
 lib.rs里的#[pg_extern] 宏所修饰的函数就是我们要实现的extension函数，mod tests , pub mod pg_test 是pgx已经为我们写好了的测试模块，用于编写相关测试代码。pgx默认已经给我们写好了名为 hello_my_extension 的extension，功能很简单，就是返回 “Hello, my_extension” 字符串
 ​
@@ -675,6 +678,8 @@ relocatable = false
 superuser = false
 
 ```
+
+## 编译运行
 
 - 运行extension
 
@@ -730,6 +735,8 @@ my_extension=# SELECT hello_my_extension();
 
 my_extension=# \q
 ```
+
+## 运行test
 
 还可以进行测试，其实就是跑make test，但会测试所有回归，时间稍长
 
@@ -790,6 +797,8 @@ stopping postgres (pid=103537)
 huaw@test:~/playground/rust/my_extension$ 
 ```
 
+## 查看与导出sql
+
 可以使用cargo pgx schema查看pgx生成的sql语句内容，可以看到末尾打印出编译成了"LANGUAGE c"。保存为sql文件则“cargo pgx schema -o a.sql”即可
 
 ``` shell
@@ -814,28 +823,40 @@ AS 'MODULE_PATHNAME', 'hello_my_extension_wrapper';
 huaw@test:~/playground/rust/my_extension$ 
 ```
 
-- 添加一个新函数
+## 案例：添加一个新函数
 
-上面的代码已经编译过且在pg里安装过，如仅改函数逻辑，不改签名则可以每次run重新build库文件后自动更新为最新逻辑，否则就需要编译完手动在psql里重新安装插件才会更新逻辑，具体看如下
-
-- 在hello_my_extension函数下面添加一个新函数
+- 在hello_my_extension函数下面添加一个带有缺省值的新函数
 
 ``` rust
 #[pg_extern]
-fn hello_my_extension2() -> &'static str {
-    "Hello, my_extension2"
+fn myadd(a:i64, b:default!(i64, 100)) -> i64 {
+    a+b
 }
+
 ```
 
 - cargo pgx run pg14 编译运行，进入psql后：
-   drop extension my_extension;
-   CREATE EXTENSION my_extension; 
-   可以看到2个函数了
+   drop extension my_extension; CREATE EXTENSION my_extension;
+   可以看到2个函数了，编译后虽然so是最新的，但因为so里多了个函数，所以在pg里需要重新安装扩展才能使用（即需要重新运行对应的sql）。如果仅仅是函数实现发生了改变则无需上面的步骤，直接运行函数即可
+
+- 使用\df可以查看此函数转换后的函数与参数类型信息
+
+
+## 案例：使用Option类型入参与返回值
+
+``` rust
+#[pg_extern]
+fn to_lowercase(s: Option<String>) -> Option<String> {
+    info!("to lowercase called with {:?}", s);  // 在psql里输出
+    s.map(|v| v.to_lowercase())
+}
+```
+
+## 打包release
 
 - cargo pgx package 打包（编译为release），如果找不到pg_config，可以安装一下 “sudo apt-get install --reinstall libpq-dev”。
 
-
-## 其他命令
+## start、stop、status
 
 https://github.com/tcdi/pgx  
 
@@ -1333,9 +1354,7 @@ static FLAG: AtomicBool = AtomicBool::new(true);
 assert! 宏，用于验证参数的值都不等于0。! 符号表示这是一个宏调用，不是函数调用。与 C 和 C++ 中的assert 宏类似，Rust 中的 assert! 宏会检查自己的参数是不是true，如果不是，则终止程序并输出相关信息，包含检查失败的代码在源代码中的位置。这种突然的终止在 Rust 中叫panic。
 与 C 和 C++ 中的断言可以跳过不同，Rust 不管程序是如何编译的都会检查断言。不过也有一个 debug_assert! 宏，它会在程序为速度而编译时被跳过。
 
-# 复合类型
-
-复合类型（compound type）可以将多个不同类型的值组合为一个类型。Rust中提供了两种内置的复合数据类型：元组（tuple）和数组（array）。
+# 内建复合类型
 
 ## tuple
 
@@ -1879,17 +1898,327 @@ fn main() {
 }
 ```
 
-# 容器
+# 常用集合类型
 
-## Vec
+## vector
+
+Vec\<T>，也被称为 vector。vector在内存中是连续的，内存布局上真实数据在堆上，栈上只是个引用
+
+下面演示了vec的创建、增删改查、遍历、连接
+
+``` rust
+#[derive(Debug)]
+
+enum Data {
+    IData(i32),
+    FData(f32),
+    SData(String),
+}
+
+fn main() {
+
+// vector 的定义
+    // 这一个可以动态添加和删除元素
+    let mut vec1: Vec<u32> = Vec::new();
+    // 在定义的时候就填充好值，因为没有mut，所以无法动态添加和删除
+    // vec! 是rust提供的宏，可以动态地根据我们的数据，自动推断出这个 vector 变量的类型
+    let vec2 = vec![1, 2, 3, 4, 5];
+    let vec3 = vec!["str1", "str2", "str3"];
+
+
+// 添加和删除元素
+    let mut nums: Vec<u32> = Vec::new();
+    nums.push(10);
+    nums.push(11);
+    nums.push(12);
+    println!("{:?}", nums); // 打印出 [10, 11, 12]
+    let x = nums.pop(); // 返回的类型是 Option<T> 类型，如果vec已空则返回None
+    println!("{:?}", nums); // 这里打印出 [10, 11]
+    println!("x: {:?}", x);  // 这里将打印出 Some(12)
+
+
+// 访问元素，注意下面两种都是取引用，取值会导致所有权的移动
+    let mut nums: Vec<u32> = Vec::new();
+    nums.push(10);
+    nums.push(11);
+    nums.push(12);
+
+    // 这里获取的是第0个元素的引用
+    // 使用 [index] 这种形式，越界会 panic 然后退出进程
+    let first_num = &nums[0];
+    println!("first_num: {}", first_num);
+        
+    // get 方法在这里返回的 Option<&u32>
+    // 越界返回 Option<T> 中的 None
+    let second_num = nums.get(1);
+    println!("x:{:?}", second_num);
+
+    // 可以使用match匹配有值与null
+    match nums.get(2) {
+        Some(third) => println!("The third element is {}", third),
+        None => println!("There is no third element."),
+    }
+
+    // 也可以这样进行match
+    let mut v = vec![1, 2, 4, 8];
+    println!("{}", match v.get(0) {
+        Some(value) => value.to_string(),
+        None => "None".to_string()
+    });
+
+
+
+// 遍历，这里这里也是取引用，否则再次使用就会出错，因为元素已被move走了
+    let mut names: Vec<String> = Vec::new();
+    names.push("Jack".to_string());
+    names.push("Tony".to_string());
+    names.push("Tina".to_string());
+    // 遍历vector中每一个元素，然后打印出来
+    for name in &names {
+        println!("name: {}", name);
+    }
+        
+    // 打印出整个vector来
+    println!("names: {:?}", names);
+
+    // 在遍历中修改元素
+    let mut v = vec![100, 32, 57];
+    for i in &mut v {
+        *i += 50;
+    }
+    for i in &v {
+        println!("{}", i);
+    }
+
+
+    
+// 存储不同类型的值
+    let mut data_sets: Vec<Data> = Vec::new();
+    data_sets.push(Data::IData(10));
+    data_sets.push(Data::FData(3.14159));
+    data_sets.push(Data::SData(String::from("Hello Rust")));
+    println!("data_sets: {:?}", data_sets);
+
+// 连接2个vec
+    let mut v1: Vec<i32> = vec![1, 2, 4, 8];
+    let mut v2: Vec<i32> = vec![16, 32, 64];
+    v1.append(&mut v2);
+    println!("{:?}", v1);
+
+}
+  
+```
 
 ## VecDeque
 
 ## HashMap
 
+- HashMap的所有权规则与其它Rust类型没有区别:若类型实现Copy特征，该类型会被复制进HashMap, 因此无所谓所有权。若没实现Copy特征，所有权将被转移给HashMap中
+
+``` rust
+
+use std::collections::HashMap;
+
+fn main() {
+// 创建
+    // 创建一个HashMap
+    let mut my_gems = HashMap::new();
+    my_gems.insert("红宝石", 1);
+    my_gems.insert("蓝宝石", 2);
+    my_gems.insert("河边捡的误以为是宝石的破石头", 18);
+    let name = String::from("Sunface");
+    let age = 18;
+    my_gems.insert(&name, age); // 这里插入的是字符串引用，所以下面还能用
+    println!("{:?}",my_gems);
+    println!("{}",name);
+
+    let mut scores = HashMap::new();
+    scores.insert(String::from("Blue"), 10);
+    scores.insert(String::from("Yellow"), 50);
+    println!("{:?}",scores);
+
+    // collect方式创建
+    // 源自元组的vec
+    let teams_list = vec![
+        ("中国队".to_string(), 100),
+        ("美国队".to_string(),10),
+        ("日本队".to_string(),50),
+    ];
+    let teams_map: HashMap<_,_> = teams_list.into_iter().collect();
+    println!("{:?}",teams_map);
+
+    // 源自2个vec，使用zip合并
+    let teams = vec![String::from("Blue"), String::from("Yellow")];
+    let initial_scores = vec![10, 50];
+    let scores: HashMap<_, _> = teams.into_iter().zip(initial_scores.into_iter()).collect();
+    println!("{:?}",scores);
+
+    // 所有权被move了
+    let field_name = String::from("Favorite color");
+    let field_value = String::from("Blue");
+    let mut map = HashMap::new();
+    map.insert(field_name, field_value);
+    // 这里 field_name 和 field_value 不再有效，
+    // 尝试使用它们看看会出现什么编译错误！
+    // println!("{}",field_value);
+
+// 访问元素
+    // get方法返回一个Option<&T>类型：当查询不到时，会返回一个None，查询到时返回Some(&T)
+    // &T是对HashMap中值的借用，如果不使用借用，可能会发生所有权的转移
+    let mut scores = HashMap::new();
+    scores.insert(String::from("Blue"), 10);
+    scores.insert(String::from("Yellow"), 50);
+    let team_name = String::from("Blue");
+    let score = scores.get(&team_name);
+    println!("{}", scores.get("Yellow").unwrap());
+
+// 遍历
+    // 返回k与v
+    for (key, value) in &scores {
+        println!("{}: {}", key, value);
+    }
+
+    // iter方式返回元组
+    for p in scores.iter() {
+        println!("{:?}", p);
+    }
+
+
+// 插入与更新
+    // 存在则更新，不存在则插入
+    // Entry 的 or_insert 方法在键对应的值存在时就返回这个值的可变引用，
+    // 如果不存在则将参数作为新值插入并返回新值的可变引用
+    let mut scores = HashMap::new();
+    scores.insert("Blue", 10);
+    // 覆盖已有的值
+    let old = scores.insert("Blue", 20);
+    assert_eq!(old, Some(10));
+    // 查询新插入的值
+    let new = scores.get("Blue");
+    assert_eq!(new, Some(&20));
+    // 查询Yellow对应的值，若不存在则插入新值
+    let v = scores.entry("Yellow").or_insert(5);
+    assert_eq!(*v, 5); // 不存在，插入5
+    // 查询Yellow对应的值，若不存在则插入新值
+    let v = scores.entry("Yellow").or_insert(50);
+    assert_eq!(*v, 5); // 已经存在，因此50没有插入
+
+    // 查询某个key对应的值，若不存在则插入新值，若存在则对已有的值进行更新
+    // 统计词语出现的次数
+    // or_insert返回了&mut v引用，因此可以通过该可变引用直接修改map中对应的值
+    // 使用count引用时，需要先进行解引用*count，否则会出现类型不匹配
+    let text = "hello world wonderful world";
+    let mut map = HashMap::new();
+    // 根据空格来且分字符串(英文单词都是通过空格切分)
+    for word in text.split_whitespace() {
+        let count = map.entry(word).or_insert(0);
+        *count += 1;
+    }
+    println!("{:?}", map);
+
+
+    // 在已经确定有某个键的情况下如果想直接修改对应的值，有更快的办法
+    // 如果有k存在则更新v
+    let mut map = HashMap::new();
+    map.insert(100, "a");
+    if let Some(x) = map.get_mut(&100) {
+        *x = "bbb";
+    }
+    println!("{:?}", map);
+}
+
+```
+
+
 # 字符串
 
 ## String
+
+- String 是一个 Vec\<u8> 的封装。String是由标准库提供的，是可增长的、可变的、有所有权的、UTF-8 编码的字符串类型。
+- 操作字符串前要确定是要操作字符还是字节，因为一个Unicode字符不一定是一个字节。对于Unicode可以使用chars获取所有字符，使用bytes则能得到所有字节。
+
+``` rust
+fn main() {
+// 创建
+    let string = String::new();
+    let hello = String::from("你好");
+    let one = 1.to_string(); // 整数到字符串
+    let float = 1.3.to_string(); // 浮点数到字符串
+    let slice = "slice".to_string(); // 字符串切片到字符串
+    
+
+// 追加
+    let mut s = String::from("run");
+    s.push_str("oob"); // 追加字符串切片
+    s.push('!'); // 追加字符
+    let s2 = "bar";
+    s.push_str(s2);
+    println!("s is {}", s);
+    println!("s2 is {}", s2);
+
+// 连接
+    // 使用加号连接
+    let s1 = String::from("Hello, ");
+    let s2 = String::from("world!");
+    let s3 = s1 + &s2; // 注意 s1 被移动了，不能继续使用
+    // s1 在相加后不再有效的原因，和使用 s2 的引用的原因，与使用 + 运算符时调用的函数签名有关
+    // println!("s1 is {}", s1);  这里不能编译通过
+
+    let s1 = String::from("tic");
+    let s2 = String::from("tac");
+    let s3 = String::from("toe");
+    let s = s1 + "-" + &s2 + "-" + &s3;
+    // println!("s1 is {}", s1);  同上
+
+    // format!宏拼接能解决上面的问题
+    let s1 = String::from("tic");
+    let s2 = String::from("tac");
+    let s3 = String::from("toe");
+    let s = format!("{}-{}-{}", s1, s2, s3);
+    println!("s1 is {}", s1); 
+    println!("s2 is {}", s2); 
+    println!("s3 is {}", s3); 
+    println!("s is {}", s); 
+
+// 取所有字节
+    for b in "नमस्ते".bytes() {
+        println!("{}", b);
+    }
+// 取所有字符
+    for c in "नमस्ते".chars() {
+        println!("{}", c);
+    }
+
+
+// 字节数、字符数
+    let s = "hello";
+    println!("{}", s.len());    // 5字节
+    let s = "你好";
+    println!("{}", s.len());    // 6字节，中文是 UTF-8 编码的，每个字符长 3 字节
+    let s = "hello你好";
+    println!("{}", s.chars().count());      // 7，统计字符数量
+
+// 遍历字符串
+    let s = String::from("hello中文");
+    for c in s.chars() {
+        println!("{}", c);
+    }
+
+// 取单个字符
+    // nth 函数是从迭代器中取出某值的方法，请不要在遍历中这样使用！因为 UTF-8 每个字符的长度不一定相等！
+    let s = String::from("EN中文");
+    let a = s.chars().nth(2);
+    println!("{:?}", a);
+
+// 取子串，实际是个切片
+    // 可以使用 [] 和一个 range 来创建含特定字节的字符串 slice，返回一个&str
+    // 注意这里明显是ASCII一个字节，汉字3个字节，且必须取整个字符，切半个字符会出错
+    let s = String::from("EN中文");
+    let sub = &s[1..5]; // N中
+    println!("{}", sub);
+}
+
+```
 
 ## &Str
 
