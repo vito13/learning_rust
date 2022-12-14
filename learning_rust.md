@@ -1860,19 +1860,48 @@ fn main() {
 ```
 
 ``` rust
-    let arr: [i32; 5] = [1, 2, 3, 4, 5];
-    assert_eq!(&arr, &[1, 2,3,4,5]);
-    assert_eq!(&arr[1..], [2,3,4,5]);
-    assert_eq!(&arr.len(), &5);
-    assert_eq!(&arr.is_empty(), &false);
-    let arr = &mut [1, 2, 3];
-    arr[1] = 7;
-    assert_eq!(arr, &[1, 7, 3]);
-    let vec = vec![1, 2, 3];
-    assert_eq!(&vec[..], [1,2,3]);
-    let str_slice: &[&str] = &["one", "two", "three"];
-    assert_eq!(str_slice, ["one", "two", "three"]);
+let arr: [i32; 5] = [1, 2, 3, 4, 5];
+assert_eq!(&arr, &[1, 2,3,4,5]);
+assert_eq!(&arr[1..], [2,3,4,5]);
+assert_eq!(&arr.len(), &5);
+assert_eq!(&arr.is_empty(), &false);
+let arr = &mut [1, 2, 3];
+arr[1] = 7;
+assert_eq!(arr, &[1, 7, 3]);
+let vec = vec![1, 2, 3];
+assert_eq!(&vec[..], [1,2,3]);
+let str_slice: &[&str] = &["one", "two", "three"];
+assert_eq!(str_slice, ["one", "two", "three"]);
 ```
+
+函数的参数是切片
+
+``` rust
+fn largest(list: &[i32]) -> i32 {
+    let mut largest = list[0];
+
+    for &item in list {
+        if item > largest {
+            largest = item;
+        }
+    }
+
+    largest
+}
+
+fn main() {
+    let number_list = vec![34, 50, 25, 100, 65];
+
+    let result = largest(&number_list);
+    println!("The largest number is {}", result);
+
+    let number_list = vec![102, 34, 6000, 89, 54, 2, 43, 8];
+
+    let result = largest(&number_list);
+    println!("The largest number is {}", result);
+}
+```
+
 
 错误的演示，被切片引用的字符串禁止更改其值
 
@@ -3578,12 +3607,12 @@ mod front_of_house {
     }
 }
 
-pub use crate ::front_of_house :: hosting;
+pub use crate::front_of_house::hosting;
 
 fn main() {
-    hosting ::add_to_waitlist();
-    hosting ::add_to_waitlist();
-    hosting ::add_to_waitlist();
+    hosting::add_to_waitlist();
+    hosting::add_to_waitlist();
+    hosting::add_to_waitlist();
 }
 ```
 
@@ -3597,11 +3626,11 @@ pub mod hosting {
 
 huaw@test:~/playground/rust/my-project$ cat src/main.rs 
 mod front_of_house;
-pub use crate ::front_of_house :: hosting;
+pub use crate::front_of_house::hosting;
 fn main() {
-    hosting ::add_to_waitlist();
-    hosting ::add_to_waitlist();
-    hosting ::add_to_waitlist();
+    hosting::add_to_waitlist();
+    hosting::add_to_waitlist();
+    hosting::add_to_waitlist();
 }
 
 ```
@@ -3847,6 +3876,156 @@ fn read_username_from_file() -> Result<String, io::Error> {
     fs::read_to_string("hello.txt")
 }
 ```
+
+# 泛型
+
+
+# trait
+
+Rust语言里不同的type(比如 struct, enum等)可以调用的函数主要包括本身实现的方法。此外，Rust也提供了trait来定义不同type所需的“common behavior”，以此简化代码。
+
+## 简单使用
+
+- Behavior里的eat提供了默认实现，后面的具体类型可以选择保留或重载
+- 允许调用相同 trait 中的其他方法，如Cat的eat里有调用了make_sound
+- 可以用作函数参数，也可作为函数返回值类型
+
+``` rust
+
+pub trait Behavior {
+    fn eat(&self) {
+        println!("真香")
+    }
+    fn make_sound(&self)-> String;
+}
+struct Dog;
+impl Behavior for Dog {
+    fn make_sound(&self)-> String {
+        "汪！".to_string()
+    }
+}
+struct Cat;
+impl Behavior for Cat {
+    fn make_sound(&self)-> String {
+        "喵~".to_string()
+    }
+    fn eat(&self) {
+        println!("{} 真香真香真香", self.make_sound())
+    }
+}
+
+// impl Trait 语法
+fn feed(item: &impl Behavior) {
+    item.eat();
+}
+
+// Trait Bound 语法
+fn feed2<T: Behavior>(item: &T) {
+    item.eat();
+}
+
+/* 因为 impl Trait 工作方式的限制这里不能编译，仅做演示
+fn getani(isdog: bool) -> impl Behavior {
+    if isdog{
+        return Dog;
+    }else
+    {
+        return Cat;
+    }
+}
+*/
+
+fn main() {
+    let dog = Dog;
+    let cat = Cat;
+    dog.eat();
+    println!("{}", dog.make_sound());
+    cat.eat();
+    println!("{}", cat.make_sound());
+
+    feed(&dog);
+    feed2(&dog);
+}
+
+
+
+真香
+汪！
+喵~ 真香真香真香
+喵~
+```
+
+## 多类型参数与where
+
+待完善
+
+# 生命周期
+
+是与引用相关的概念
+
+## 注解语法
+
+是描述引用生命周期的办法。虽然这样并不能够改变引用的生命周期，但可以在合适的地方声明两个引用的生命周期一致。生命周期注解用单引号开头，跟着一个小写字母单词：
+
+``` rust
+&i32        // 常规引用
+&'a i32     // 带有显式生命周期的引用
+&'a mut i32 // 带有显式生命周期的可变引用
+```
+
+## 函数签名中的生命周期注解
+
+需要用泛型声明来规范生命周期的名称，随后函数返回值的生命周期将与两个参数的生命周期一致
+
+``` rust
+fn longer<'a>(s1: &'a str, s2: &'a str) -> &'a str {
+    if s2.len() > s1.len() {
+        s2
+    } else {
+        s1
+    }
+}
+
+fn main() {
+    let r;
+    {
+        let s1 = "rust";
+        let s2 = "ecmascript";
+        r = longer(s1, s2);
+        println!("{} is longer", r);
+    }
+}
+
+```
+
+## 结构体定义中的生命周期注解
+
+ImportantExcerpt 的实例不能比其 part 字段中的引用存在的更久
+
+``` rust
+struct ImportantExcerpt<'a> {
+    part: &'a str,
+}
+
+fn main() {
+    let novel = String::from("Call me Ishmael. Some years ago...");
+    let first_sentence = novel.split('.').next().expect("Could not find a '.'");
+    let i = ImportantExcerpt {
+        part: first_sentence,
+    };
+}
+```
+
+## 生命周期省略规则
+
+- 函数或方法的参数的生命周期被称为 输入生命周期（input lifetimes），而返回值的生命周期被称为 输出生命周期（output lifetimes）。
+- 第一条规则是每一个是引用的参数都有它自己的生命周期参数。
+- 第二条规则是如果只有一个输入生命周期参数，那么它被赋予所有输出生命周期参数
+- 第三条规则是如果方法有多个输入生命周期参数并且其中一个参数是 &self 或 &mut self，说明是个对象的方法(method)，那么所有输出生命周期参数被赋予 self 的生命周期。
+
+## 方法定义中的生命周期注解
+
+## 静态生命周期
 
 # 单元测试
 
