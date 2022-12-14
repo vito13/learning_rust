@@ -483,7 +483,11 @@ huaw@test:~/playground/rust$ cat .vscode/tasks.json
 
 ```
 
+## 统计代码量
 
+- https://github.com/XAMPPRocky/tokei
+- huaw@test:~/playground/$ cargo install tokei
+- huaw@test:~/playground/rust/my_extension$ tokei . --files
 # cargo
 
 ## 常用命令
@@ -625,7 +629,7 @@ huaw@test:~/playground/rust/my_extension$ tree
 2 directories, 3 files
 ```
 
-## 文件说明
+## 主要文件说明
 
 lib.rs里的#[pg_extern] 宏所修饰的函数就是我们要实现的extension函数，mod tests , pub mod pg_test 是pgx已经为我们写好了的测试模块，用于编写相关测试代码。pgx默认已经给我们写好了名为 hello_my_extension 的extension，功能很简单，就是返回 “Hello, my_extension” 字符串
 ​
@@ -823,7 +827,7 @@ AS 'MODULE_PATHNAME', 'hello_my_extension_wrapper';
 huaw@test:~/playground/rust/my_extension$ 
 ```
 
-## 案例：添加一个新函数
+## 案例：myadd
 
 - 在hello_my_extension函数下面添加一个带有缺省值的新函数
 
@@ -836,13 +840,16 @@ fn myadd(a:i64, b:default!(i64, 100)) -> i64 {
 ```
 
 - cargo pgx run pg14 编译运行，进入psql后：
-   drop extension my_extension; CREATE EXTENSION my_extension;
+   drop extension my_extension cascade; CREATE EXTENSION my_extension;
    可以看到2个函数了，编译后虽然so是最新的，但因为so里多了个函数，所以在pg里需要重新安装扩展才能使用（即需要重新运行对应的sql）。如果仅仅是函数实现发生了改变则无需上面的步骤，直接运行函数即可
 
 - 使用\df可以查看此函数转换后的函数与参数类型信息
 
 
-## 案例：使用Option类型入参与返回值
+## 案例：to_lowercase
+
+- 使用Option作为参数与返回值
+- 使用info!在psql里打印输出
 
 ``` rust
 #[pg_extern]
@@ -850,6 +857,362 @@ fn to_lowercase(s: Option<String>) -> Option<String> {
     info!("to lowercase called with {:?}", s);  // 在psql里输出
     s.map(|v| v.to_lowercase())
 }
+```
+
+## 案例：自定义类型 SortedID
+
+- 创建一个随机的、且可排序的自定义数据类型
+
+- 先Add dependencies to a Cargo.toml，完成后配置文件里的依赖部分内容会自动更新
+
+``` shell
+huaw@test:~/playground/rust/my_extension$ cargo add uuid7 --features serde
+    Updating crates.io index
+      Adding uuid7 v0.3.2 to dependencies.
+             Features:
+             + serde
+             + std
+             - uuid
+
+huaw@test:~/playground/rust/my_extension$ cargo add serde --features derive
+    Updating crates.io index
+      Adding serde v1.0.150 to dependencies.
+             Features:
+             + derive
+             + serde_derive
+             + std
+             - alloc
+             - rc
+             - unstable
+```
+
+- 新建文件加入代码
+
+    这里使用了rust的uuid7、serde以及PostgresType / Eq / Hash / Ord
+
+```rust
+huaw@test:~/playground/rust/my_extension$ cat src/sortable_id.rs 
+use pgx::*;
+use uuid7::{uuid7, Uuid};
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(PostgresType, PostgresEq, PostgresOrd, PostgresHash)]
+
+pub struct SortableId(Uuid);
+
+impl Default for SortableId{
+    fn default() -> Self{
+        Self(uuid7())
+    }
+}
+
+#[pg_extern]
+fn generate_sortable_id() -> SortableId{
+    SortableId::default()
+}
+```
+
+- 在lib.rs的头部导入上面的代码
+
+``` rust
+mod sortable_id;
+use pgx::*;
+use pgx::prelude::*;
+pub use sortable_id::*;
+...
+```
+
+- cargo pgx run
+  
+    进入psql后再次：
+    drop extension my_extension cascade;
+    CREATE EXTENSION my_extension;
+    \df
+    即可看到新添的n个sortableid_开头的函数了，可以试一下
+
+``` sql
+my_extension=# select generate_sortable_id();
+          generate_sortable_id          
+----------------------------------------
+ "01850aa2-8c02-733d-9929-80aea7a4ce4f"
+(1 row)
+```
+
+- 修改在psql里的内容呈现形式，在sortable_id.rs里添加inoutfuncs的内容
+
+``` rust
+huaw@test:~/playground/rust/my_extension$ cat src/sortable_id.rs 
+use pgx::*;
+use uuid7::{uuid7, Uuid};
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(PostgresType, PostgresEq, PostgresOrd, PostgresHash)]
+
+#[inoutfuncs]
+
+pub struct SortableId{
+    inner: Uuid,
+}
+
+impl Default for SortableId{
+    fn default() -> Self{
+        Self{
+            inner: uuid7()
+        }
+    }
+}
+
+impl InOutFuncs for SortableId{
+    fn output(&self, buffer: &mut StringInfo) {
+        buffer.push_str(&self.inner.to_string());
+    }
+
+    fn input(input: &pgx::cstr_core::CStr) -> Self
+        where
+            Self: Sized,
+    {
+        let id = input.to_str().expect("input is not a valid utf8 string").parse().expect("imput is not a valid uuid");
+        Self {inner: id}
+    }
+}
+
+
+#[pg_extern]
+fn generate_sortable_id() -> SortableId{
+    SortableId::default()
+}
+```
+
+- 再次run，drop，create，执行generate_sortable_id，引号已被去除了
+
+``` sql
+my_extension=# select generate_sortable_id();
+         generate_sortable_id         
+--------------------------------------
+ 01850ab4-6a7b-79f7-a6db-99e418d2a00a
+(1 row)
+```
+
+- 测试SortedID，这里需要之前未添加成功的my_generate_series，所以待完善
+
+``` sql
+my_extension=# create table ids(id sortableid primary key default generate_sortable_id());
+CREATE TABLE
+
+```
+
+## 案例：使用jsonschema进行验证
+
+- 安装jsonschema
+
+``` shell
+huaw@test:~/playground/rust/my_extension$ cargo add jsonschema 
+    Updating crates.io index
+      Adding jsonschema v0.16.1 to dependencies.
+             Features:
+             + clap
+             + cli
+             + reqwest
+             + resolve-file
+             + resolve-http
+             - draft201909
+             - draft202012
+huaw@test:~/playground/rust/my_extension$ cargo add jsonschema --no-default-features
+    Updating crates.io index
+      Adding jsonschema v0.16.1 to dependencies.
+             Features:
+             - clap
+             - cli
+             - draft201909
+             - draft202012
+             - reqwest
+             - resolve-file
+             - resolve-http
+    Blocking waiting for file lock on package cache
+```
+
+- 在lib.rs中添加一个新函数
+
+``` rust
+#[pg_extern]
+fn check_json_schema(instance: Json, schema: Json) -> bool {
+    jsonschema::is_valid(&schema.0, &instance.0)
+}
+```
+
+- 进行验证
+
+``` sql
+huaw@test:~/playground/rust/my_extension$ cargo pgx run
+.
+.
+.
+
+my_extension=# drop extension my_extension cascade; CREATE EXTENSION my_extension; \df
+DROP EXTENSION
+CREATE EXTENSION
+                                        List of functions
+ Schema |         Name         | Result data type |          Argument data types          | Type 
+--------+----------------------+------------------+---------------------------------------+------
+ public | check_json_schema    | boolean          | instance json, schema json            | func
+ public | generate_sortable_id | sortableid       |                                       | func
+ public | hello                | text             |                                       | func
+ public | myadd                | bigint           | a bigint, b bigint DEFAULT 100        | func
+ public | sortableid_cmp       | integer          | "left" sortableid, "right" sortableid | func
+ public | sortableid_eq        | boolean          | "left" sortableid, "right" sortableid | func
+ public | sortableid_ge        | boolean          | "left" sortableid, "right" sortableid | func
+ public | sortableid_gt        | boolean          | "left" sortableid, "right" sortableid | func
+ public | sortableid_hash      | integer          | value sortableid                      | func
+ public | sortableid_in        | sortableid       | input cstring                         | func
+ public | sortableid_le        | boolean          | "left" sortableid, "right" sortableid | func
+ public | sortableid_lt        | boolean          | "left" sortableid, "right" sortableid | func
+ public | sortableid_ne        | boolean          | "left" sortableid, "right" sortableid | func
+ public | sortableid_out       | cstring          | input sortableid                      | func
+ public | to_lowercase         | text             | s text                                | func
+(15 rows)
+
+-- 
+my_extension=# create table todos(
+    title varchar(255) not null,
+    metadata json,
+
+    check (
+        check_json_schema(metadata,
+            '{
+                "type": "object",
+                "properties": {
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "maxLength": 4
+                        }
+                    }
+                }
+            }'
+        )
+    )
+);
+CREATE TABLE
+
+my_extension=# \d todos 
+                        Table "public.todos"
+  Column  |          Type          | Collation | Nullable | Default 
+----------+------------------------+-----------+----------+---------
+ title    | character varying(255) |           | not null | 
+ metadata | json                   |           |          | 
+Check constraints:
+    "todos_metadata_check" CHECK (check_json_schema(metadata, '{
+                "type": "object",
+                "properties": {
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "maxLength": 4
+                        }
+                    }
+                }
+            }'::json))
+
+
+-- shopping长度大于上面设置的maxLength，会失败
+my_extension=# insert into todos(title, metadata) values('buy stuff', '{"tags": ["shopping"]}');
+ERROR:  new row for relation "todos" violates check constraint "todos_metadata_check"
+DETAIL:  Failing row contains (buy stuff, {"tags": ["shopping"]}).
+
+-- pay长度大于上面设置的maxLength，会成功
+my_extension=# insert into todos(title, metadata) values('buy stuff', '{"tags": ["pay"]}');
+INSERT 0 1
+
+my_extension=# select * from todos;
+   title   |     metadata      
+-----------+-------------------
+ buy stuff | {"tags": ["pay"]}
+(1 row)
+
+-- 类型错误
+my_extension=# insert into todos(title, metadata) values('bad', '{"tags": [{"a": 1}]}');
+ERROR:  new row for relation "todos" violates check constraint "todos_metadata_check"
+DETAIL:  Failing row contains (bad, {"tags": [{"a": 1}]}).
+```
+
+- 当然还可以再加一个jsonb的，这里就不测试了
+
+``` rust
+#[pg_extern]
+fn check_jsonb_schema(v: JsonB, schema: Json) -> bool {
+    jsonschema::is_valid(&schema.0, &v.0)
+}
+```
+
+## 案例：spi
+
+- 在rs里调用sql后返回给pg
+- 添加代码到lib.rs里
+
+``` rust
+#[pg_extern]
+fn extract_ts(ts: &str) -> i64 {
+    let sql = format!(
+        "select (extract(epoch from timestamptz '{}') * 1000)::bigint",
+        ts
+    );
+    Spi::get_one(&sql).expect("SPI result was null")
+}
+```
+
+- 进行验证
+
+``` sql
+huaw@test:~/playground/rust/my_extension$ cargo pgx run
+.
+.
+.
+my_extension=# drop extension my_extension cascade; CREATE EXTENSION my_extension; \df
+DROP EXTENSION
+CREATE EXTENSION
+                                        List of functions
+ Schema |         Name         | Result data type |          Argument data types          | Type 
+--------+----------------------+------------------+---------------------------------------+------
+ public | check_json_schema    | boolean          | instance json, schema json            | func
+ public | check_jsonb_schema   | boolean          | v jsonb, schema json                  | func
+ public | extract_ts           | bigint           | ts text                               | func
+ public | generate_sortable_id | sortableid       |                                       | func
+ public | hello                | text             |                                       | func
+ public | myadd                | bigint           | a bigint, b bigint DEFAULT 100        | func
+ public | sortableid_cmp       | integer          | "left" sortableid, "right" sortableid | func
+ public | sortableid_eq        | boolean          | "left" sortableid, "right" sortableid | func
+ public | sortableid_ge        | boolean          | "left" sortableid, "right" sortableid | func
+ public | sortableid_gt        | boolean          | "left" sortableid, "right" sortableid | func
+ public | sortableid_hash      | integer          | value sortableid                      | func
+ public | sortableid_in        | sortableid       | input cstring                         | func
+ public | sortableid_le        | boolean          | "left" sortableid, "right" sortableid | func
+ public | sortableid_lt        | boolean          | "left" sortableid, "right" sortableid | func
+ public | sortableid_ne        | boolean          | "left" sortableid, "right" sortableid | func
+ public | sortableid_out       | cstring          | input sortableid                      | func
+ public | to_lowercase         | text             | s text                                | func
+(17 rows)
+
+
+-- 不使用新函数
+my_extension=# select (extract(epoch from timestamptz '2022-09-16 23:1') * 1000)::bigint;
+     int8      
+---------------
+ 1663340460000
+(1 row)
+
+
+-- 使用新函数
+my_extension=# select extract_ts('2022-09-16 23:01');
+  extract_ts   
+---------------
+ 1663340460000
+(1 row)
+
+
 ```
 
 ## 打包release
