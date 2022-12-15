@@ -6,18 +6,18 @@ Rust编程：入门、实战与进阶          第四章，差2.4，2.5，枚举
 通过例子学Rust
 深入浅出Rust                        2.3.1
 
-Rust编程语言入门教程视频            43
+Rust编程语言入门教程视频            69
 Rust程序设计                        3.3
 Rust 程序设计语言 简体中文版 
-https://kaisery.github.io/trpl-zh-cn/title-page.html        泛型、Trait 和生命周期
-www.runoob.com/rust                 rust-generics.html
+https://kaisery.github.io/trpl-zh-cn/title-page.html        迭代器与闭包
+www.runoob.com/rust                 Rust 面向对象
 
 
 Rust编程之道
 Rust权威指南
 精通Rust(第2版) 
 
-
+案例：https://www.cnblogs.com/jiangbo4444/category/2071807.html
 
 ---
 
@@ -1422,9 +1422,111 @@ let c3 = '\u{7FFF}'; // unicode字符
 ## 类型转换
 
 与 C 和 C++ 不同，Rust 几乎不进行隐式数值类型转换。如果函数接收 f64 参数，传入 i32 值就会导致错误。事实上，Rust 甚至都不会隐式地将 i16 值转换为 i32 值，即使每个 i16 值也是 i32 值。不过，这里的关键词是隐式。使用 as 操作符进行显式转换是没有问题的，
-## Format格式说明
+## 打印输出
 
-println!是个宏，自动换行，如下面使用占位符
+println! 和 print! 类似，只是多 ln 的会多一个换行，会输出到标准输出流。eprint! 和 eprintln! 会将内容输出到标准错误流。
+
+- 换行
+
+``` rust
+fn main() {
+    println!();
+}
+```
+
+- 普通文本
+
+``` rust
+fn main() {
+    println!("Hello World!"); // Hello World!
+}
+```
+
+- 参数文本
+
+    其中 {} 会被后面的参数 31 替换，如果多个 {} 则依次替换后面的参数。
+
+``` rust
+fn main() {
+    println!("{} days", 31); // 31 days
+    println!("{} {}", 31, "days"); // 31 days
+}
+```
+
+- 位置参数
+
+``` rust
+fn main() {
+    println!("{0}-{1}-{1}-{0}", "A", "B"); // A-B-B-A
+}
+```
+
+- 命名参数
+
+``` rust
+fn main() {
+    println!("name:{name}, age:{age}", age = 44, name = "jiangbo");
+}
+```
+
+- 进制转换
+
+``` rust
+fn main() {
+    println!("十进制：{}", 63); // 十进制：63
+    println!("二进制：{:b}", 63); // 二进制：111111
+    println!("八进制：{:o}", 63); // 八进制：77
+    println!("大写十六进制：{:X}", 63); // 大写十六进制：3F
+    println!("小写十六进制：{:x}", 63); // 小写十六进制：3f
+}
+```
+
+- 输出宽度
+
+``` rust
+fn main() {
+    // All of these print "Hello x    !"
+    println!("Hello {:5}!", "x");
+    println!("Hello {:1$}!", "x", 5);
+    println!("Hello {1:0$}!", 5, "x");
+    println!("Hello {:width$}!", "x", width = 5);
+}
+```
+
+- 对齐和填充
+
+``` rust
+
+    < 左对齐
+    ^ 居中对齐
+    > 右对齐
+
+fn main() {
+    println!("Hello {:<5}!", "x"); // Hello x    !
+    println!("Hello {:-<5}!", "x"); // Hello x----!
+    println!("Hello {:^5}!", "x"); // Hello   x  !
+    println!("Hello {:>5}!", "x"); // Hello     x!
+}
+```
+
+- 精度
+
+``` rust
+fn main() {
+    let pi = 3.141592;
+    println!("{:.3}", pi); // 3.142
+}
+```
+
+- 转义
+
+``` rust
+fn main() {
+    println!("Hello {{}}"); // Hello {}
+    println!("{{ Hello"); // { Hello
+}
+```
+
 
 ``` rust
 fn main() {
@@ -1712,10 +1814,107 @@ static FLAG: AtomicBool = AtomicBool::new(true);
 
 ## 命令行参数
 
-## 断言
+- 使用cargo run方式输入命令行参数
 
-assert! 宏，用于验证参数的值都不等于0。! 符号表示这是一个宏调用，不是函数调用。与 C 和 C++ 中的assert 宏类似，Rust 中的 assert! 宏会检查自己的参数是不是true，如果不是，则终止程序并输出相关信息，包含检查失败的代码在源代码中的位置。这种突然的终止在 Rust 中叫panic。
-与 C 和 C++ 中的断言可以跳过不同，Rust 不管程序是如何编译的都会检查断言。不过也有一个 debug_assert! 宏，它会在程序为速度而编译时被跳过。
+``` rust
+fn main() {
+    let args = std::env::args();
+    for arg in args {
+        println!("{}", arg);
+    }
+}
+
+huaw@test:~/playground/rust/tut$ cargo run 123 abc.txt
+   Compiling tut v0.1.0 (/home/huaw/playground/rust/tut)
+    Finished dev [unoptimized + debuginfo] target(s) in 0.21s
+     Running `target/debug/tut 123 abc.txt`
+target/debug/tut
+123
+abc.txt
+
+----------------------------
+use std::env;
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    let query = &args[1];
+    let filename = &args[2];
+
+    println!("Searching for {}", query);
+    println!("In file {}", filename);
+}
+
+huaw@test:~/playground/rust/tut$ cargo run 123 abc.txt
+   Compiling tut v0.1.0 (/home/huaw/playground/rust/tut)
+    Finished dev [unoptimized + debuginfo] target(s) in 0.25s
+     Running `target/debug/tut 123 abc.txt`
+Searching for 123
+In file abc.txt
+```
+
+- 使用vscode方式输入命令行参数
+
+    打开许久未碰的 launch.json ，找到 "args": []，这里可以设置运行时的参数，我们将它写成 "args": ["first", "second"] ，然后保存、再次运行，注意这里的运行需要在gui上点击debug按钮才可
+
+## stdin
+
+``` rust
+use std::io::stdin;
+
+fn main() {
+    let mut str_buf = String::new();
+    stdin().read_line(&mut str_buf)
+        .expect("Failed to read line.");
+    println!("Your input line is \n{}", str_buf);
+}
+```
+## 重定向
+
+### 输出到文件
+
+$ cargo run > output.txt
+
+### 区分stdout于stderr
+
+正常的println在cargo run > output.txt中被重定向到了txt里，但eprintln依然输出到了stderr
+
+``` rust
+use std::fs;
+use std::process;
+
+fn main() {
+    let fname = "Cargo1.toml";
+    let text = fs::read_to_string(fname).unwrap_or_else(|err| {
+        println!("{}", fname);
+        eprintln!("Problem parsing arguments: {}", err);
+        process::exit(1);
+    });
+    println!("{}", text);
+}
+
+huaw@test:~/playground/rust/tut$ cargo run > output.txt
+   Compiling tut v0.1.0 (/home/huaw/playground/rust/tut)
+    Finished dev [unoptimized + debuginfo] target(s) in 0.18s
+     Running `target/debug/tut`
+Problem parsing arguments: No such file or directory (os error 2)
+```
+
+## exit
+
+use std::process;
+
+process::exit(1);
+
+## 环境变量
+
+代码中：
+use std::env;
+let case_sensitive = env::var("CASE_INSENSITIVE").is_err();
+
+运行：
+CASE_INSENSITIVE=1; cargo run
+
 
 # 内建复合类型
 
@@ -2288,6 +2487,54 @@ fn main() {
     let s3:i8 = 10;
     let sum = s + s3;   // 此句错误，两种类型不一致
 }
+```
+
+## 综合案例
+
+``` rust
+enum WebEvent {
+    // 单元类型的枚举
+    PageLoad,
+    PageUnload,
+    // 元组类型的枚举
+    KeyPress(char),
+    Paste(String),
+    // C 类型的枚举
+    Click { x: i64, y: i64 },
+}
+
+fn inspect(event: WebEvent) {
+    match event {
+        WebEvent::PageLoad => println!("page loaded"),
+        WebEvent::PageUnload => println!("page unloaded"),
+        WebEvent::KeyPress(c) => println!("pressed '{}'.", c),
+        WebEvent::Paste(s) => println!("pasted \"{}\".", s),
+        WebEvent::Click { x, y } => {
+            println!("clicked at x={}, y={}.", x, y);
+        }
+    }
+}
+
+fn main() {
+    let pressed = WebEvent::KeyPress('x');
+    // `to_owned()` creates an owned `String` from a string slice.
+    let pasted = WebEvent::Paste("my text".to_owned());
+    let click = WebEvent::Click { x: 20, y: 80 };
+    let load = WebEvent::PageLoad;
+    let unload = WebEvent::PageUnload;
+
+    inspect(pressed);
+    inspect(pasted);
+    inspect(click);
+    inspect(load);
+    inspect(unload);
+}
+
+pressed 'x'.
+pasted "my text".
+clicked at x=20, y=80.
+page loaded
+page unloaded
 ```
 
 # 常用集合类型
@@ -4027,9 +4274,30 @@ fn main() {
 
 ## 静态生命周期
 
-# 单元测试
+# 自动化测试
 
-Rust 语言本身内置了简单测试机制，如下代码在函数定义上方的 #[test] 表示 test_gcd 是一个测试函数，在常规编译中会被跳过，但在通过 cargo test 命令运行程序时会包含并自动调用。测试函数可以写在源代码中的任何地方，只要紧跟着它要测试的代码即可。这样，cargo test 会自动把它们收集起来并全部运行。
+## 分类
+
+### 单元测试
+
+- 小、专注
+- 一次对一个模块进行隔离的测试
+- 可测试 private 接口
+- 在mod tests上使用 #[cfg(test)] 进行标注
+- 只有运行 cargo test 才编译和运行代码，运行 cargo build 则不会
+
+### 集成测试
+
+- 只能使用 public 接口
+- 可能在每个测试中使用到多个模块
+- 集成测试在不同的目录，它不需要 #[cfg(test)] 标注
+- 集成测试完全位于被测试库的外部，目的是测试被测试库的多个部分是否能正确的一起工作，集成测试的覆盖率很重要
+- 测试代码位于src同级的tests目录下，每个测试文件都是单独的一个 crate
+## 使用方式
+
+- Rust 语言本身内置了简单测试机制，如下代码在函数定义上方的 #[test] 表示 test_gcd 是一个测试函数，在常规编译中会被跳过，但在通过 cargo test 命令运行程序时会包含并自动调用。测试函数可以写在源代码中的任何地方，只要紧跟着它要测试的代码即可。这样，cargo test 会自动把它们收集起来并全部运行。
+
+- 每个test函数是在单独的线程里运行
 
 ``` shell
 huaw@test:~/playground/rust/hello3$ cat src/main.rs 
@@ -4061,4 +4329,227 @@ running 1 test
 test test_gcd ... ok
 
 test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+```
+
+- 如果是库项目则代码略有不同，tests函数里的“use super:: *”作用是将外部所有内容都导入到本模块里
+
+``` rust
+pub fn add(left: usize, right: usize) -> usize {
+    left + right
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_works() {
+        let result = add(2, 2);
+        assert_eq!(result, 4);
+    }
+}
+```
+
+## 断言
+
+### assert!
+
+- 在运行时断言布尔表达式是true，为false则测试失败会调用panic!。
+- 断言总是在调试和发布版本中检查，并且不能被禁用。
+- 可以第二个参数附带自定义错误信息
+
+``` rust
+fn main() {
+    // the panic message for these assertions is the stringified value of the
+    // expression given.
+    assert!(true);
+
+    fn some_computation() -> bool { true } // a very simple function
+
+    assert!(some_computation());
+
+    // assert with a custom message
+    let x = true;
+    assert!(x, "x wasn't true!");
+
+    let a = 3; let b = 27;
+    assert!(a + b == 30, "a = {}, b = {}", a, b);
+}
+```
+
+### assert_eq!
+
+- 断言两个表达式彼此相等。Panics时，此宏将打印表达式的值及其调试表示。
+- 像 assert! 一样，这个宏有第二种形式，可以提供自定义的Panics消息。
+
+``` rust
+fn main() {
+    let a = 3;
+    let b = 1 + 2;
+    assert_eq!(a, b);
+    assert_eq!(a, b, "we are testing addition with {} and {}", a, b);
+}
+```
+
+### assert_ne!
+
+- 断言两个表达式不相等。Panics时，此宏将打印表达式的值及其调试表示。
+- 像 assert! 一样，这个宏有第二种形式，可以提供自定义的Panics消息。
+
+``` rust
+fn main() {
+    let a = 3;
+    let b = 2;
+    assert_ne!(a, b);
+    assert_ne!(a, b, "we are testing that the values are not equal");
+}
+```
+
+### debug_assert!
+
+### debug_assert_eq!
+### debug_assert_ne!
+
+### should_panic
+
+- 用于测试会引起panic的函数，只有发生panic才通过
+- 在#[test]下一行加上#[should_panic]，还可以带个参数expected，用以更加严格的匹配panic错误信息
+
+``` rust
+pub fn add_two(a: i32) -> i32 {
+    internal_adder(a, 2)
+}
+
+fn internal_adder(a: i32, b: i32) -> i32 {
+    if a < 0 {
+        panic!("a should bigger than 0");
+    }
+    a + b
+}
+
+fn main()
+{
+
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "a should bigger")]
+    fn internal() {
+        assert_eq!(4, internal_adder(-2, 2));
+    }
+}
+```
+
+## 使用Result<T, E>测试
+
+- 无需panic，可使用Result<T, E>作为返回类型编写测试，返回 ok测试通过，返回 Err:测试失败
+- 不要在使用 Result<T,E> 编写的测试上标注 #[should_panic]
+
+``` rust
+
+fn main()
+{
+
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn it_works() -> Result<(), String> {
+        if 2 + 21 == 4 {
+            Ok(())
+        } else {
+            Err(String::from("two plus two does not equal four"))
+        }
+    }
+}
+```
+
+## 运行测试
+
+- cargo test
+
+    默认是并行测试
+
+- cargo test -- --test-threads=1
+
+    使用一个线程进行测试，从而保证不同的测试之间不会相互影响
+
+- cargo test -- --show-output
+
+    默认情况下，如果测试通过，终端只会显示其已编译通过，而不会显示其他内容，包括其中的打印函数。而测试不通过时则会显示这些内容。使用--show-output就能全部都输出
+
+## 运行指定的测试
+
+- 测试单个函数，cargo test 后面接要被测试的函数名即可，如“cargo test name_of_target_func”
+- 测试多个函数，只要在参数中包含多个目标名称的共同部分，就可以特定这几个测试用来运行。由于模块名称本身是测试名称的一部分，因此也可以用来做过滤器。
+
+## 忽略的测试
+
+- 在#[test]下面加上#[ignore]则此函数就会被忽略
+- 也可以使用 “cargo test -- --ignored” 专门对所有被忽略的函数进行测试
+
+## 集成测试
+
+待完善
+
+# 文件读写
+
+## 文本一次全读
+
+content是string类型
+
+``` rust
+use std::fs;
+
+fn main() {
+    let text = fs::read_to_string("Cargo.toml").unwrap();
+    println!("{}", text);
+}
+```
+
+## 二进制一次全读
+
+content是vec[u8]类型
+
+``` rust
+use std::fs;
+
+fn main() {
+    let content = fs::read("Cargo.toml").unwrap();
+    println!("{:?}", content);
+}
+```
+
+## 二进制读取指定大小
+
+``` rust
+
+use std::io::prelude::*;
+use std::fs;
+
+fn main() {
+    let mut buffer = [0u8; 5];
+    let mut file = fs::File::open("Cargo.toml").unwrap();
+    file.read(&mut buffer).unwrap();
+    println!("{:?}", buffer);
+    file.read(&mut buffer).unwrap();
+    println!("{:?}", buffer);
+}
+```
+
+## 写文本文件
+
+``` rust
+use std::fs;
+
+fn main() {
+    fs::write("text.txt", "FROM RUST PROGRAM")
+        .unwrap();
+}
 ```
