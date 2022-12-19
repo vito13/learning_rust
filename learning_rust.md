@@ -19,6 +19,10 @@ Rust权威指南
 
 案例：https://www.cnblogs.com/jiangbo4444/category/2071807.html
 
+
+
+https://zhuanlan.zhihu.com/p/457636529
+https://github.com/wasmflow/node-to-rust
 ---
 
 # 准备
@@ -28,8 +32,10 @@ Rust权威指南
 ### 安装 ububtu 20.10 server
 
 - 下载ubuntu-22.10-live-server-amd64.iso
-- virtualbox，新建虚拟机：2cpu，4g内存，25g硬盘，网卡1使用默认“网络地址转换NAT”（装完系统后可以在虚拟机里上外网，但与宿主不可互ping，需要加装host-only网卡用于形成互ping的局域网）
-- 运行安装server，不要最小安装那样会缺少必要的程序，【Mirror address】那步骤改地址改为：<http://mirrors.aliyun.com/ubuntu>，  并且选上安装ssh，其余默认即可
+- virtualbox，新建虚拟机：2cpu，4g内存，200g硬盘，网卡1使用默认“网络地址转换NAT”（装完系统后可以在虚拟机里上外网，但与宿主不可互ping，需要加装host-only网卡用于形成互ping的局域网）
+- 运行安装server，不要最小安装那样会缺少必要的程序
+- 【Mirror address】那步骤改地址改为：<http://mirrors.aliyun.com/ubuntu>，注意不是proxy的地址不要搞错。。。另外此时可以多找几个看看网速，避免很慢
+- 并且选上安装ssh，其余默认即可
 - 需要下载的都安装完后，回车重启，重启过程中有err再次回车即可，直到输入用户名密码登录，安装完毕
 
 ### 设置root密码
@@ -161,42 +167,8 @@ network:
 - ubuntu server安装时候如选上ssh了，则不用配置
 - 手动配置则如下操作：先 sudo vi /etc/ssh/sshd_config，修改PermitRootLogin为yes后保存退出，再 sudo service ssh restart
 
-### 扩大空余磁盘
 
-- 先查看磁盘占用空间，找到挂载的位置（/dev/mapper/ubuntu--vg-ubuntu--lv），然后扩容，再变更文件系统尺寸。操作如下：
-
-``` shell
-
-huaw@test:~$ df -h
-Filesystem                         Size  Used Avail Use% Mounted on
-tmpfs                              393M  1.1M  392M   1% /run
-/dev/mapper/ubuntu--vg-ubuntu--lv   12G  5.1G  5.7G  48% /
-tmpfs                              2.0G     0  2.0G   0% /dev/shm
-tmpfs                              5.0M     0  5.0M   0% /run/lock
-/dev/sda2                          2.0G  136M  1.7G   8% /boot
-tmpfs                              393M  4.0K  393M   1% /run/user/1000
-
-
-huaw@test:~$ sudo lvresize -l +100%FREE /dev/mapper/ubuntu--vg-ubuntu--lv
-  New size (5887 extents) matches existing size (5887 extents).
-
-huaw@test:~$ sudo resize2fs /dev/mapper/ubuntu--vg-ubuntu--lv
-resize2fs 1.46.5 (30-Dec-2021)
-Filesystem at /dev/mapper/ubuntu--vg-ubuntu--lv is mounted on /; on-line resizing required
-old_desc_blocks = 2, new_desc_blocks = 3
-The filesystem on /dev/mapper/ubuntu--vg-ubuntu--lv is now 6028288 (4k) blocks long.
-
-huaw@test:~$ df -h
-Filesystem                         Size  Used Avail Use% Mounted on
-tmpfs                              393M  1.1M  392M   1% /run
-/dev/mapper/ubuntu--vg-ubuntu--lv   23G  5.1G   17G  24% /
-tmpfs                              2.0G     0  2.0G   0% /dev/shm
-tmpfs                              5.0M     0  5.0M   0% /run/lock
-/dev/sda2                          2.0G  136M  1.7G   8% /boot
-tmpfs                              393M  4.0K  393M   1% /run/user/1000
-```
-
-### VirtualBox扩展虚拟机Ubuntu的硬盘容量
+### VirtualBox虚拟机Ubuntu扩容
 
 - 关闭虚拟机，windows进入VirtualBox的安装目录查看需要修改的虚拟硬盘，使用命令对磁盘进行扩容操作
 
@@ -208,49 +180,9 @@ VBoxManage list hdds    // 查看对应虚拟磁盘文件的guid
 VBoxManage modifyhd 2246d63c-5e3c-454f-8ecc-e5125dbe74a7 ––resize 51200     // 通过guid修改size
 ```
 
-- 启动虚拟机，进行分区
+- 启动虚拟机，扩大ubuntu--vg-ubuntu--lv
 
-``` shell
-
-$sudo fdisk /dev/sda
-（按m可以查看帮助文档）
-
-首先输入命令：n(添加新分区)之后回车：
-接着输入命令:p
-剩下步骤全按回车默认，
-最后输入命令w保存分区信息。
-
-退出程序后再查看下分区信息：fdisk -l
-
-发现多了一个分区 /dev/sda4
-然后重启Ubuntu虚拟机。
-```
-
-- 格式化刚才划好的分区/dev/sda4
-
-``` shell
-
-sudo mkfs -t ext4 /dev/sda4
-```
-
-- 挂载分区
-
-``` shell
-创建目录 /home/huaw/sda4
-sudo mkdir sda4
-
-将分区 /dev/sda4 挂载到 /home/huaw/sda4
-sudo mount /dev/sda4 /home/huaw/sda4
-
-开机自动挂载，则修改/etc/fstab文件
-sudo vim /etc/fstab
-
-在这个文件里面添加一行，保存文件
-/dev/sda4 /home/huaw/sda4/ ext4 defaults 0 1
-
-容量扩展完成，再次查看下刚刚挂载好的分区
-df -H
-```
+    后续操作见 [resize.md](#resize.md)
 
 ### Linux磁盘空间100% 查找并删除大文件
 
@@ -289,10 +221,25 @@ PS1='[\u@\h \W]\$ '
 - 如需手动修改则如下
 
 ``` shell
+sudo cp /etc/apt/sources.list /etc/apt/sources.list.old
+```
 
-sudo vim /etc/apt/sources.list
-:%s/cn\.archive\.ubuntu\.com/mirrors\.aliyun\.com/g
+- 将如下内容覆盖到sources.list文件里即可
 
+```
+deb https://mirrors.ustc.edu.cn/ubuntu/ focal main restricted universe multiverse
+deb https://mirrors.ustc.edu.cn/ubuntu/ focal-updates main restricted universe multiverse
+deb https://mirrors.ustc.edu.cn/ubuntu/ focal-backports main restricted universe multiverse
+deb https://mirrors.ustc.edu.cn/ubuntu/ focal-security main restricted universe multiverse
+
+# deb-src https://mirrors.ustc.edu.cn/ubuntu/ focal main restricted universe multiverse
+# deb-src https://mirrors.ustc.edu.cn/ubuntu/ focal-updates main restricted universe multiverse
+# deb-src https://mirrors.ustc.edu.cn/ubuntu/ focal-backports main restricted universe multiverse
+# deb-src https://mirrors.ustc.edu.cn/ubuntu/ focal-security main restricted universe multiverse
+
+## Pre-released source, not recommended.
+# deb https://mirrors.ustc.edu.cn/ubuntu/ focal-proposed main restricted universe multiverse
+# deb-src https://mirrors.ustc.edu.cn/ubuntu/ focal-proposed main restricted universe multiverse
 ```
 
 ### 先安装必要工具
@@ -329,6 +276,7 @@ sudo apt-get install -y libreadline-dev
 sudo apt-get install -y protobuf-compiler
 sudo apt-get install -y libprotobuf-dev
 sudo apt-get install -y unixodbc
+sudo apt-get install -y lib32readline-dev
 ```
 
 ## 安装rust
@@ -375,12 +323,26 @@ ssh-keygen -R 192.168.56.102
 
 - rust-analyzer
 - rust syntax
-- crates
-- better toml
+- crates            可以显示依赖包的最新版本
+- better toml       为 TOML 文件增加语法高亮。
 - rust test lens
 - Tabnine
-- CodeLLDB
+- CodeLLDB          调试 Rust 项目
+- search-crates-io  会在写 Cargo.toml 的依赖时时，尝试自动补全
+- 执行命令安装如下：
+    cargo install cargo-edit
+    打开vscode命令面板->open setting (json)，加入如下后重新开启vscode
 
+``` json
+"rust-analyzer.checkOnSave.command": "clippy",      将cargo check换为clippy
+"rust-analyzer.inlayHints.enable": false,           可以关掉嵌入提示
+"rust-analyzer.inlayHints.chainingHints": false,    可以关掉嵌入提示
+"rust-analyzer.inlayHints.parameterHints": false,   可以关掉嵌入提示
+"rust-analyzer.inlayHints.chainingHints.enable": false,
+"rust-analyzer.inlayHints.parameterHints.enable": false,
+"rust-analyzer.inlayHints.typeHints.enable": false
+"rust-analyzer.updates.askBeforeDownload": true     下载更新之前，弹出确认框
+```
 ## helloworld
 
 - 新建“main.rs”
@@ -488,6 +450,9 @@ huaw@test:~/playground/rust$ cat .vscode/tasks.json
 - https://github.com/XAMPPRocky/tokei
 - huaw@test:~/playground/$ cargo install tokei
 - huaw@test:~/playground/rust/my_extension$ tokei . --files
+
+
+
 # cargo
 
 ## 常用命令
@@ -584,7 +549,7 @@ cargo clean会清理target
 
 ## 换源
 
-*** 实测（挂梯子中）没有效果，且导致build时刻长时间无反应***
+*** 实测快慢取决于ubuntu源 ***
 
 在cargo所在目录中（默认是$HOME/.cargo）执行 touch config 创建配置文件，写如下后保存，按需再重新 cargo build 即可
 
@@ -598,6 +563,39 @@ registry = "https://mirrors.tuna.tsinghua.edu.cn/git/cratesio-index.git"
 [net]
 git-fetch-with-cli = true
 ```
+
+## 安装依赖
+
+cargo add [dep]
+
+## 发布模块
+
+cargo publish
+
+
+
+
+# 手动安装pg,pgx
+
+- wget https://ftp.postgresql.org/pub/source/v15.1/postgresql-15.1.tar.gz
+- tar -xf postgresql-15.1.tar.gz
+- ./configure --prefix=/home/huaw/pgsql/15.1/
+- make
+- make install
+  
+    可以多下载几个被pgx支持的版本都安装上，然后手动添加环境变量到~/.bashrc末尾
+
+    ``` shell
+    export LD_LIBRARY_PATH=/home/huaw/pgsql/15.1/lib/:$LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH=/home/huaw/pgsql/13.9/lib/:$LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH=/home/huaw/pgsql/14.6/lib/:$LD_LIBRARY_PATH
+    ```
+
+- cargo pgx init --pg15=/home/huaw/pgsql/15.1/bin/pg_config --pg14=/home/huaw/pgsql/14.6/bin/pg_config --pg13=/home/huaw/pgsql/13.9/bin/pg_config
+
+    可以理解为注册环境变量，并且initdb到各自的/home/huaw/.pgx/data_nn中,暂未找到可以更换目标位置的参数。此操作运行一次即可且将所有版本都加上
+
+- cargo pgx run pg15
 
 # cargo-pgx
 
