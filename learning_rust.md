@@ -246,9 +246,10 @@ deb https://mirrors.ustc.edu.cn/ubuntu/ focal-security main restricted universe 
 
 此处可以先重启一下后再操作如下
 
+- ubuntu
+
 ``` shell
 sudo apt-get remove needrestart
-
 sudo apt-get install -y gcc
 sudo apt-get install -y gdb
 sudo apt-get install -y cmake
@@ -267,6 +268,7 @@ sudo apt-get install -y build-essential
 sudo apt-get install -y libxml2
 sudo apt-get install -y clang
 sudo apt-get install -y libclang
+sudo apt-get install -y libclang-dev
 sudo apt-get install -y protoc
 sudo apt-get install -y libprotoc-dev
 sudo apt-get install -y bison
@@ -277,6 +279,15 @@ sudo apt-get install -y protobuf-compiler
 sudo apt-get install -y libprotobuf-dev
 sudo apt-get install -y unixodbc
 sudo apt-get install -y lib32readline-dev
+```
+
+- centos
+
+``` shell
+yum install clang
+yum install centos-release-scl
+yum install devtoolset-7
+scl enable devtoolset-7 bash
 ```
 
 ## 安装rust
@@ -549,7 +560,7 @@ cargo clean会清理target
 
 ## 换源
 
-*** 实测快慢取决于ubuntu源 ***
+*** 实测快慢取决于ubuntu源，另外有梯子无需改源 ***
 
 在cargo所在目录中（默认是$HOME/.cargo）执行 touch config 创建配置文件，写如下后保存，按需再重新 cargo build 即可
 
@@ -572,9 +583,6 @@ cargo add [dep]
 
 cargo publish
 
-
-
-
 # 手动安装pg,pgx
 
 - wget https://ftp.postgresql.org/pub/source/v15.1/postgresql-15.1.tar.gz
@@ -585,26 +593,82 @@ cargo publish
   
     可以多下载几个被pgx支持的版本都安装上，然后手动添加环境变量到~/.bashrc末尾
 
-    ``` shell
-    export LD_LIBRARY_PATH=/home/huaw/pgsql/15.1/lib/:$LD_LIBRARY_PATH
-    export LD_LIBRARY_PATH=/home/huaw/pgsql/13.9/lib/:$LD_LIBRARY_PATH
-    export LD_LIBRARY_PATH=/home/huaw/pgsql/14.6/lib/:$LD_LIBRARY_PATH
-    ```
+``` shell
+export LD_LIBRARY_PATH=/home/huaw/work/postdb4out/lib/:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/home/huaw/.pgx/11.18/pgx-install/lib/:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/home/huaw/.pgx/12.13/pgx-install/lib/:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/home/huaw/.pgx/13.9/pgx-install/lib/:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/home/huaw/.pgx/14.6/pgx-install/lib/:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/home/huaw/.pgx/15.1/pgx-install/lib/:$LD_LIBRARY_PATH
 
+export PGHOME=/home/huaw/work/postdb4out/
+export PGDATA=/home/huaw/work/data
+export PATH=$PGHOME/bin:$PATH
+```
+
+http://t.zoukankan.com/LiuChang-blog-p-12879891.html
+
+- 数据库初始化 initdb
+- 配置修改 vi $PGDATA/pg_hba.conf，末尾添加
+  host all all 0.0.0.0/0 md5
+- 配置监听地址 vi $PGDATA/postgresql.conf，port改为5432
+- pg_ctl start能够启动即可
+- 如需仅psql，则psql -p 5432 -d postgres即可
 - cargo pgx init --pg15=/home/huaw/pgsql/15.1/bin/pg_config --pg14=/home/huaw/pgsql/14.6/bin/pg_config --pg13=/home/huaw/pgsql/13.9/bin/pg_config
 
     可以理解为注册环境变量，并且initdb到各自的/home/huaw/.pgx/data_nn中,暂未找到可以更换目标位置的参数。此操作运行一次即可且将所有版本都加上
 
 - cargo pgx run pg15
 
+- 还可以手动psql连入：
+
+``` shell
+huaw@huaw:~/playground/rust/my_extension$ /home/huaw/.pgx/11.18/pgx-install/bin/psql -h '127.0.0.1' -d 'my_extension' -U 'huaw'
+psql (11.18)
+Type "help" for help.
+
+my_extension=# select current_database();
+ current_database 
+------------------
+ my_extension
+(1 row)
+
+my_extension=# select current_user;
+ current_user 
+--------------
+ huaw
+(1 row)
+
+my_extension=# select inet_server_addr();
+ inet_server_addr 
+------------------
+ 127.0.0.1
+(1 row)
+
+my_extension=# select inet_client_port();
+ inet_client_port 
+------------------
+            54856
+(1 row)
+
+my_extension=#  drop extension my_extension cascade; CREATE EXTENSION my_extension;
+DROP EXTENSION
+CREATE EXTENSION
+my_extension=# select hello_my_extension();
+ hello_my_extension 
+--------------------
+ aaa!!!
+(1 row)
+```
+
 # cargo-pgx
 
 ## 安装
 
-install进行安装，init命令会下载版本几个的postgres然后编译到目录~/.pgx/中（此目录里含有对应的pg代码目录与initdb后对应的数据目录）。这个下载步骤是必须的，因为后续pgx会为每中版本的postgres的header文件生成对应的Rust bindings，以及后续pgx 的测试框架中也会用到。​
+install进行安装，init命令会下载几个版本的postgres然后编译到目录~/.pgx/中（此目录里含有对应的pg代码目录与initdb后对应的数据目录）。这个下载步骤是必须的，因为后续pgx会为每中版本的postgres的header文件生成对应的Rust bindings，以及后续pgx 的测试框架中也会用到。​
 
 ``` shell
-cargo install cargo-pgx
+cargo install --force --locked cargo-pgx
 cargo pgx init  // 此步会下载n个pg源码进行编译，时间会稍长
 ```
 
@@ -1213,9 +1277,31 @@ my_extension=# select extract_ts('2022-09-16 23:01');
 
 ```
 
-## 打包release
+## 打包输出
 
-- cargo pgx package 打包（编译为release），如果找不到pg_config，可以安装一下 “sudo apt-get install --reinstall libpq-dev”。
+- cargo pgx package 打包（编译为release），如果找不到pg_config，可以使用安装的方式 “sudo apt-get install --reinstall libpq-dev”。也可以手动指定文件位置，会输出到本地的target子目录内
+
+``` shell
+huaw@huaw:~/playground/rust/my_extension$ cargo pgx package --pg-config /home/huaw/work/pg15out/bin/pg_config
+```
+
+- 直接将输出安装到指定位置，包括control文件，sql文件，so文件
+
+``` shell
+huaw@huaw:~/playground/rust/my_extension$ cargo pgx install --pg-config /home/huaw/work/pg15out/bin/pg_config
+
+   Building extension with features pg15
+     Running command "cargo" "build" "--features" "pg15" "--no-default-features" "--message-format=json-render-diagnostics"
+   Compiling my_extension v0.0.0 (/home/huaw/playground/rust/my_extension)
+    Finished dev [unoptimized + debuginfo] target(s) in 11.35s
+  Installing extension
+     Copying control file to /home/huaw/work/pg15out/share/postgresql/extension/my_extension.control
+     Copying shared library to /home/huaw/work/pg15out/lib/postgresql/my_extension.so
+ Discovering SQL entities
+  Discovered 1 SQL entities: 0 schemas (0 unique), 1 functions, 0 types, 0 enums, 0 sqls, 0 ords, 0 hashes, 0 aggregates, 0 triggers
+     Writing SQL entities to /home/huaw/work/pg15out/share/postgresql/extension/my_extension--0.0.0.sql
+    Finished installing my_extension
+```
 
 ## start、stop、status
 
@@ -4203,6 +4289,60 @@ fn main() {
 ## 多类型参数与where
 
 待完善
+
+# 闭包
+
+特点：
+
+- 创建闭包不用取名，方便快捷
+- 闭包可以捕获调用者作用域中的值
+- 闭包可以被保存进变量或作为参数传递给其他函数
+
+## 创建
+
+语法：
+|参数列表| -> 返回类型 {代码段}
+
+``` rust
+普通样式
+fn main() {
+    let closure = |a: i32| -> i32 {
+        println!("a={}", a);
+        a
+    };
+    println!("closure return {}", closure(10));
+}
+
+没有返回值，返回类型可以被省略
+fn main() {
+    let closure = |a: i32| {
+        println!("a={}", a);
+    };
+    
+    closure(10);
+}
+
+代码段只有一行，花括号也可以被省略
+fn main() {
+    let closure = |a: i32| println!("a = {}", a);
+    closure(10);
+}
+
+闭包会自动推导参数类型。如定义了闭包，省略参数，而不去调用它则编译出错
+fn main() {
+    let closure = |a| println!("a = {}", a);
+    closure(10); 加上调用则不会出错了
+    closure(1.0); 两次调用，但参数的类型不一致也会出错
+}
+```
+
+## 捕获的三种方式
+
+- Fn
+- FnMut
+- FnOnce
+
+## 闭包作为函数参数
 
 # 生命周期
 
