@@ -1,7 +1,8 @@
 ---
 阅读进度                            再继续的章节
 
-https://learn.microsoft.com/zh-cn/training/paths/rust-first-steps/      了解 Rust 如何管理内存
+https://learn.microsoft.com/zh-cn/training/paths/rust-first-steps/      实现泛型类型和特征
+
 Rust入门秘笈                        Rust所有权
 Rust编程：入门、实战与进阶          第四章，差2.4，2.5，枚举
 通过例子学Rust
@@ -3850,20 +3851,43 @@ fn read_username_from_file() -> Result<String, io::Error> {
 - 一次只能有一个所有者。
 - 当所有者不在程序运行范围时，该值将被删除。
 
-## 移动 move
+## 作用域
+
+- Rust 中，作用域常常由大括号 {} 表示。 常见的作用域包括函数体、if、else 和 match 分支。
 
 ``` rust
-let x = 5;
-let y = x;
+如果尝试在 mascot 的范围之外使用它，将得到错误
+{
+    let mascot = String::from("ferris");
+}
+println!("{}", mascot);
 ```
 
-将值 5 绑定到变量 x，然后将 x 的值复制并赋值给变量 y。现在栈中将有两个值 5。此情况中的数据是"基本数据"类型的数据，不需要存储到堆中，仅在栈中的数据的"移动"方式是直接复制，这不会花费更长的时间或更多的存储空间。"基本数据"类型有这些：
-- 所有整数类型，例如 i32 、 u32 、 i64 等。
-- 布尔类型 bool，值为 true 或 false 。
-- 所有浮点类型，f32 和 f64。
-- 字符类型 char。
-- 仅包含以上类型数据的元组（Tuples）。
+- 所有权和删除
 
+当对象超出范围时，便会将其“删除”。删除变量会释放与其关联的所有资源。 对于文件的变量，文件最终会被关闭。 对于已分配了与其关联的内存的变量，内存将被释放。
+
+``` rust
+作用域的末尾，mascot 被“删除”，它拥有的 String 被删除，最后 String 拥有的内存被释放。
+{
+    let mascot = String::from("ferris");
+    // mascot dropped here. The string data memory will be freed here.
+}
+```
+
+## 移动语义
+
+有时，我们不希望在作用域末尾删除与变量关联的内容。 相反，我们希望将某个项的所有权从一个绑定转移到另一个绑定。
+
+``` rust
+{
+    let mascot = String::from("ferris");
+    let ferris = mascot; // 注意这里，所有权一旦转移，旧变量将不再有效
+    println!("{}", mascot) // 将 String 的所有权从 mascot 转移到 ferris 之后，将无法再使用 mascot 变量。
+}
+```
+
+- 在 Rust 中，“转移所有权”被称为“移动”。 换句话说，String 值的所有权已从 mascot 移动到了 ferris。
 
 ``` rust
 let s1 = String::from("hello");
@@ -3871,7 +3895,7 @@ let s2 = s1;
 println!("{}, world!", s1); // 错误！s1 已经失效
 ```
 
-- 涉及函数的所有权机制
+- 涉及函数的所有权机制：在其他编程语言中，函数参数的传递默认是隐式复制。 但在 Rust 中，此操作不会发生，所有权的转移（即移动）才是默认行为。
 
 ``` rust
 fn main() {
@@ -3905,6 +3929,7 @@ fn makes_copy(some_integer: i32) {
 ```
 
 - 函数返回值的所有权机制
+
 ``` rust
 fn main() {
     let s1 = gives_ownership();
@@ -3932,35 +3957,75 @@ fn takes_and_gives_back(a_string: String) -> String { 
 }
 ```
 
-## 克隆 Clone
+## Copy特征
 
-Rust会尽可能地降低程序的运行成本，所以默认情况下，长度较大的数据存放在堆中，且采用移动的方式进行数据交互。但如果需要将数据单纯的复制一份以供他用，可以使用数据的第二种交互方式——克隆。
+- 实现了Copy特征的值会被复制而不是移动，即所有权不能被转移。大多数简单类型都具有Copy特征。有如下：
+  - 所有整数类型，例如 i32 、 u32 、 i64 等。
+  - 布尔类型 bool，值为 true 或 false 。
+  - 所有浮点类型，f32 和 f64。
+  - 字符类型 char。
+  - 仅包含以上类型数据的元组（Tuples）。
+- 复制数字的成本低，因此复制这些值是有意义的。复制字符串、向量或其他复杂类型的成本可能高昂，因此它们没有实现Copy特征，而是被移动。
+
+下面的代码是安全的
 
 ``` rust
-let s1 = String::from("hello");
-    let s2 = s1.clone();
-    println!("s1 = {}, s2 = {}", s1, s2);
+fn process(input: u32) {}
 
-   Compiling greeting v0.1.0 (/home/huaw/playground/rust/greeting)
-    Finished dev [unoptimized + debuginfo] target(s) in 0.22s
-     Running `target/debug/greeting`
-s1 = hello, s2 = hello
+fn caller() {
+    let n = 1u32;
+    process(n); // Ownership of the number in `n` copied into `process`
+    process(n); // `n` can be used again because it wasn't moved, it was copied.
+}
 ```
 
-## 引用
+## Clone方法
+
+- 为了复制没有Copy特性的数据，可调用clone方法，会复制内存并生成一个新值。新值用于移动语义，旧值仍可使用。
+
+``` rust
+fn process(s: String) {}
+
+fn main() {
+    let s = String::from("Hello, world!");
+    process(s.clone()); // Passing another value, cloned from `s`.
+    process(s); // s was never moved and so it can still be used.
+}
+```
+
+这种方法可能有用，但会导致代码运行速度变慢，因为每次调用 clone 都是对数据的一次完整复制。 此方法通常包括内存分配或其他成本高昂的操作。 我们可使用引用来“借用”值，从而避免这些成本。
+
+## 引用（借用）
+
+通过引用，我们可以“借用”一些值，而无需拥有它们。
 
 - 引用不会获得值的所有权。
 - 引用只能租借（Borrow）值的所有权。
-- 引用本身也是一个类型并具有一个值，这个值记录的是别的值所在的位置，但引用不具有所指值的所有权：
+- 引用本身也是一个类型并具有一个值，这个值记录的是别的值所在的位置，但引用不具有所指值的所有权。
+
+下面两个案例无需完全拥有某个值即可使用它。但只能读不能写。
 
 ``` rust
-fn main() {
-    let s1 = String::from("hello");
-    let s2 = &s1;
-    println!("s1 is {}, s2 is {}", s1, s2);
+let greeting = String::from("hello");
+let greeting_reference = &greeting; // We borrow `greeting` but the string data is still owned by `greeting`
+println!("Greeting: {}", greeting); // We can still use `greeting`
+
+greeting 是使用引用符号 (&) 借用的。
+变量 greeting_reference 的类型为字符串引用 (&String)。
+由于我们只借用了 greeting，并没有移动所有权，
+因此，在我们创建greeting_reference 之后仍然可以使用 greeting。
+```
+
+``` rust
+fn print_greeting(message: &String) {
+  println!("Greeting: {}", message);
 }
 
-s1 is hello, s2 is hello
+fn main() {
+  let greeting = String::from("Hello");
+  print_greeting(&greeting); // `print_greeting` takes a `&String` not an owned `String` so we borrow `greeting` with `&`
+  print_greeting(&greeting); // Since `greeting` didn't move into `print_greeting` we can use it again
+}
 ```
 
 下面演示了一个错误：
@@ -3988,8 +4053,11 @@ fn main() {
 }
 ```
 
-- 通过引用修改数据
-用 &mut 修饰可变的引用类型，下面演示了通过引用修改数据
+### 改变借用的值
+
+通过&mut借用（称为“可变借用”），可以读取和更改数据。
+
+下面演示了通过引用修改数据
 
 ``` rust
 fn main() {
@@ -4004,19 +4072,56 @@ fn main() {
 }
 ```
 
-- 可变引用不允许多重引用，但不可变引用却可以
-这段程序不正确，因为多重可变引用了 s
+函数参数的案例
 
 ``` rust
-let mut s = String::from("hello");
+fn main() {
+    let mut greeting = String::from("hello");
+    change(&mut greeting);
+    print!("{}", greeting);
+}
 
-let r1 = &mut s;
-let r2 = &mut s;
-
-println!("{}, {}", r1, r2);
+fn change(text: &mut String) {
+    text.push_str(", world");
+}
 ```
 
-- 垂悬引用
+### 引用的限制
+
+- 允许在一个作用域中存在一个可变引用或多个不可变引用。
+
+- 不能同时多个可变引用指向同一个变量
+
+``` rust
+错误的案例
+
+fn main() {
+    let mut value = String::from("hello");
+
+    let ref1 = &mut value;
+    let ref2 = &mut value;
+
+    println!("{}, {}", ref1, ref2);
+}
+```
+
+- 不能同时存在可变引用与不可变引用指向同一个变量
+
+``` rust
+错误的案例
+
+fn main() {
+    let mut value = String::from("hello");
+
+    let ref1 = &value;
+    let ref2 = &mut value;
+
+    println!("{}, {}", ref1, ref2);
+}
+```
+
+### 垂悬引用
+
 伴随着 dangle 函数的结束，其局部变量的值本身没有被当作返回值，被释放了。但它的引用却被返回，这个引用所指向的值已经不能确定的存在，故不允许其出现
 
 ``` rust
@@ -4030,6 +4135,168 @@ fn dangle() -> &String {
     &s
 }
 ```
+
+## 生命周期
+
+使用引用会出现问题。 引用所引用的项不跟踪其所有引用。 此行为可能会导致一个问题：当删除该项并释放其资源时，我们如何确保没有引用指向现已释放且无效的内存？Rust 给出的回答是通过生命周期实现。 它们使 Rust 能够在不产生垃圾收集性能开销的情况下确保内存安全。
+
+### 为何需要声明周期
+
+下面的代码无法编译，编译器无法判断所有引用的有效性与生存期
+
+``` rust
+fn main() {
+    let magic1 = String::from("abracadabra!");
+    let magic2 = String::from("shazam!");
+
+    let result = longest_word(&magic1, &magic2);
+    println!("The longest magic word is {}", result);
+}
+
+fn longest_word(x: &String, y: &String) -> &String {
+    if x.len() > y.len() {
+        x
+    } else {
+        y
+    }
+}
+```
+
+所以需要向函数签名中添加通用生存期参数。这些参数定义了引用之间的关系，方便借用检查器完成其分析。确保在尖括号内声明通用生存期参数，并在参数列表和函数名称之间添加声明。
+
+``` rust
+fn main() {
+    let magic1 = String::from("abracadabra!");
+    let magic2 = String::from("shazam!");
+
+    let result = longest_word(&magic1, &magic2);
+    println!("The longest magic word is {}", result);
+}
+
+fn longest_word<'a>(x: &'a String, y: &'a String) -> &'a String {
+    if x.len() > y.len() {
+        x
+    } else {
+        y
+    }
+}
+```
+
+### 在函数中添加生存期
+
+- 生命周期注解用单引号开头，跟着一个小写字母单词
+
+``` rust
+&i32        // 常规引用
+&'a i32     // 带有显式生命周期的引用
+&'a mut i32 // 带有显式生命周期的可变引用
+```
+
+- 需要用泛型声明来规范生命周期的名称，且使用相同的生存期名称
+- 返回值和所有参数引用必须具有相同的生存期。
+
+``` rust
+fn longer<'a>(s1: &'a str, s2: &'a str) -> &'a str {
+    if s2.len() > s1.len() {
+        s2
+    } else {
+        s1
+    }
+}
+
+fn main() {
+    let r;
+    {
+        let s1 = "rust";
+        let s2 = "ecmascript";
+        r = longer(&s1, &s2);
+        println!("{} is longer", r);
+    }
+}
+
+```
+
+另一个案例，返回对插入到向量中的值的引用
+
+``` rust
+fn copy_and_return<'a>(vector: &'a mut Vec<String>, value: &str) -> &'a String{
+    vector.push(String::from(value));
+    &vector[vector.len() - 1]
+}
+
+fn main() {
+    let name1 = "Joe";
+    let name2 = "Chris";
+    let name3 = "Anne";
+
+    let mut names = Vec::new();
+
+    assert_eq!("Joe", copy_and_return(&mut names, &name1));
+    assert_eq!("Chris", copy_and_return(&mut names, &name2));
+    assert_eq!("Anne", copy_and_return(&mut names, &name3));
+
+    assert_eq!(
+        names,
+        vec!["Joe".to_string(), "Chris".to_string(), "Anne".to_string()]
+    )
+}
+
+```
+
+### 在类型中添加生存期
+
+每当一个结构或枚举在它的字段之一中包含引用时，我们必须用它所携带的每个引用的生存期来批注该类型定义。
+
+
+案例：
+- 有一个 text 字符串（它拥有自己的内容）和一个 Highlight 元组结构。 此结构有一个字段，该字段包含一个字符串切片。 切片是来自程序的另一部分的借用值。
+- 将通用生存期参数的名称放在结构名称后面的尖括号内。 这样，就可以在结构定义的主体中使用该生存期参数。 由于声明的原因，此 Highlight 实例的生存期不能超过其字段中的引用。
+- 使用名为 'document 的生存期对我们的结构进行了批注。 此批注是一个提醒，它提醒 Highlight 结构的生存期不能超过它借用的 &str 的源（一个假定的文档）的生存期。
+
+``` rust
+#[derive(Debug)]
+struct Highlight<'document>(&'document str);
+
+fn main() {
+    let text = String::from("The quick brown fox jumps over the lazy dog.");
+    let fox = Highlight(&text[4..19]);
+    let dog = Highlight(&text[35..43]);
+    println!("{:?}", fox);
+    println!("{:?}", dog);
+}
+
+输出
+Highlight("quick brown fox")
+Highlight("lazy dog")
+```
+
+另一个案例
+
+``` rust
+struct ImportantExcerpt<'a> {
+    part: &'a str,
+}
+
+fn main() {
+    let novel = String::from("Call me Ishmael. Some years ago...");
+    let first_sentence = novel.split('.').next().expect("Could not find a '.'");
+    let i = ImportantExcerpt {
+        part: first_sentence,
+    };
+}
+```
+
+### 生命周期省略规则
+
+- 函数或方法的参数的生命周期被称为 输入生命周期（input lifetimes），而返回值的生命周期被称为 输出生命周期（output lifetimes）。
+- 第一条规则是每一个是引用的参数都有它自己的生命周期参数。
+- 第二条规则是如果只有一个输入生命周期参数，那么它被赋予所有输出生命周期参数
+- 第三条规则是如果方法有多个输入生命周期参数并且其中一个参数是 &self 或 &mut self，说明是个对象的方法(method)，那么所有输出生命周期参数被赋予 self 的生命周期。
+
+### 方法定义中的生命周期注解
+
+### 静态生命周期
+
 
 # 组织管理
 
@@ -4556,73 +4823,6 @@ fn main() {
 
 ## 闭包作为函数参数
 
-# 生命周期
-
-是与引用相关的概念
-
-## 注解语法
-
-是描述引用生命周期的办法。虽然这样并不能够改变引用的生命周期，但可以在合适的地方声明两个引用的生命周期一致。生命周期注解用单引号开头，跟着一个小写字母单词：
-
-``` rust
-&i32        // 常规引用
-&'a i32     // 带有显式生命周期的引用
-&'a mut i32 // 带有显式生命周期的可变引用
-```
-
-## 函数签名中的生命周期注解
-
-需要用泛型声明来规范生命周期的名称，随后函数返回值的生命周期将与两个参数的生命周期一致
-
-``` rust
-fn longer<'a>(s1: &'a str, s2: &'a str) -> &'a str {
-    if s2.len() > s1.len() {
-        s2
-    } else {
-        s1
-    }
-}
-
-fn main() {
-    let r;
-    {
-        let s1 = "rust";
-        let s2 = "ecmascript";
-        r = longer(s1, s2);
-        println!("{} is longer", r);
-    }
-}
-
-```
-
-## 结构体定义中的生命周期注解
-
-ImportantExcerpt 的实例不能比其 part 字段中的引用存在的更久
-
-``` rust
-struct ImportantExcerpt<'a> {
-    part: &'a str,
-}
-
-fn main() {
-    let novel = String::from("Call me Ishmael. Some years ago...");
-    let first_sentence = novel.split('.').next().expect("Could not find a '.'");
-    let i = ImportantExcerpt {
-        part: first_sentence,
-    };
-}
-```
-
-## 生命周期省略规则
-
-- 函数或方法的参数的生命周期被称为 输入生命周期（input lifetimes），而返回值的生命周期被称为 输出生命周期（output lifetimes）。
-- 第一条规则是每一个是引用的参数都有它自己的生命周期参数。
-- 第二条规则是如果只有一个输入生命周期参数，那么它被赋予所有输出生命周期参数
-- 第三条规则是如果方法有多个输入生命周期参数并且其中一个参数是 &self 或 &mut self，说明是个对象的方法(method)，那么所有输出生命周期参数被赋予 self 的生命周期。
-
-## 方法定义中的生命周期注解
-
-## 静态生命周期
 
 # 自动化测试
 
