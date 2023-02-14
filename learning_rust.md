@@ -1,6 +1,7 @@
 ---
 阅读进度                            再继续的章节
 
+https://learn.microsoft.com/zh-cn/training/paths/rust-first-steps/      了解 Rust 如何管理内存
 Rust入门秘笈                        Rust所有权
 Rust编程：入门、实战与进阶          第四章，差2.4，2.5，枚举
 通过例子学Rust
@@ -2199,7 +2200,7 @@ fn main() {
 
 # 结构体
 
-## 定义、赋值、取值
+## 1 经典结构的定义、赋值、取值
 
 - 结构体类型是一个自定义数据类型，通过struct关键字加自定义命名，可以把多个类型组合在一起成为新的类型。
 - 结构体中以“name:type”格式定义字段，name是字段名称，type是字段类型。结构体名和字段名都遵循变量的命名规则，结构体名应该能够描述它所组合的数据的意义；字段默认不可变，并要求明确指定数据类型，不能使用自动类型推导功能。
@@ -2281,7 +2282,7 @@ name: zhangsan, score: 60
 name: lisi, score: 60
 ```
 
-## 元组结构体
+## 2 元组结构
 
 - 有struct的名称，但struct的内部成员没有名称
 - 用于处理那些需要定义类型（经常使用）又不想太复杂的简单数据
@@ -2303,9 +2304,9 @@ black = (0, 0, 0)
 origin = (0, 0)
 ```
 
-## unit like struct
+## 3 单元结构
 
-无任何字段的结构，待完善
+“单元结构 unit like struct”最常用作标记。无任何字段的结构
 
 ## 打印结构体
 
@@ -2511,6 +2512,70 @@ fn main() {
 }
 
 --------------------------
+使用结构定义枚举
+
+// Define a tuple struct
+#[derive(Debug)]
+struct KeyPress(String, char);
+
+// Define a classic struct
+#[derive(Debug)]
+struct MouseClick { x: i64, y: i64 }
+
+// Define the WebEvent enum variants to use the data from the structs
+// and a boolean type for the page Load variant
+#[derive(Debug)]
+enum WebEvent { WELoad(bool), WEClick(MouseClick), WEKeys(KeyPress) }
+
+fn main() {
+    // Instantiate a MouseClick struct and bind the coordinate values
+    let click = MouseClick { x: 100, y: 250 };
+    println!("Mouse click location: {}, {}", click.x, click.y);
+        
+    // Instantiate a KeyPress tuple and bind the key values
+    let keys = KeyPress(String::from("Ctrl+"), 'N');
+    println!("\nKeys pressed: {}{}", keys.0, keys.1);
+        
+    // Instantiate WebEvent enum variants
+    // Set the boolean page Load value to true
+    let we_load = WebEvent::WELoad(true);
+    // Set the WEClick variant to use the data in the click struct
+    let we_click = WebEvent::WEClick(click);
+    // Set the WEKeys variant to use the data in the keys tuple
+    let we_key = WebEvent::WEKeys(keys);
+        
+    // Print the values in the WebEvent enum variants
+    // Use the {:#?} syntax to display the enum structure and data in a readable form
+    println!("\nWebEvent enum structure: \n\n {:#?} \n\n {:#?} \n\n {:#?}", we_load, we_click, we_key);
+}
+
+
+执行打印出
+
+Mouse click location: 100, 250
+
+Keys pressed: Ctrl+N
+
+WebEvent enum structure: 
+
+ WELoad(
+    true,
+) 
+
+ WEClick(
+    MouseClick {
+        x: 100,
+        y: 250,
+    },
+) 
+
+ WEKeys(
+    KeyPress(
+        "Ctrl+",
+        'N',
+    ),
+)
+--------------------------
 另一个案例，每种枚举值都不同类型
 
 fn main() {
@@ -2556,22 +2621,6 @@ fn main() {
 }
 ```
 
-## Option枚举
-
-- 定义于标准库里
-- 在Prelude（预导入模块）中
-- Option（是个枚举）用于某个值可能存在或不存在，即类似Null的作用，可选的枚举值是Some(T)与None
-- Option\<T>与T不是同一种类型，需要将Option\<T>转为T才行
-
-``` rust
-fn main() {
-    let s :Option<i8> = Some(42);
-    let s2 = Some("str");
-    let n: Option<i32> = None;  // 此处n为空
-    let s3:i8 = 10;
-    let sum = s + s3;   // 此句错误，两种类型不一致
-}
-```
 
 ## 综合案例
 
@@ -2620,7 +2669,6 @@ clicked at x=20, y=80.
 page loaded
 page unloaded
 ```
-
 # 常用集合类型
 
 ## vector
@@ -2647,6 +2695,8 @@ fn main() {
     // vec! 是rust提供的宏，可以动态地根据我们的数据，自动推断出这个 vector 变量的类型
     let vec2 = vec![1, 2, 3, 4, 5];
     let vec3 = vec!["str1", "str2", "str3"];
+    // 也可以像数组那样初始化，即5个元素，值都是0
+    let zeroes = vec![0; 5]; 
 
 
 // 添加和删除元素
@@ -2659,6 +2709,18 @@ fn main() {
     println!("{:?}", nums); // 这里打印出 [10, 11]
     println!("x: {:?}", x);  // 这里将打印出 Some(12)
 
+// 改元素值
+    fn main() {
+        let mut index_vec = vec![15, 3, 46];
+        let three = index_vec[1];
+        println!("Vector: {:?}, three = {}", index_vec, three);
+        index_vec[1] = index_vec[1] + 5;
+        println!("Vector: {:?}", index_vec);  
+    }
+
+    运行输出
+    Vector: [15, 3, 46], three = 3
+    Vector: [15, 8, 46]
 
 // 访问元素，注意下面两种都是取引用，取值会导致所有权的移动
     let mut nums: Vec<u32> = Vec::new();
@@ -2784,6 +2846,27 @@ fn main() {
     // 这里 field_name 和 field_value 不再有效，
     // 尝试使用它们看看会出现什么编译错误！
     // println!("{}",field_value);
+
+
+// 删除元素
+    use std::collections::HashMap;
+    fn main() {
+        let mut reviews: HashMap<String, String> = HashMap::new();
+        reviews.insert(String::from("Ancient Roman History"), String::from("Very accurate."));
+        reviews.insert(String::from("Cooking with Rhubarb"), String::from("Sweet recipes."));
+        reviews.insert(String::from("Programming in Rust"), String::from("Great examples."));
+        // Remove book review
+        let obsolete: &str = "Ancient Roman History";
+        println!("\n'{}\' removed.", obsolete);
+        reviews.remove(obsolete);
+        // Confirm book review removed
+        println!("\nReview for \'{}\': {:?}", obsolete, reviews.get(obsolete));
+    }
+
+    运行输出
+    'Ancient Roman History' removed.
+    Review for 'Ancient Roman History': None
+
 
 // 访问元素
     // get方法返回一个Option<&T>类型：当查询不到时，会返回一个None，查询到时返回Some(&T)
@@ -3051,9 +3134,30 @@ i: 3
 i: 5
 ```
 
+以下示例演示在loop表达式中使用break返回一个值，如果break没有返回值则默认返回的是空元组，即“（）”
+
+``` rust
+fn main() {
+    let mut counter = 1;
+    // stop_loop is set when loop stops
+    let stop_loop = loop {
+        counter *= 2;
+        if counter > 100 {
+            // Stop loop, return counter value
+            break counter;
+        }
+    };
+    // Loop should break when counter = 128
+    println!("Break the loop at counter = {}.", stop_loop);
+}
+
+
+Break the loop at counter = 128.
+```
+
 ### loop
 
-- 死循环
+- 死循环，在发生手动停止前重复代码。
 
 ``` rust
 fn main() {
@@ -3102,6 +3206,8 @@ count: 10, counter: 20
 
 ### while
 
+在条件一直为 true 时重复代码。
+
 ``` rust
 fn main() {
     let mut count = 0;
@@ -3131,7 +3237,12 @@ count: 10, counter: 20
 
 ### for
 
-语法，注意下面是“for var in 表达式”
+- 对集合中的每个项重复表达式主体中的操作。Rust 使用迭代器从头到尾遍历集合中的每个项。
+- 在 Rust 中，可以迭代任何集合类型，例如数组、向量或哈希映射。 
+- for 循环使用临时变量作为迭代器。 该变量在循环表达式的开始位置隐式声明，并且每次迭代都会设置当前值。
+- 使用 iter() 方法访问集合中的项。
+- 创建迭代器的另一种简单方法是使用范围表示法 a..b。 该迭代器从 a 值开始，并以步长值 1 迭代到 b，但它不使用值 b。
+- 语法，注意下面是“for var in 表达式”
 
 ``` rust
 for var in expression
@@ -3193,14 +3304,84 @@ huaw@test:~/playground/rust/hellocargo$ cargo run
 mango apple banana litchi watermelon 
 ```
 
-## match匹配
 
-### 简单匹配
+# Option与匹配
+
+## Option
+
+- 定义于标准库里，在Prelude（预导入模块）中
+- Option（是个枚举）用于某个值可能存在或不存在，即类似Null的作用，可选的枚举值是Some(T)与None
+
+``` rust
+enum Option<T> {
+    None,     // The value doesn't exist
+    Some(T),  // The value exists
+}
+```
+
+- Option\<T>与T不是同一种类型，需要将Option\<T>转为T才行
+- None 和 Some 不是类型，而是 Option<T> 类型的变体。函数不能使用 Some 或 None 作为参数，而只能使用 Option<T> 作为参数
+
+简单的使用如下
+
+``` rust
+fn main() {
+    let s :Option<i8> = Some(42);
+    let s2 = Some("str");
+    let n: Option<i32> = None;  // 此处n为空
+    let s3:i8 = 10;
+    let sum = s + s3;   // 此句错误，两种类型不一致
+}
+```
+
+``` rust
+let fruits = vec!["banana", "apple", "coconut", "orange", "strawberry"];
+
+// pick the first item:
+let first = fruits.get(0);
+println!("{:?}", first);
+
+// pick the third item:
+let third = fruits.get(2);
+println!("{:?}", third);
+
+// pick the 99th item, which is non-existent:
+let non_existent = fruits.get(99);
+println!("{:?}", non_existent);
+
+输出
+Some("banana")
+Some("coconut")
+None
+```
+
+## Match
+
+### 匹配数值与枚举
 
 - match是运算符，用于流程控制的模式匹配，检查当前值是否匹配一系列模式中的某一个。
 - 模式可由字面值、变量、通配符和其他内容构成。
-- 每一个模式都是一个分支，程序根据匹配的模式执行相应的代码。
 - Rust要求match模式匹配是穷尽式的，即必须穷举所有的可能性，否则会导致程序错误。
+- 每一个模式都是一个分支，程序根据匹配的模式执行相应的代码。按照从上到下的顺序对 match arm 进行评估。 必须在一般事例之前定义具体事例，否则它们将无法进行匹配和评估。如下案例的“Some(&"coconut")”与“Some(fruit_name)”的先后关系
+
+```rust
+let fruits = vec!["banana", "apple", "coconut", "orange", "strawberry"];
+for &index in [0, 2, 99].iter() {
+    match fruits.get(index) {
+        Some(&"coconut") => println!("Coconuts are awesome!!!"),
+        Some(fruit_name) => println!("It's a delicious {}!", fruit_name),
+        None => println!("There is no fruit! :("),
+    }
+}
+
+输出
+
+It's a delicious banana!
+Coconuts are awesome!!!
+There is no fruit! :(
+```
+
+
 - 可以使用通配符“\_”放置在其他分支之后，作用类似default
 
 ``` rust
@@ -3251,9 +3432,7 @@ fn main() {
 this is 1
 ```
 
-### 绑定值的模式
-
-其实就是使用match取枚举中的成员值
+下面演示使用match取枚举中的成员值
 
 ``` rust
 #[derive(Debug)] // 这样可以立刻看到州的名称
@@ -3368,19 +3547,46 @@ fn main() {
 }
 ```
 
+
 ## if let
 
-- 适用于只针对一种匹配进行处理，忽略其它匹配
-- 可以有else
+- if let 运算符可将模式与表达式进行比较。 如果表达式与模式匹配，则会执行 if 块。 - if let 表达式的好处是，当你关注的是要匹配的单个模式时，你不需要 match 表达式的所有样板代码。
+- 适用于只针对一种匹配进行处理，忽略其它匹配，可以有else
+
+语法格式如下：
 
 ``` rust
-语法格式：
 if let 匹配值 = 源变量 {
     语句块
 }
+```
 
----------------------------
-下面两种效果相同
+下面的案例演示了如何使用if let替代match
+
+``` rust
+match版本：
+
+let a_number: Option<u8> = Some(7);
+match a_number {
+    Some(7) => println!("That's my lucky number!"),
+    _ => {},
+}
+
+
+
+if let版本：
+
+let a_number: Option<u8> = Some(7);
+if let Some(7) = a_number {
+    println!("That's my lucky number!");
+}
+
+```
+
+另一个案例
+
+``` rust
+match版本
 
 fn main() {
     let i = 0;
@@ -3391,14 +3597,20 @@ fn main() {
 }
 zero
 
+
+if let版本
+
 let i = 0;
 if let 0 = i {
     println!("zero");
 }
 zero
----------------------------
-也适用于枚举
 
+```
+
+if let用于枚举且有else的案例
+
+``` rust
 fn main() {
     enum Book {
         Papery(u32),
@@ -3414,6 +3626,219 @@ fn main() {
 ```
 
 ## while let
+
+# 错误处理
+
+## 严重错误panic! 
+
+是不可恢复的错误
+
+- 可以手动触发，如 panic!("crash and burn");
+- 也可逻辑触发，如数组越界
+
+默认非release时运行可以通过设置参数当出现panic时可以自动打印堆栈回溯，命令如下：
+
+- RUST_BACKTRACE=1 cargo run
+- RUST_BACKTRACE=full cargo run
+
+另外可以在Cargo.toml里添加如下用于设置当panic时候由rust还是os负责清理内存（abort即退出，由os清理）
+
+``` toml
+[profile.release]
+panic = 'abort'
+```
+
+## 使用Result类型来处理错误
+
+- 是可恢复的错误
+- 在 Rust 中通过 Result<T, E> 枚举类作返回值来进行异常表达。T 代表成功时返回的 Ok 成员中的数据的类型，而 E 代表失败时返回的 Err 成员中的错误的类型
+
+``` rust
+enum Result<T, E> {
+    Ok(T),
+    Err(E),
+}
+```
+
+- 在 Rust 标准库中可能产生异常的函数的返回值都是 Result 类型的，简单演示如下：
+
+``` rust
+use std::fs::File;
+
+fn main() {
+    let f = File::open("hello.txt");
+    let f = match f {
+        Ok(file) => file,
+        Err(error) => panic!("Problem opening the file: {:?}", error),
+    };
+
+    /* 上面的match可以替换if let
+    if let Ok(file) = f {
+        println!("File opened successfully.");
+    } else {
+        println!("Failed to open the file.");
+    }
+    */
+}
+```
+
+- 匹配不同的错误，此案例比较繁琐，使用闭包可以化繁为简
+
+``` rust
+use std::fs::File;
+use std::io::ErrorKind;
+
+fn main() {
+    let f = File::open("hello.txt");
+
+    let f = match f {
+        Ok(file) => file,
+        Err(error) => match error.kind() {
+            ErrorKind::NotFound => match File::create("hello.txt") {
+                Ok(fc) => fc,
+                Err(e) => panic!("Problem creating the file: {:?}", e),
+            },
+            other_error => {
+                panic!("Problem opening the file: {:?}", other_error)
+            }
+        },
+    };
+}
+
+-------------------------------- 闭包的方案
+use std::fs::File;
+use std::io::ErrorKind;
+
+fn main() {
+    let f = File::open("hello.txt").unwrap_or_else(|error| {
+        if error.kind() == ErrorKind::NotFound {
+            File::create("hello.txt").unwrap_or_else(|error| {
+                panic!("Problem creating the file: {:?}", error);
+            })
+        } else {
+            panic!("Problem opening the file: {:?}", error);
+        }
+    });
+}
+```
+
+### unwrap
+
+如果 Result 值是成员 Ok，unwrap 会返回 Ok 中的值。如果 Result 是成员 Err，unwrap 会调用 panic!
+
+``` rust
+use std::fs::File;
+
+fn main() {
+    let f1 = File::open("hello.txt").unwrap();
+    // let f2 = File::open("hello.txt").expect("Failed to open.");
+}
+```
+
+### expect
+
+expect比unwrap多一个功能，就是可以自定义panic的错误信息
+
+``` rust
+use std::fs::File;
+
+fn main() {
+    let f = File::open("hello.txt").expect("Failed to open hello.txt");
+}
+```
+
+## ?运算符（传递错误）
+
+目标是选择在哪一层进行错误的处理
+
+这是一个简单的案例
+
+``` rust
+fn f(i: i32) -> Result<i32, bool> {
+    if i >= 0 { Ok(i) }
+    else { Err(false) }
+}
+
+fn g(i: i32) -> Result<i32, bool> {
+    let t = f(i)?;
+    Ok(t) // 因为确定 t 不是 Err, t 在这里已经是 i32 类型
+}
+
+fn main() {
+    let r = g(10000);
+    if let Ok(v) = r {
+        println!("Ok: g(10000) = {}", v);
+    } else {
+        println!("Err");
+    }
+}
+```
+
+另一个复杂的案例：读取文件内容。如果文件不存在或不能读取，这个函数会将这些错误返回给调用它的代码
+
+- 版本1
+
+    如果这个函数没有出任何错误成功返回，函数的调用者会收到一个包含 String 的 Ok 值，需要在每一步都进行结果判断，逻辑较繁琐
+
+``` rust
+use std::fs::File;
+use std::io::{self, Read};
+
+fn read_username_from_file() -> Result<String, io::Error> {
+    let f = File::open("hello.txt");
+
+    let mut f = match f {
+        Ok(file) => file,
+        Err(e) => return Err(e),
+    };
+
+    let mut s = String::new();
+
+    match f.read_to_string(&mut s) {
+        Ok(_) => Ok(s),
+        Err(e) => Err(e),
+    }
+}
+```
+
+- 版本2
+
+    使用了 ? 运算符代替match（效果类似，内部实现不同）。如果 Result 的值是 Ok，这个表达式将会返回 Ok 中的值而程序将继续执行。如果值是 Err，Err 中的值将作为整个函数的返回值，就好像使用了 return 关键字一样，这样错误值就被传播给了调用者。
+
+``` rust
+use std::fs::File;
+use std::io;
+use std::io::Read;
+
+fn read_username_from_file() -> Result<String, io::Error> {
+    let mut f = File::open("hello.txt")?;
+    let mut s = String::new();
+    f.read_to_string(&mut s)?;
+    Ok(s)
+}
+```
+
+- 版本3
+
+    ？后面可以链式调用，只不过太精简会导致debug时候比较麻烦。另外此功能其实在标准库里已经提供了...
+
+``` rust
+use std::fs::File;
+use std::io;
+use std::io::Read;
+
+fn read_username_from_file() -> Result<String, io::Error> {
+    let mut s = String::new();
+    File::open("hello.txt")?.read_to_string(&mut s)?;
+    Ok(s)
+}
+
+
+-------------------
+fn read_username_from_file() -> Result<String, io::Error> {
+    fs::read_to_string("hello.txt")
+}
+```
 
 # 所有权
 
@@ -3992,219 +4417,6 @@ fn main() {
     hosting ::add_to_waitlist();
     hosting ::add_to_waitlist();
     hosting ::add_to_waitlist();
-}
-```
-
-# 错误处理
-
-## panic
-
-是不可恢复的错误
-
-- 可以手动触发，如 panic!("crash and burn");
-- 也可逻辑触发，如数组越界
-
-默认非release时运行可以通过设置参数当出现panic时可以自动打印堆栈回溯，命令如下：
-
-- RUST_BACKTRACE=1 cargo run
-- RUST_BACKTRACE=full cargo run
-
-另外可以在Cargo.toml里添加如下用于设置当panic时候由rust还是os负责清理内存（abort即退出，由os清理）
-
-``` toml
-[profile.release]
-panic = 'abort'
-```
-
-## Result
-
-- 是可恢复的错误
-- 在 Rust 中通过 Result<T, E> 枚举类作返回值来进行异常表达。T 代表成功时返回的 Ok 成员中的数据的类型，而 E 代表失败时返回的 Err 成员中的错误的类型
-
-``` rust
-enum Result<T, E> {
-    Ok(T),
-    Err(E),
-}
-```
-
-- 在 Rust 标准库中可能产生异常的函数的返回值都是 Result 类型的，简单演示如下：
-
-``` rust
-use std::fs::File;
-
-fn main() {
-    let f = File::open("hello.txt");
-    let f = match f {
-        Ok(file) => file,
-        Err(error) => panic!("Problem opening the file: {:?}", error),
-    };
-
-    /* 上面的match可以替换if let
-    if let Ok(file) = f {
-        println!("File opened successfully.");
-    } else {
-        println!("Failed to open the file.");
-    }
-    */
-}
-```
-
-- 匹配不同的错误，此案例比较繁琐，使用闭包可以化繁为简
-
-``` rust
-use std::fs::File;
-use std::io::ErrorKind;
-
-fn main() {
-    let f = File::open("hello.txt");
-
-    let f = match f {
-        Ok(file) => file,
-        Err(error) => match error.kind() {
-            ErrorKind::NotFound => match File::create("hello.txt") {
-                Ok(fc) => fc,
-                Err(e) => panic!("Problem creating the file: {:?}", e),
-            },
-            other_error => {
-                panic!("Problem opening the file: {:?}", other_error)
-            }
-        },
-    };
-}
-
--------------------------------- 闭包的方案
-use std::fs::File;
-use std::io::ErrorKind;
-
-fn main() {
-    let f = File::open("hello.txt").unwrap_or_else(|error| {
-        if error.kind() == ErrorKind::NotFound {
-            File::create("hello.txt").unwrap_or_else(|error| {
-                panic!("Problem creating the file: {:?}", error);
-            })
-        } else {
-            panic!("Problem opening the file: {:?}", error);
-        }
-    });
-}
-```
-
-- unwrap
-
-    如果 Result 值是成员 Ok，unwrap 会返回 Ok 中的值。如果 Result 是成员 Err，unwrap 会调用 panic!
-
-``` rust
-use std::fs::File;
-
-fn main() {
-    let f1 = File::open("hello.txt").unwrap();
-    // let f2 = File::open("hello.txt").expect("Failed to open.");
-}
-```
-
-- expect
-
-    expect比unwrap多一个功能，就是可以自定义panic的错误信息
-
-``` rust
-use std::fs::File;
-
-fn main() {
-    let f = File::open("hello.txt").expect("Failed to open hello.txt");
-}
-```
-
-## 可恢复的错误的传递
-
-目标是选择在哪一层进行错误的处理
-
-这是一个简单的案例
-
-``` rust
-fn f(i: i32) -> Result<i32, bool> {
-    if i >= 0 { Ok(i) }
-    else { Err(false) }
-}
-
-fn g(i: i32) -> Result<i32, bool> {
-    let t = f(i)?;
-    Ok(t) // 因为确定 t 不是 Err, t 在这里已经是 i32 类型
-}
-
-fn main() {
-    let r = g(10000);
-    if let Ok(v) = r {
-        println!("Ok: g(10000) = {}", v);
-    } else {
-        println!("Err");
-    }
-}
-```
-
-另一个复杂的案例：读取文件内容。如果文件不存在或不能读取，这个函数会将这些错误返回给调用它的代码
-
-- 版本1
-
-    如果这个函数没有出任何错误成功返回，函数的调用者会收到一个包含 String 的 Ok 值，需要在每一步都进行结果判断，逻辑较繁琐
-
-``` rust
-use std::fs::File;
-use std::io::{self, Read};
-
-fn read_username_from_file() -> Result<String, io::Error> {
-    let f = File::open("hello.txt");
-
-    let mut f = match f {
-        Ok(file) => file,
-        Err(e) => return Err(e),
-    };
-
-    let mut s = String::new();
-
-    match f.read_to_string(&mut s) {
-        Ok(_) => Ok(s),
-        Err(e) => Err(e),
-    }
-}
-```
-
-- 版本2
-
-    使用了 ? 运算符代替match（效果类似，内部实现不同）。如果 Result 的值是 Ok，这个表达式将会返回 Ok 中的值而程序将继续执行。如果值是 Err，Err 中的值将作为整个函数的返回值，就好像使用了 return 关键字一样，这样错误值就被传播给了调用者。
-
-``` rust
-use std::fs::File;
-use std::io;
-use std::io::Read;
-
-fn read_username_from_file() -> Result<String, io::Error> {
-    let mut f = File::open("hello.txt")?;
-    let mut s = String::new();
-    f.read_to_string(&mut s)?;
-    Ok(s)
-}
-```
-
-- 版本3
-
-    ？后面可以链式调用，只不过太精简会导致debug时候比较麻烦。另外此功能其实在标准库里已经提供了...
-
-``` rust
-use std::fs::File;
-use std::io;
-use std::io::Read;
-
-fn read_username_from_file() -> Result<String, io::Error> {
-    let mut s = String::new();
-    File::open("hello.txt")?.read_to_string(&mut s)?;
-    Ok(s)
-}
-
-
--------------------
-fn read_username_from_file() -> Result<String, io::Error> {
-    fs::read_to_string("hello.txt")
 }
 ```
 
