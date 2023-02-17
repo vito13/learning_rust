@@ -1,7 +1,7 @@
 ---
 阅读进度                            再继续的章节
 
-https://learn.microsoft.com/zh-cn/training/paths/rust-first-steps/      实现泛型类型和特征
+https://learn.microsoft.com/zh-cn/training/paths/rust-first-steps/      完毕
 
 Rust入门秘笈                        Rust所有权
 Rust编程：入门、实战与进阶          第四章，差2.4，2.5，枚举
@@ -537,7 +537,7 @@ huaw@test:~/playground/rust/hellocargo$ cargo build
 
 ### release
 
-会build到target/release下
+会build到target/release下，当然也可以运行命令 cargo run --release
 
 ``` shell
 huaw@test:~/playground/rust/hellocargo$ cargo build --release
@@ -577,104 +577,70 @@ registry = "https://mirrors.tuna.tsinghua.edu.cn/git/cratesio-index.git"
 git-fetch-with-cli = true
 ```
 
-## 安装依赖
+## 查找第三方crate
 
-cargo add [dep]
+cargo search 可以检查其是否可用并确定最新版本：
+```
+$ cargo search structopt
+structopt = "0.3.21"                  # Parse command-line argument by defining a struct.
+.
+.
+.
+```
+
+## 添加依赖项
+
+通过将以下条目添加到 Cargo.toml 文件的 [dependencies] 部分，将其添加为我们项目的依赖项
+
+```rust
+[dependencies]
+structopt = "0.3"
+```
 
 ## 发布模块
 
 cargo publish
 
-# 手动安装pg,pgx
+# 搭建pgx开发环境
 
-- wget https://ftp.postgresql.org/pub/source/v15.1/postgresql-15.1.tar.gz
-- tar -xf postgresql-15.1.tar.gz
-- ./configure --prefix=/home/huaw/pgsql/15.1/
-- make
-- make install
-  
-    可以多下载几个被pgx支持的版本都安装上，然后手动添加环境变量到~/.bashrc末尾
+## 安装pg
 
 ``` shell
-export LD_LIBRARY_PATH=/home/huaw/work/postdb4out/lib/:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=/home/huaw/.pgx/11.18/pgx-install/lib/:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=/home/huaw/.pgx/12.13/pgx-install/lib/:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=/home/huaw/.pgx/13.9/pgx-install/lib/:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=/home/huaw/.pgx/14.6/pgx-install/lib/:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=/home/huaw/.pgx/15.1/pgx-install/lib/:$LD_LIBRARY_PATH
+wget https://ftp.postgresql.org/pub/source/v15.1/postgresql-15.1.tar.gz
+tar -xf postgresql-15.1.tar.gz
+cd
+./configure --prefix=/home/huaw/work/outpostdbv4/  安装到此位置
+make
+make install
 
-export PGHOME=/home/huaw/work/postdb4out/
-export PGDATA=/home/huaw/work/data
+$ sudo vi ~/.bashrc，末尾添 
+export LD_LIBRARY_PATH=/home/huaw/work/outpostdbv4/lib/:$LD_LIBRARY_PATH
+export PGHOME=/home/huaw/work/outpostdbv4/
+export PGDATA=/home/huaw/playground/data    需要手动创建出来
 export PATH=$PGHOME/bin:$PATH
+$ source  ~/.bashrc
 ```
 
-http://t.zoukankan.com/LiuChang-blog-p-12879891.html
-
-- 数据库初始化 initdb
-- 配置修改 vi $PGDATA/pg_hba.conf，末尾添加
-  host all all 0.0.0.0/0 md5
-- 配置监听地址 vi $PGDATA/postgresql.conf，port改为5432
-- pg_ctl start能够启动即可
-- 如需仅psql，则psql -p 5432 -d postgres即可
-- cargo pgx init --pg15=/home/huaw/pgsql/15.1/bin/pg_config --pg14=/home/huaw/pgsql/14.6/bin/pg_config --pg13=/home/huaw/pgsql/13.9/bin/pg_config
-
-    可以理解为注册环境变量，并且initdb到各自的/home/huaw/.pgx/data_nn中,暂未找到可以更换目标位置的参数。此操作运行一次即可且将所有版本都加上
-
-- cargo pgx run pg15
-
-- 还可以手动psql连入：
+## 安装rust
 
 ``` shell
-huaw@huaw:~/playground/rust/my_extension$ /home/huaw/.pgx/11.18/pgx-install/bin/psql -h '127.0.0.1' -d 'my_extension' -U 'huaw'
-psql (11.18)
-Type "help" for help.
-
-my_extension=# select current_database();
- current_database 
-------------------
- my_extension
-(1 row)
-
-my_extension=# select current_user;
- current_user 
---------------
- huaw
-(1 row)
-
-my_extension=# select inet_server_addr();
- inet_server_addr 
-------------------
- 127.0.0.1
-(1 row)
-
-my_extension=# select inet_client_port();
- inet_client_port 
-------------------
-            54856
-(1 row)
-
-my_extension=#  drop extension my_extension cascade; CREATE EXTENSION my_extension;
-DROP EXTENSION
-CREATE EXTENSION
-my_extension=# select hello_my_extension();
- hello_my_extension 
---------------------
- aaa!!!
-(1 row)
+$ curl https://sh.rustup.rs -sSf | sh
+$ sudo vi ~/.profile，末尾添  export PATH="$HOME/.cargo/bin:$PATH"
+$ source  ~/.profile
 ```
 
-# cargo-pgx
+## 安装pgx
 
-## 安装
-
-install进行安装，init命令会下载几个版本的postgres然后编译到目录~/.pgx/中（此目录里含有对应的pg代码目录与initdb后对应的数据目录）。这个下载步骤是必须的，因为后续pgx会为每中版本的postgres的header文件生成对应的Rust bindings，以及后续pgx 的测试框架中也会用到。​
+- 使用install进行安装
+- init命令负责初始化环境，下面指定了已经安装后的路径，如果之前没有安装pg则使用“cargo pgx init”，会下载几个版本的postgres然后编译到目录~/.pgx/中（此目录里含有对应的pg代码目录与initdb后对应的数据目录）。这个步骤时间会稍长（因为后续pgx会为每中版本的postgres的header文件生成对应的Rust bindings，以及后续pgx 的测试框架中也会用到）
 
 ``` shell
-cargo install --force --locked cargo-pgx
-cargo pgx init  // 此步会下载n个pg源码进行编译，时间会稍长
+$ cargo install --force --locked cargo-pgx --version=0.7.0  中途卡住就关了重新执行即可
+$ cargo pgx init --pg15 /home/huaw/work/outpostdbv4/bin/pg_config
+$ cargo install --force cargo-make
 ```
 
-## 创建项目
+## 创建pgx项目
 
 - 创建一个extension项目
 
@@ -802,6 +768,54 @@ my_extension=# SELECT hello_my_extension();
 (1 row)
 
 my_extension=# \q
+```
+
+## 手动测试pgx插件
+
+如cargo pgx run失败则参考如下操作流程进行测试
+
+``` shell
+- cargo pgx install，会将编译出的so,sql,control自动拷贝到之前通过cargo pgx init配置的对应目录中
+- 删除$PGDATA，重新initdb，此步骤是确保$PGDATA位置的pg数据目录正常
+- 修改配置 vi $PGDATA/pg_hba.conf，末尾添加
+  host all all 0.0.0.0/0 md5
+  用于手动psql登入
+- 配置监听地址 vi $PGDATA/postgresql.conf，port改为5432
+- pg_ctl start，启动pg，如果之前未关闭则先pg_ctl stop后再start
+- psql -p 5432 -d postgres，登入pg，下面的操作显示的结果也许不同
+
+my_extension=# select current_database();
+ current_database 
+------------------
+ my_extension
+(1 row)
+
+my_extension=# select current_user;
+ current_user 
+--------------
+ huaw
+(1 row)
+
+my_extension=# select inet_server_addr();
+ inet_server_addr 
+------------------
+ 127.0.0.1
+(1 row)
+
+my_extension=# select inet_client_port();
+ inet_client_port 
+------------------
+            54856
+(1 row)
+
+my_extension=#  drop extension my_extension cascade; CREATE EXTENSION my_extension;
+DROP EXTENSION
+CREATE EXTENSION
+my_extension=# select hello_my_extension();
+ hello_my_extension 
+--------------------
+ aaa!!!
+(1 row)
 ```
 
 ## 运行test
@@ -3750,9 +3764,51 @@ fn main() {
 
 ## ?运算符（传递错误）
 
-目标是选择在哪一层进行错误的处理
+目标是选择在哪一层进行错误的处理，先看下面的案例
 
-这是一个简单的案例
+``` rust
+pub fn add_task(journal_path: PathBuf, task: Task) -> Result<()> {
+    // Open the file.
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(journal_path)?;
+
+    // Consume the file's contents as a vector of tasks.
+    let mut tasks: Vec<Task> = match serde_json::from_reader(&file) {
+        Ok(tasks) => tasks,
+        Err(e) if e.is_eof() => Vec::new(),
+        Err(e) => Err(e)?,
+    };
+
+    // Rewind the file after reading from it.
+    file.seek(SeekFrom::Start(0))?;
+
+    // Write the modified task list back into the file.
+    tasks.push(task);
+    serde_json::to_writer(file, &tasks)?;
+
+    Ok(())
+}
+```
+
+上面语句后面的问号 (?) 用于传播错误，而无需编写太多样板代码。 如果返回的错误与其所在函数的返回类型匹配，那么它是用于提前返回错误的语法糖。 所以下面两个代码片段是等效的：
+
+``` rust
+fn function_1() -> Result(Success, Failure) {
+    match operation_that_might_fail() {
+        Ok(success) => success,
+        Err(failure) => return Err(failure),
+    }
+}
+
+fn function_2() -> Result(Success, Failure) {
+    operation_that_might_fail()?
+}
+```
+
+另一个简单的案例
 
 ``` rust
 fn f(i: i32) -> Result<i32, bool> {
@@ -3840,6 +3896,84 @@ fn read_username_from_file() -> Result<String, io::Error> {
     fs::read_to_string("hello.txt")
 }
 ```
+
+# 断言
+
+## assert!
+
+- 在运行时断言布尔表达式是true，为false则测试失败会调用panic!。
+- 断言总是在调试和发布版本中检查，并且不能被禁用。
+- 可以第二个参数附带自定义错误信息
+
+``` rust
+fn main() {
+    // the panic message for these assertions is the stringified value of the
+    // expression given.
+    assert!(true);
+
+    fn some_computation() -> bool { true } // a very simple function
+
+    assert!(some_computation());
+
+    // assert with a custom message
+    let x = true;
+    assert!(x, "x wasn't true!");
+
+    let a = 3; let b = 27;
+    assert!(a + b == 30, "a = {}, b = {}", a, b);
+}
+```
+
+## assert_eq!
+
+- 断言两个表达式彼此相等。panic时，此宏将打印表达式的值及其调试表示。
+- 像 assert! 一样，这个宏有第二种形式，可以提供自定义的panic消息。
+
+这个案例可以通过测试
+
+``` rust
+fn add(a: i32, b: i32) -> i32 {
+    a + b
+}
+
+#[test]
+fn add_works() {
+    assert_eq!(add(1, 2), 3);
+    assert_eq!(add(10, 12), 22);
+    assert_eq!(add(5, -2), 3);
+}
+
+```
+
+``` rust
+fn main() {
+    let a = 3;
+    let b = 1 + 2;
+    assert_eq!(a, b);
+    assert_eq!(a, b, "we are testing addition with {} and {}", a, b);
+}
+```
+
+## assert_ne!
+
+- 断言两个表达式不相等。Panics时，此宏将打印表达式的值及其调试表示。
+- 像 assert! 一样，这个宏有第二种形式，可以提供自定义的Panics消息。
+
+``` rust
+fn main() {
+    let a = 3;
+    let b = 2;
+    assert_ne!(a, b);
+    assert_ne!(a, b, "we are testing that the values are not equal");
+}
+```
+
+## debug_assert!
+
+## debug_assert_eq!
+
+## debug_assert_ne!
+
 
 # 所有权
 
@@ -4298,37 +4432,604 @@ fn main() {
 ### 静态生命周期
 
 
+# 泛型（静态多态）
+
+泛型数据类型是根据其他部分未知类型定义的类型，例如：
+
+``` rust
+Option<T> 枚举在类型 T 上是泛型类型，后者是其 Some 变体包含的值。
+Result<T, E> 在其成功和失败类型上都是泛型类型，分别包含在其 Ok 和 Err 变体中。
+Vec<T>、数组类型 [T; n] 以及哈希映射 HashMap<K, V> 在其所包含的类型上是泛型类型。
+```
+
+## 带有类型参数的结构
+
+一个类型参数的结构
+
+``` rust
+struct Point<T> {
+    x: T,
+    y: T,
+}
+
+fn main() {
+    let boolean = Point { x: true, y: false };
+    let integer = Point { x: 1, y: 9 };
+    let float = Point { x: 1.7, y: 4.3 };
+    let string_slice = Point { x: "high", y: "low" };
+}
+```
+
+两个类型参数的结构
+
+``` rust
+struct Point<T, U> {
+    x: T,
+    y: U,
+}
+
+fn main() {
+    let integer_and_boolean = Point { x: 5, y: false }; // Point<integer, bool>
+    let float_and_string = Point { x: 1.0, y: "hey" }; // Point<f64, &'static str>
+    let integer_and_float = Point { x: 5, y: 4.0 }; // Point<integer, f64>
+    let both_integer = Point { x: 10, y: 30 }; // Point<integer, integer>
+    let both_boolean = Point { x: true, y: true }; // Point<bool, bool>
+}
+```
+
+## 带有类型参数的函数
+
+``` rust
+struct Container<T> {
+    value: T,
+}
+
+impl<T> Container<T> {
+    pub fn new(value: T) -> Self {
+        Container { value }
+    }
+}
+
+fn main() {
+    assert_eq!(Container::new(42).value, 42);
+    assert_eq!(Container::new(3.14).value, 3.14);
+    assert_eq!(Container::new("Foo").value, "Foo");
+    assert_eq!(Container::new(String::from("Bar")).value, String::from("Bar"));
+    assert_eq!(Container::new(true).value, true);
+    assert_eq!(Container::new(-12).value, -12);
+    assert_eq!(Container::new(Some("text")).value, Some("text"));
+}
+```
+
+
+# Trait（动态多态）
+
+Rust提供了trait来定义不同type所需的“common behavior”，以此简化代码。可以理解为虚接口。
+
+## 简单定义与使用
+
+案例1，为不同shape添加area接口
+
+``` rust
+// 定义trait
+trait Area {
+    fn area(&self) -> f64;
+}
+
+// 定义具体类型
+struct Circle {
+    radius: f64,
+}
+
+struct Rectangle {
+    width: f64,
+    height: f64,
+}
+
+// 为具体类型实现trait
+impl Area for Circle {
+    fn area(&self) -> f64 {
+        use std::f64::consts::PI;
+        PI * self.radius.powf(2.0)
+    }
+}
+
+impl Area for Rectangle {
+    fn area(&self) -> f64 {
+        self.width * self.height
+    }
+}
+
+fn main() {
+    let circle = Circle { radius: 5.0 };
+    let rectangle = Rectangle {
+        width: 10.0,
+        height: 20.0,
+    };
+
+    println!("Circle area: {}", circle.area());
+    println!("Rectangle area: {}", rectangle.area());
+}
+
+
+huaw@huaw:~/playground/rust/tut$ cargo run
+    Finished dev [unoptimized + debuginfo] target(s) in 0.02s
+     Running `target/debug/tut`
+Circle area: 78.53981633974483
+Rectangle area: 200
+```
+
+案例2，可以在trait里定义多个api，而有默认实现（非纯虚函数）。以及演示trait作为参数的使用方式
+
+``` rust
+// Behavior里的eat提供了默认实现，后面的具体类型可以选择保留或重载
+// 允许调用相同 trait 中的其他方法，如Cat的eat里有调用了make_sound
+// 可以用作函数参数，也可作为函数返回值类型
+
+pub trait Behavior {
+    fn eat(&self) {
+        println!("真香")
+    }
+    fn make_sound(&self)-> String;
+}
+struct Dog;
+impl Behavior for Dog {
+    fn make_sound(&self)-> String {
+        "汪！".to_string()
+    }
+}
+struct Cat;
+impl Behavior for Cat {
+    fn make_sound(&self)-> String {
+        "喵~".to_string()
+    }
+    fn eat(&self) {
+        println!("{} 真香真香真香", self.make_sound())
+    }
+}
+
+// impl Trait 语法
+fn feed(item: &impl Behavior) {
+    item.eat();
+}
+
+// Trait Bound 语法
+fn feed2<T: Behavior>(item: &T) {
+    item.eat();
+}
+
+/* 因为 impl Trait 工作方式的限制这里不能编译，仅做演示
+fn getani(isdog: bool) -> impl Behavior {
+    if isdog{
+        return Dog;
+    }else
+    {
+        return Cat;
+    }
+}
+*/
+
+fn main() {
+    let dog = Dog;
+    let cat = Cat;
+    dog.eat();
+    println!("{}", dog.make_sound());
+    cat.eat();
+    println!("{}", cat.make_sound());
+
+    feed(&dog);
+    feed2(&dog);
+}
+
+
+
+真香
+汪！
+喵~ 真香真香真香
+喵~
+```
+
+## 派生Trait
+
+有的Trait可以直接继承，有的则需要手动实现，看下面的代码
+
+``` rust
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+fn main() {
+    let p1 = Point { x: 1, y: 2 };
+    let p2 = Point { x: 4, y: -3 };
+
+    if p1 == p2 { // can't compare two Point values!
+        println!("equal!");
+    } else {
+        println!("not equal!");
+    }
+
+    println!("{}", p1); // can't print using the '{}' format specifier!
+    println!("{:?}", p1); //  can't print using the '{:?}' format specifier!
+}
+```
+
+上面的代码编译失败，因为Point 类型没有实现以下特征：
+
+- Debug 特征，允许使用 {:?} 格式说明符来设置类型的格式，在面向程序员的调试上下文中使用。
+- Display 特征，允许使用 {} 格式说明符来设置类型的格式，与 Debug 类似。 但 Display 更适合面向用户的输出。
+- PartialEq 特征，允许比较实现器是否相等。
+
+修改为如下即可通过：
+
+``` rust
+// 使用 #[derive(Trait)] 属性自动实现 Debug 和 PartialEq 特征
+#[derive(Debug, PartialEq)]
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+// 手动实现Display特征
+use std::fmt;
+impl fmt::Display for Point {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
+    }
+}
+
+fn main() {
+    let p1 = Point { x: 1, y: 2 };
+    let p2 = Point { x: 4, y: -3 };
+
+    if p1 == p2 {
+        println!("equal!");
+    } else {
+        println!("not equal!");
+    }
+
+    println!("{}", p1);
+    println!("{:?}", p1);
+}
+
+huaw@huaw:~/playground/rust/tut$ cargo run
+    Finished dev [unoptimized + debuginfo] target(s) in 0.02s
+     Running `target/debug/tut`
+not equal!
+(1, 2)
+Point { x: 1, y: 2 }
+```
+
+## 函数参数是Trait
+
+``` rust
+#![allow(dead_code, unused_variables)]
+
+// 定义trait
+trait AsJson {
+    fn as_json(&self) -> String;
+}
+
+// 定义函数，参数是trait
+// 两种写法都可以：一种是泛型，一种是普通
+fn send_data_as_json<T: AsJson>(value: &T) {
+// fn send_data_as_json(value: &impl AsJson) {
+    println!("Sending JSON data to server...");
+    println!("-> {}", value.as_json());
+    println!("Done!\n");
+}
+
+struct Person {
+    name: String,
+    age: u8,
+    favorite_fruit: String,
+}
+
+struct Dog {
+    name: String,
+    color: String,
+    likes_petting: bool,
+}
+
+impl AsJson for Person {
+    fn as_json(&self) -> String {
+        format!(
+            r#"{{ "type": "person", "name": "{}", "age": {}, "favoriteFruit": "{}" }}"#,
+            self.name, self.age, self.favorite_fruit
+        )
+    }
+}
+
+impl AsJson for Dog {
+    fn as_json(&self) -> String {
+        format!(
+            r#"{{ "type": "dog", "name": "{}", "color": "{}", "likesPetting": {} }}"#,
+            self.name, self.color, self.likes_petting
+        )
+    }
+}
+
+struct Cat {
+    name: String,
+    sharp_claws: bool,
+}
+
+fn main() {
+    let laura = Person {
+        name: String::from("Laura"),
+        age: 31,
+        favorite_fruit: String::from("apples"),
+    };
+
+    let fido = Dog {
+        name: String::from("Fido"),
+        color: String::from("Black"),
+        likes_petting: true,
+    };
+
+    let kitty = Cat {
+        name: String::from("Kitty"),
+        sharp_claws: false,
+    };
+
+    send_data_as_json(&laura);
+    send_data_as_json(&fido);
+
+    // The Cat type does not implement the trait AsJson.
+    // send_data_as_json(&kitty) // uncomment this line to see the compiler error.
+}
+
+huaw@huaw:~/playground/rust/tut$ cargo run
+    Finished dev [unoptimized + debuginfo] target(s) in 0.02s
+     Running `target/debug/tut`
+Sending JSON data to server...
+-> { "type": "person", "name": "Laura", "age": 31, "favoriteFruit": "apples" }
+Done!
+
+Sending JSON data to server...
+-> { "type": "dog", "name": "Fido", "color": "Black", "likesPetting": true }
+Done!
+```
+
+## 自定义Iterator
+
+- 该接口在标准库中定义，用于（如范围、数组、矢量和哈希映射）这些容器。
+- Iterator 具有方法 next，调用时它将返回 Option<Item>。 只要有元素，next 方法就会返回 Some(Item)。 用尽所有元素后，它将返回 None 以指示迭代已完成。
+
+``` rust
+trait Iterator {
+    type Item;
+    fn next(&mut self) -> Option<Self::Item>;
+}
+```
+
+案例1，简单的自定义实现
+
+``` rust
+struct Counter {
+    length: usize,
+    count: usize,
+}
+
+impl Counter {
+    fn new(length: usize) -> Counter {
+        Counter { count: 0, length }
+    }
+}
+
+impl Iterator for Counter {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.count += 1;
+        if self.count <= self.length {
+            Some(self.count)
+        } else {
+            None
+        }
+    }
+}
+
+fn main() {
+    for number in Counter::new(10) {
+        println!("{}", number);
+    }
+
+    let sum_until_10: usize = Counter::new(10).sum();
+    assert_eq!(sum_until_10, 55);
+
+    let powers_of_2: Vec<usize> = Counter::new(8).map(|n| 2usize.pow(n as u32)).collect();
+    assert_eq!(powers_of_2, vec![2, 4, 8, 16, 32, 64, 128, 256]);
+}
+
+huaw@huaw:~/playground/rust/tut$ cargo run
+   Compiling tut v0.1.0 (/home/huaw/playground/rust/tut)
+    Finished dev [unoptimized + debuginfo] target(s) in 0.48s
+     Running `target/debug/tut`
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+```
+
+案例2，复杂的实现
+
+``` rust
+目标：输入[ 1, 1, 2, 1, 3, 3 ]，输出[ [1, 1], [2], [1], [3, 3] ]
+
+struct Groups<T> {
+    inner: Vec<T>,
+}
+
+impl<T> Groups<T> {
+    fn new(inner: Vec<T>) -> Self {
+        Groups { inner }
+    }
+}
+
+impl<T: PartialEq> Iterator for Groups<T> {
+    type Item = Vec<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // if the inner vector is empty, we are done
+        if self.inner.is_empty() {
+            return None;
+        }
+
+        // lets check the span of equal items
+        let mut cursor = 1;
+        let first = &self.inner[0];
+        for element in &self.inner[1..] {
+            if element == first {
+                cursor += 1;
+            } else {
+                break;
+            }
+        }
+
+        // we use the `Vec::drain` to extract items up until the cursor
+        let items = self.inner.drain(0..cursor).collect();
+
+        // return the extracted items
+        Some(items)
+    }
+}
+
+fn main() {
+    let data = vec![4, 1, 1, 2, 1, 3, 3, -2, -2, -2, 5, 5];
+    // groups:     |->|---->|->|->|--->|----------->|--->|
+    assert_eq!(
+        Groups::new(data).into_iter().collect::<Vec<Vec<_>>>(),
+        vec![
+            vec![4],
+            vec![1, 1],
+            vec![2],
+            vec![1],
+            vec![3, 3],
+            vec![-2, -2, -2],
+            vec![5, 5],
+        ]
+    );
+
+    let data2 = vec![1, 2, 2, 1, 1, 2, 2, 3, 4, 4, 3];
+    // groups:      |->|---->|---->|----|->|----->|->|
+    assert_eq!(
+        Groups::new(data2).into_iter().collect::<Vec<Vec<_>>>(),
+        vec![
+            vec![1],
+            vec![2, 2],
+            vec![1, 1],
+            vec![2, 2],
+            vec![3],
+            vec![4, 4],
+            vec![3],
+        ]
+    )
+}
+
+```
+
+## 多类型参数与where
+
+待完善
+
+# 闭包
+
+特点：
+
+- 创建闭包不用取名，方便快捷
+- 闭包可以捕获调用者作用域中的值
+- 闭包可以被保存进变量或作为参数传递给其他函数
+
+## 创建
+
+语法：
+|参数列表| -> 返回类型 {代码段}
+
+``` rust
+普通样式
+fn main() {
+    let closure = |a: i32| -> i32 {
+        println!("a={}", a);
+        a
+    };
+    println!("closure return {}", closure(10));
+}
+
+没有返回值，返回类型可以被省略
+fn main() {
+    let closure = |a: i32| {
+        println!("a={}", a);
+    };
+    
+    closure(10);
+}
+
+代码段只有一行，花括号也可以被省略
+fn main() {
+    let closure = |a: i32| println!("a = {}", a);
+    closure(10);
+}
+
+闭包会自动推导参数类型。如定义了闭包，省略参数，而不去调用它则编译出错
+fn main() {
+    let closure = |a| println!("a = {}", a);
+    closure(10); 加上调用则不会出错了
+    closure(1.0); 两次调用，但参数的类型不一致也会出错
+}
+```
+
+## 捕获的三种方式
+
+- Fn
+- FnMut
+- FnOnce
+
+## 闭包作为函数参数
+
 # 组织管理
 
-Rust 提供了将包分成多个 crate，将 crate 分成模块，以及通过指定绝对或相对路径从一个模块引用另一个模块中定义的项的方式。可以通过使用 use 语句将路径引入作用域，这样在多次使用时可以使用更短的路径。模块定义的代码默认是私有的，不过可以选择增加 pub 关键字使其定义变为公有。
+代码的组织
 
-## Package
+- 包 Package
+- 箱 Crate
+- 模块 Module
 
-- 可以理解为是一个工程，包含1个 Cargo.toml，它描述了如何构建这些 Crates（项目）
-- 包中可以包含至多一个库 crate(library crate，即库项目)。包中可以包含任意多个二进制 crate(binary crate，即可执行项目)，但是必须至少包含一个 crate（无论是库的还是二进制的）。
+## 包 Package
 
-## Crate
+- 通过cargo new project-name可以创建一个包，内容如下
 
+``` rust
+my-project
+├── src
+│  └── main.rs
+└── Cargo.toml
+```
+
+- 可以理解为是一个工程，是最大的单位，包含Cargo.toml和src/main.rs，默认编译目标是可执行Crate
+- 如果有src/main.rs和src/lib.rs，则编译目标则是2个（一个库Crate与一个可执行Crate，它们的名称相同)
+- 一个包可以包含最多一个库Crate与多个可执行Crate（可通过Cargo.toml配置Crate的输出名称）
+- 一个包里至少包含1个crate（可以是库也可以是可执行）
+
+## 箱 Crate
+
+- 可以理解为项目，编译为可执行程序或库文件。
 - cargo new my-project，创建可执行程序，在src内有main.rs
 - cargo new --lib my-lib，创建库，在src内有lib.rs
 - src内可以同时有main.rs与lib.rs，build时则可以同时编译出库与可执行程序，名称与new创建项目时候使用的一致
 - 可将main.rs挪到src/bin下，在此文件夹内的每个rs都会被编译为一个可执行程序，但别忘了每个rs里都要有main函数才可
 
-## Module
+## 模块 Module
 
-module用于控制作用域和私有性
-
-作用
-
-- 在一个 crate 内，将代码进行分组
-- 增加可读性，易于复用
-- 控制项目 (item)的私有性。public、private
-
-建立module:
-
-- mod 关键字
+- 关键字是mod，是Crate内的代码组织单位
+- module用于控制作用域和私有性(public、private)，可包含如struct、enum、常量、trait、函数等的定义
 - 可嵌套
-- 可包含其它项 (struct、enum、常量、trait、函数等) 的定义
 
 案例，一个mod里有3个mod，每个mod里还有一个func
 
@@ -4347,47 +5048,94 @@ mod nation {
 
 ```
 
-## Module的访问路径
-
-为了在Rust 的模块中找到某个条目，需要使用路径：
-
-- 绝对路径:从 crate 根开始，以 crate 名或者字面值 crate 开头。
-- 相对路径:从当前模块开始，以 self、super 或当前模块的标识符开头。
-- 绝对路径和相对路径都后跟一个或多个由双冒号（::）分割的标识符。
-
-
-
-注意下例里使用了pub才可顺利的调用
+### mod与main在相同文件
 
 ``` rust
-mod front_of_house {
-    pub mod hosting {
-        pub fn add_to_waitlist() {}
+mod authentication {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    pub struct User {
+        username: String,
+        password_hash: u64,
+    }
+
+    impl User {
+        pub fn new(username: &str, password: &str) -> User {
+            User {
+                username: username.to_string(),
+                password_hash: hash_password(&password.to_owned()),
+            }
+        }
+
+        pub fn get_username(&self) -> &String {
+            &self.username
+        }
+
+        pub fn set_password(&mut self, new_password: &str) {
+            self.password_hash = hash_password(&new_password.to_owned())
+        }
+    }
+    fn hash_password<T: Hash>(t: &T) -> u64 {
+        let mut s = DefaultHasher::new();
+        t.hash(&mut s);
+        s.finish()
     }
 }
 
-pub fn eat_at_restaurant() {
-    // 绝对路径
-    crate::front_of_house::hosting::add_to_waitlist();
+fn main() {
+    let mut user = authentication::User::new("jeremy", "super-secret");
 
-    // 相对路径
-    front_of_house::hosting::add_to_waitlist();
+    println!("The username is: {}", user.get_username());
+    user.set_password("even-more-secret");
 }
 ```
 
-- 可以使用 super 开头来构建从父模块开始的相对路径。这么做类似于文件系统中以 .. 开头的语法。
+### mod与main在不同文件
 
 ``` rust
-fn serve_order() {}
+huaw@huaw:~/playground/rust/tut/src$ cat authentication.rs 
 
-mod back_of_house {
-    fn fix_incorrect_order() {
-        cook_order();
-        super::serve_order();
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
+pub struct User {
+    username: String,
+    password_hash: u64,
+}
+
+impl User {
+    pub fn new(username: &str, password: &str) -> User {
+        User {
+            username: username.to_string(),
+            password_hash: hash_password(&password.to_owned()),
+        }
     }
 
-    fn cook_order() {}
+    pub fn get_username(&self) -> &String {
+        &self.username
+    }
+
+    pub fn set_password(&mut self, new_password: &str) {
+        self.password_hash = hash_password(&new_password.to_owned())
+    }
 }
+fn hash_password<T: Hash>(t: &T) -> u64 {
+    let mut s = DefaultHasher::new();
+    t.hash(&mut s);
+    s.finish()
+}
+
+huaw@huaw:~/playground/rust/tut/src$ cat main.rs 
+mod authentication; // 可以理解为include的效果
+
+fn main() {
+    let mut user = authentication::User::new("jeremy", "super-secret");
+
+    println!("The username is: {}", user.get_username());
+    user.set_password("even-more-secret");
+}
+
 ```
 
 ## 私有与共有
@@ -4427,6 +5175,37 @@ fn main() {
     nation::court::judicial();
 }
 
+```
+
+另一个案例
+
+``` rust
+mod text_processing {
+
+    pub mod letters {
+        pub fn count_letters(text: &str) -> usize {
+            text.chars().filter(|ref c| c.is_alphabetic()).count()
+        }
+    }
+
+    pub mod numbers {
+        pub fn count_numbers(text: &str) -> usize {
+           text.chars().filter(|ref c| c.is_numeric()).count()
+        }
+    }
+}
+
+fn count_letters_and_numbers(text: &str) -> (usize, usize) {
+    let number_of_letters = text_processing::letters::count_letters(text);
+    let number_of_numbers = text_processing::numbers::count_numbers(text);
+    (number_of_letters, number_of_numbers)
+}
+
+fn main() {
+    assert_eq!(count_letters_and_numbers("221B Baker Street"), (12, 3));
+    assert_eq!(count_letters_and_numbers("711 Maple Street"), (11, 3));
+    assert_eq!(count_letters_and_numbers("4 Privet Drive"), (11, 1));
+}
 ```
 
 ### 公有的结构
@@ -4485,6 +5264,62 @@ fn main() {
         }
         _ => {}
     }
+}
+```
+
+## 添加第三方Crate
+
+- 在 Cargo.toml的dependencies中加入rand = "0.8.3"，即导入rand的0.8.3版本，写完此句后语言服务后台就会自动下载编译，如果长时间未停止则需要手动操作：
+  - 先关闭语言服务
+
+    操作见[rust语言服务](#rust语言服务)
+
+  - 尝试手动构建
+
+    进入项目目录后 cargo build，如果出现“Blocking waiting for file lock on package cache”则可以ctrl+c先关闭之，然后 whereis cargo 找到并进入可执行文件的路径。ls -al 查看是否有.package-cache文件，如有则删除之。回到原位重新 cargo build 即可。构建时如从creats.io下载库很慢，则需[换源](#换源)
+
+- 在需要使用此Crate的rs头部加入一行 use rand::Rng;即为导入完毕
+
+## Module的访问路径
+
+为了在Rust 的模块中找到某个条目，需要使用路径：
+
+- 绝对路径:从 crate 根开始，以 crate 名或者字面值 crate 开头。
+- 相对路径:从当前模块开始，以 self、super 或当前模块的标识符开头。
+- 绝对路径和相对路径都后跟一个或多个由双冒号（::）分割的标识符。
+
+
+
+注意下例里使用了pub才可顺利的调用
+
+``` rust
+mod front_of_house {
+    pub mod hosting {
+        pub fn add_to_waitlist() {}
+    }
+}
+
+pub fn eat_at_restaurant() {
+    // 绝对路径
+    crate::front_of_house::hosting::add_to_waitlist();
+
+    // 相对路径
+    front_of_house::hosting::add_to_waitlist();
+}
+```
+
+- 可以使用 super 开头来构建从父模块开始的相对路径。这么做类似于文件系统中以 .. 开头的语法。
+
+``` rust
+fn serve_order() {}
+
+mod back_of_house {
+    fn fix_incorrect_order() {
+        cook_order();
+        super::serve_order();
+    }
+
+    fn cook_order() {}
 }
 ```
 
@@ -4606,18 +5441,6 @@ fn main() {
 }
 ```
 
-## 使用外部包
-
-- 在 Cargo.toml的dependencies中加入rand = "0.8.3"，即导入rand的0.8.3版本，写完此句后语言服务后台就会自动下载编译，如果长时间未停止则需要手动操作：
-  - 先关闭语言服务
-
-    操作见[rust语言服务](#rust语言服务)
-
-  - 尝试手动构建
-
-    进入项目目录后 cargo build，如果出现“Blocking waiting for file lock on package cache”则可以ctrl+c先关闭之，然后 whereis cargo 找到并进入可执行文件的路径。ls -al 查看是否有.package-cache文件，如有则删除之。回到原位重新 cargo build 即可。构建时如从creats.io下载库很慢，则需[换源](#换源)
-
-- 在需要使用此包的rs头部加入一行 use rand::Rng;即为导入此包
 
 ## 多文件
 
@@ -4687,283 +5510,115 @@ fn main() {
 }
 ```
 
-# 泛型
-
-
-# trait
-
-Rust语言里不同的type(比如 struct, enum等)可以调用的函数主要包括本身实现的方法。此外，Rust也提供了trait来定义不同type所需的“common behavior”，以此简化代码。
-
-## 简单使用
-
-- Behavior里的eat提供了默认实现，后面的具体类型可以选择保留或重载
-- 允许调用相同 trait 中的其他方法，如Cat的eat里有调用了make_sound
-- 可以用作函数参数，也可作为函数返回值类型
-
-``` rust
-
-pub trait Behavior {
-    fn eat(&self) {
-        println!("真香")
-    }
-    fn make_sound(&self)-> String;
-}
-struct Dog;
-impl Behavior for Dog {
-    fn make_sound(&self)-> String {
-        "汪！".to_string()
-    }
-}
-struct Cat;
-impl Behavior for Cat {
-    fn make_sound(&self)-> String {
-        "喵~".to_string()
-    }
-    fn eat(&self) {
-        println!("{} 真香真香真香", self.make_sound())
-    }
-}
-
-// impl Trait 语法
-fn feed(item: &impl Behavior) {
-    item.eat();
-}
-
-// Trait Bound 语法
-fn feed2<T: Behavior>(item: &T) {
-    item.eat();
-}
-
-/* 因为 impl Trait 工作方式的限制这里不能编译，仅做演示
-fn getani(isdog: bool) -> impl Behavior {
-    if isdog{
-        return Dog;
-    }else
-    {
-        return Cat;
-    }
-}
-*/
-
-fn main() {
-    let dog = Dog;
-    let cat = Cat;
-    dog.eat();
-    println!("{}", dog.make_sound());
-    cat.eat();
-    println!("{}", cat.make_sound());
-
-    feed(&dog);
-    feed2(&dog);
-}
-
-
-
-真香
-汪！
-喵~ 真香真香真香
-喵~
-```
-
-## 多类型参数与where
-
-待完善
-
-# 闭包
-
-特点：
-
-- 创建闭包不用取名，方便快捷
-- 闭包可以捕获调用者作用域中的值
-- 闭包可以被保存进变量或作为参数传递给其他函数
-
-## 创建
-
-语法：
-|参数列表| -> 返回类型 {代码段}
-
-``` rust
-普通样式
-fn main() {
-    let closure = |a: i32| -> i32 {
-        println!("a={}", a);
-        a
-    };
-    println!("closure return {}", closure(10));
-}
-
-没有返回值，返回类型可以被省略
-fn main() {
-    let closure = |a: i32| {
-        println!("a={}", a);
-    };
-    
-    closure(10);
-}
-
-代码段只有一行，花括号也可以被省略
-fn main() {
-    let closure = |a: i32| println!("a = {}", a);
-    closure(10);
-}
-
-闭包会自动推导参数类型。如定义了闭包，省略参数，而不去调用它则编译出错
-fn main() {
-    let closure = |a| println!("a = {}", a);
-    closure(10); 加上调用则不会出错了
-    closure(1.0); 两次调用，但参数的类型不一致也会出错
-}
-```
-
-## 捕获的三种方式
-
-- Fn
-- FnMut
-- FnOnce
-
-## 闭包作为函数参数
-
 
 # 自动化测试
 
-## 分类
+Rust 语言本身内置了简单测试机制，使用#[test]进行标记。在常规编译中会被跳过，但在通过cargo test命令运行程序时会包含并自动调用。测试函数可以写在源代码中的任何地方，只要紧跟着它要测试的代码即可。这样，cargo test 会自动把它们收集起来并全部运行。每个test函数是在单独的线程里运行
 
-### 单元测试
+## 单元测试
 
-- 小、专注
-- 一次对一个模块进行隔离的测试
-- 可测试 private 接口
-- 在mod tests上使用 #[cfg(test)] 进行标注
-- 只有运行 cargo test 才编译和运行代码，运行 cargo build 则不会
+- 用 #[test] 属性标记的函数，用于验证代码是否按预期方式正常运行。
+- 系统仅会在测试代码时（cargo test）编译这些函数。
+- 这些函数通常使用 assert! 或 assert_eq! 宏来检查结果。
 
-### 集成测试
+测试通过的案例
 
-- 只能使用 public 接口
-- 可能在每个测试中使用到多个模块
-- 集成测试在不同的目录，它不需要 #[cfg(test)] 标注
-- 集成测试完全位于被测试库的外部，目的是测试被测试库的多个部分是否能正确的一起工作，集成测试的覆盖率很重要
-- 测试代码位于src同级的tests目录下，每个测试文件都是单独的一个 crate
-## 使用方式
-
-- Rust 语言本身内置了简单测试机制，如下代码在函数定义上方的 #[test] 表示 test_gcd 是一个测试函数，在常规编译中会被跳过，但在通过 cargo test 命令运行程序时会包含并自动调用。测试函数可以写在源代码中的任何地方，只要紧跟着它要测试的代码即可。这样，cargo test 会自动把它们收集起来并全部运行。
-
-- 每个test函数是在单独的线程里运行
-
-``` shell
-huaw@test:~/playground/rust/hello3$ cat src/main.rs 
-fn gcd(mut n: u64, mut m: u64) -> u64 {
-    assert!(n != 0 && m != 0);
-    while m != 0 {
-        if m < n {
-            let t = m;
-            m = n;
-            n = t;
-        }
-        m = m % n;
-    }
-    n
+``` rust
+fn add(a: i32, b: i32) -> i32 {
+    a + b
 }
 
 #[test]
-fn test_gcd() {
-    assert_eq!(gcd(14, 15), 1);
-    assert_eq!(gcd(2 * 3 * 5 * 11 * 17, 3 * 7 * 11 * 13 * 19), 3 * 11);
+fn add_works() {
+    assert_eq!(add(1, 2), 3);
+    assert_eq!(add(10, 12), 22);
+    assert_eq!(add(5, -2), 3);
 }
 
-huaw@test:~/playground/rust/hello3$ cargo test
-   Compiling hello3 v0.1.0 (/home/huaw/playground/rust/hello3)
-    Finished test [unoptimized + debuginfo] target(s) in 0.63s
-     Running unittests src/main.rs (target/debug/deps/hello3-542dcbdbc46ebcea)
+huaw@huaw:~/playground/rust/tut$ cargo test
+   Compiling tut v0.1.0 (/home/huaw/playground/rust/tut)
+    Finished test [unoptimized + debuginfo] target(s) in 0.53s
+     Running unittests src/main.rs (target/debug/deps/tut-ce448080f83ef596)
 
 running 1 test
-test test_gcd ... ok
+test add_works ... ok
 
 test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
 ```
 
-- 如果是库项目则代码略有不同，tests函数里的“use super:: *”作用是将外部所有内容都导入到本模块里
+添加一个会测试失败的函数，运行$ cargo test 会打印失败的信息
 
 ``` rust
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
+fn add(a: i32, b: i32) -> i32 {
+    a + b
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+#[test]
+fn add_works() {
+    assert_eq!(add(1, 2), 3);
+    assert_eq!(add(10, 12), 22);
+    assert_eq!(add(5, -2), 3);
 }
+
+#[test]
+fn add_fails() {    // 这个函数会失败
+    assert_eq!(add(2, 2), 7);
+}
+
+huaw@huaw:~/playground/rust/tut$ cargo test
+   Compiling tut v0.1.0 (/home/huaw/playground/rust/tut)
+    Finished test [unoptimized + debuginfo] target(s) in 0.46s
+     Running unittests src/main.rs (target/debug/deps/tut-ce448080f83ef596)
+
+running 2 tests
+test add_works ... ok
+test add_fails ... FAILED
+
+failures:
+
+---- add_fails stdout ----
+thread 'add_fails' panicked at 'assertion failed: `(left == right)`
+  left: `4`,
+ right: `7`', src/main.rs:14:5
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    add_fails
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--bin tut`
 ```
-
-## 断言
-
-### assert!
-
-- 在运行时断言布尔表达式是true，为false则测试失败会调用panic!。
-- 断言总是在调试和发布版本中检查，并且不能被禁用。
-- 可以第二个参数附带自定义错误信息
-
-``` rust
-fn main() {
-    // the panic message for these assertions is the stringified value of the
-    // expression given.
-    assert!(true);
-
-    fn some_computation() -> bool { true } // a very simple function
-
-    assert!(some_computation());
-
-    // assert with a custom message
-    let x = true;
-    assert!(x, "x wasn't true!");
-
-    let a = 3; let b = 27;
-    assert!(a + b == 30, "a = {}, b = {}", a, b);
-}
-```
-
-### assert_eq!
-
-- 断言两个表达式彼此相等。Panics时，此宏将打印表达式的值及其调试表示。
-- 像 assert! 一样，这个宏有第二种形式，可以提供自定义的Panics消息。
-
-``` rust
-fn main() {
-    let a = 3;
-    let b = 1 + 2;
-    assert_eq!(a, b);
-    assert_eq!(a, b, "we are testing addition with {} and {}", a, b);
-}
-```
-
-### assert_ne!
-
-- 断言两个表达式不相等。Panics时，此宏将打印表达式的值及其调试表示。
-- 像 assert! 一样，这个宏有第二种形式，可以提供自定义的Panics消息。
-
-``` rust
-fn main() {
-    let a = 3;
-    let b = 2;
-    assert_ne!(a, b);
-    assert_ne!(a, b, "we are testing that the values are not equal");
-}
-```
-
-### debug_assert!
-
-### debug_assert_eq!
-### debug_assert_ne!
 
 ### should_panic
 
-- 用于测试会引起panic的函数，只有发生panic才通过
-- 在#[test]下一行加上#[should_panic]，还可以带个参数expected，用以更加严格的匹配panic错误信息
+- 在许多情况下经常要测试某种条件是否会导致 panic!。使用should_panic便可以检查 panic!。
+- 在#[test]下一行加上#[should_panic]，代表下面的函数会在测试过程中崩溃。还可以带个参数expected，用以更加严格的匹配panic错误信息
+- 如果将此属性添加到测试函数，则当函数中的代码崩溃时，测试便会通过。 当代码不崩溃时，测试便会失败
+
+``` rust
+fn add(a: i32, b: i32) -> i32 {
+    a + b
+}
+
+#[test]
+fn add_works() {
+    assert_eq!(add(1, 2), 3);
+    assert_eq!(add(10, 12), 22);
+    assert_eq!(add(5, -2), 3);
+}
+
+#[test]
+#[should_panic] // 有了这句就能顺利通过测试了
+fn add_fails() {
+    assert_eq!(add(2, 2), 7);
+}
+```
+
+另一个案例
+
 
 ``` rust
 pub fn add_two(a: i32) -> i32 {
@@ -4994,6 +5649,350 @@ mod tests {
 }
 ```
 
+### ignore
+
+- 在#[test]下面加上#[ignore]则此函数就会被忽略
+- 也可以使用 “cargo test -- --ignored” 专门对所有被忽略的函数进行测试
+
+``` rust
+fn add(a: i32, b: i32) -> i32 {
+    a + b
+}
+
+#[test]
+fn add_works() {
+    assert_eq!(add(1, 2), 3);
+    assert_eq!(add(10, 12), 22);
+    assert_eq!(add(5, -2), 3);
+}
+
+#[test]
+#[ignore = "not yet reviewed by the Q.A. team"]
+fn add_negatives() { // 这个测试函数会被忽略
+    assert_eq!(add(-2, -2), -4)
+}
+
+huaw@huaw:~/playground/rust/tut$ cargo test
+   Compiling tut v0.1.0 (/home/huaw/playground/rust/tut)
+    Finished test [unoptimized + debuginfo] target(s) in 0.51s
+     Running unittests src/main.rs (target/debug/deps/tut-ce448080f83ef596)
+
+running 2 tests
+test add_negatives ... ignored, not yet reviewed by the Q.A. team
+test add_works ... ok
+
+test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+```
+
+### 对module进行测试
+
+- 单独写一个带有#[cfg(test)] 属性的子模块。
+- cfg 属性负责控制条件编译，并仅会在谓词为 true 时编译其所附带的内容。 每当执行 $ cargo test 命令时，Cargo 都会自动发出 test 编译标志，因此，当我们运行测试时，该标志将始终为 true。
+- tests函数里的“use super:: *”作用是将外部所有内容都导入到本模块里
+
+简单的案例
+
+``` rust
+pub fn is_even(num: i32) -> bool {
+    num % 2 == 0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_true_when_even() {
+        assert!(is_even(4));
+    }
+
+    #[test]
+    fn is_false_when_odd() {
+        assert!(!is_even(3));
+    }
+}
+
+huaw@huaw:~/playground/rust/tut$ cargo test
+   Compiling tut v0.1.0 (/home/huaw/playground/rust/tut)
+    Finished test [unoptimized + debuginfo] target(s) in 0.47s
+     Running unittests src/main.rs (target/debug/deps/tut-ce448080f83ef596)
+
+running 2 tests
+test tests::is_true_when_even ... ok
+test tests::is_false_when_odd ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+```
+
+另一个案例
+
+``` rust
+fn add(a: i32, b: i32) -> i32 {
+    a + b
+}
+
+#[cfg(test)]
+mod add_function_tests {
+    use super::*;
+
+    #[test]
+    fn add_works() {
+        assert_eq!(add(1, 2), 3);
+        assert_eq!(add(10, 12), 22);
+        assert_eq!(add(5, -2), 3);
+    }
+
+    #[test]
+    #[should_panic]
+    fn add_fails() {
+        assert_eq!(add(2, 2), 7);
+    }
+
+    #[test]
+    #[ignore]
+    fn add_negatives() {
+        assert_eq!(add(-2, -2), -4)
+    }
+}
+
+huaw@huaw:~/playground/rust/tut$ cargo test
+   Compiling tut v0.1.0 (/home/huaw/playground/rust/tut)
+    Finished test [unoptimized + debuginfo] target(s) in 0.45s
+     Running unittests src/main.rs (target/debug/deps/tut-ce448080f83ef596)
+
+running 3 tests
+test add_function_tests::add_negatives ... ignored
+test add_function_tests::add_fails - should panic ... ok
+test add_function_tests::add_works ... ok
+
+test result: ok. 2 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+```
+
+## 文档测试
+
+Rust也可对文档中的示例代码进行测试。
+
+- 得是库项目
+
+``` shell
+$ cargo new --lib basic_math
+$ cd basic_math
+```
+
+- 编辑src/lib.rs，使用三斜杠 (///) 注释源代码
+
+``` rust
+/// Generally, the first line is a brief summary describing the function.
+///
+/// The next lines present detailed documentation. 
+/// Code blocks start with triple backticks. The code has an implicit `fn main()` inside and `extern crate <cratename>`,  
+/// which means you can just start writing code.
+///
+/// ```
+/// let result = basic_math::add(2, 3);
+/// assert_eq!(result, 5);
+/// ```
+pub fn add(a: i32, b: i32) -> i32 {
+    a + b
+}
+```
+
+- 通过命令 $ cargo test 调用此代码的测试。输出表明其中有 0 个单元测试和 1 个文档测试。
+
+
+``` rust
+huaw@huaw:~/playground/rust/basic_math$ cargo test
+    Finished test [unoptimized + debuginfo] target(s) in 0.00s
+     Running unittests src/lib.rs (target/debug/deps/basic_math-abdc8b7a90d255eb)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests basic_math
+
+running 1 test
+test src/lib.rs - add (line 7) ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+```
+
+- 下面是更加复杂的案例，演示了如何在doc里添should_panic标记。注意此案例依然是lib库，且库名为basic_math，下面的代码是在src/lib.rs中
+
+``` rust
+/// This function divides two numbers.
+///
+/// # Example #1
+///
+/// ```
+/// let result = basic_math::div(10, 2);
+/// assert_eq!(result, 5);
+/// ```
+///
+/// # Example #2
+///
+/// ```
+/// let result = basic_math::div(6, 3);
+/// assert_eq!(result, 2);
+/// ```
+///
+/// # Panics
+///
+/// The function panics if the second argument is zero.
+///
+/// ```should_panic
+/// assert_eq!(basic_math::div(6, 0), 0);
+/// ```
+/// 
+/// 
+/// ```should_panic
+/// assert!(false);
+/// ```
+pub fn div(a: i32, b: i32) -> i32 {
+    if b == 0 {
+        panic!("Divide-by-zero error");
+    }
+    a / b
+}
+
+/// This function subtracts two numbers.
+///
+/// # Example #1
+///
+/// ```
+/// let result = basic_math::sub(9, 2);
+/// assert_eq!(result, 7);
+/// ```
+///
+/// # Example #2
+///
+/// ```
+/// let result = basic_math::sub(6, 9);
+/// assert_eq!(result, -3);
+/// ```
+pub fn sub(a: i32, b: i32) -> i32 {
+    a - b
+}
+
+
+huaw@huaw:~/playground/rust/basic_math$ cargo test
+   Compiling basic_math v0.1.0 (/home/huaw/playground/rust/basic_math)
+    Finished test [unoptimized + debuginfo] target(s) in 0.55s
+     Running unittests src/lib.rs (target/debug/deps/basic_math-abdc8b7a90d255eb)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests basic_math
+
+running 6 tests
+test src/lib.rs - div (line 12) ... ok
+test src/lib.rs - div (line 5) ... ok
+test src/lib.rs - div (line 24) ... ok
+test src/lib.rs - div (line 21) ... ok
+test src/lib.rs - sub (line 45) ... ok
+test src/lib.rs - sub (line 38) ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.28s
+
+```
+## 集成测试
+
+- 是对库Crate的测试手段，测试Crate的public接口，目的是测试被测试库的多个部分是否能正确工作
+- 集成测试完全位于被测试库的外部，测试代码位于src同级的tests目录下，每个测试文件都是单独的一个crate。
+- 集成测试的覆盖率很重要
+
+案例，演示对库进行集成测试的步骤
+
+- 构建库项目，添加代码到src/lib.rs
+
+``` rust
+$ cargo new --lib rusty_pizza
+$ cd rusty_pizza
+
+huaw@huaw:~/playground/rust/rusty_pizza$ cat src/lib.rs 
+pub struct Pizza {
+    pub topping: String,
+    pub inches: u8,
+}
+
+impl Pizza {
+    pub fn pepperoni(inches: u8) -> Self {
+        Pizza::bake("pepperoni", inches)
+    }
+
+    pub fn mozzarella(inches: u8) -> Self {
+        Pizza::bake("mozzarella", inches)
+    }
+
+    fn bake(topping: &str, inches: u8) -> Self {
+        Pizza {
+            topping: String::from(topping),
+            inches,
+        }
+    }
+```
+
+- 在 src 目录旁创建名为 tests 的新目录。 在其中放置名为 pizzas.rs 的新文件，执行 cargo test 命令以查看结果。从输出中，可以看到 Rust 将测试结果各自放在不同的部分。 首先是单元测试结果，然后是集成结果，最后是文档结果。
+
+``` rust
+huaw@huaw:~/playground/rust/rusty_pizza$ tree
+.
+├── Cargo.lock
+├── Cargo.toml
+├── src
+│   └── lib.rs
+└── tests
+    └── pizzas.rs
+
+2 directories, 4 files
+
+
+huaw@huaw:~/playground/rust/rusty_pizza$ cat tests/pizzas.rs 
+use rusty_pizza::Pizza;
+
+#[test]
+fn can_make_pepperoni_pizza() {
+    let pizza = Pizza::pepperoni(12);
+    assert_eq!(pizza.topping, "pepperoni");
+    assert_eq!(pizza.inches, 12);
+}
+
+#[test]
+fn can_make_mozzarella_pizza() {
+    let pizza = Pizza::mozzarella(16);
+    assert_eq!(pizza.topping, "mozzarella");
+    assert_eq!(pizza.inches, 16);
+
+
+huaw@huaw:~/playground/rust/rusty_pizza$ cargo test
+    Finished test [unoptimized + debuginfo] target(s) in 0.00s
+     Running unittests src/lib.rs (target/debug/deps/rusty_pizza-f7576be79af5ee00)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/pizzas.rs (target/debug/deps/pizzas-58c7bfebc476b46c)
+
+running 2 tests
+test can_make_mozzarella_pizza ... ok
+test can_make_pepperoni_pizza ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests rusty_pizza
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+```
+
+- 所有测试手段仅针对库crate，无法测试二进制的可执行程序。因此，许多Rust二进制Crate都包含一个库项目（即src/lib.rs），该库文件包含大部分的逻辑，然后被src/main.rs调用。此时，集成测试可使用use将Crate作为库导入，从而测试二进制文件的大部分功能。
+
+
 ## 使用Result<T, E>测试
 
 - 无需panic，可使用Result<T, E>作为返回类型编写测试，返回 ok测试通过，返回 Err:测试失败
@@ -5020,7 +6019,7 @@ mod tests {
 }
 ```
 
-## 运行测试
+## 运行测试的参数
 
 - cargo test
 
@@ -5039,14 +6038,8 @@ mod tests {
 - 测试单个函数，cargo test 后面接要被测试的函数名即可，如“cargo test name_of_target_func”
 - 测试多个函数，只要在参数中包含多个目标名称的共同部分，就可以特定这几个测试用来运行。由于模块名称本身是测试名称的一部分，因此也可以用来做过滤器。
 
-## 忽略的测试
 
-- 在#[test]下面加上#[ignore]则此函数就会被忽略
-- 也可以使用 “cargo test -- --ignored” 专门对所有被忽略的函数进行测试
 
-## 集成测试
-
-待完善
 
 # 文件读写
 
