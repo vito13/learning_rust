@@ -3,7 +3,7 @@
 
 https://learn.microsoft.com/zh-cn/training/paths/rust-first-steps/      完毕
 
-Rust入门秘笈                        Rust所有权
+【弃】Rust入门秘笈                        Rust所有权
 Rust编程：入门、实战与进阶          第四章，差2.4，2.5，枚举
 通过例子学Rust
 深入浅出Rust                        2.3.1
@@ -16,8 +16,8 @@ www.runoob.com/rust                 Rust 面向对象
 
 
 Rust编程之道
-Rust权威指南
-精通Rust(第2版) 
+Rust权威指南                继续第八章
+精通Rust(第2版)             4.3
 
 案例：https://www.cnblogs.com/jiangbo4444/category/2071807.html
 
@@ -590,12 +590,24 @@ structopt = "0.3.21"                  # Parse command-line argument by defining 
 
 ## 添加依赖项
 
-通过将以下条目添加到 Cargo.toml 文件的 [dependencies] 部分，将其添加为我们项目的依赖项
+- 通过将以下条目添加到 Cargo.toml 文件的 [dependencies] 部分，将其添加为我们项目的依赖项
+- 关于版本号规则参考：https://course.rs/cargo/reference/specify-deps.html
 
 ```rust
 [dependencies]
 structopt = "0.3"
 ```
+
+## 更新依赖
+
+由于 Cargo.lock 会锁住依赖的版本，你需要通过手动的方式将依赖更新到新的版本：
+
+``` shell
+$ cargo update            # 更新所有依赖
+$ cargo update -p regex   # 只更新 “regex”
+```
+
+以上命令将使用新的版本信息重新生成 Cargo.lock ，需要注意的是 cargo update -p regex 传递的参数实际上是一个 Package ID， regex 只是一个简写形式。
 
 ## 发布模块
 
@@ -1973,7 +1985,9 @@ fn main() {
 
 ### 输出到文件
 
+``` shell
 $ cargo run > output.txt
+```
 
 ### 区分stdout于stderr
 
@@ -2002,19 +2016,25 @@ Problem parsing arguments: No such file or directory (os error 2)
 
 ## exit
 
+``` rust
 use std::process;
-
 process::exit(1);
+```
 
 ## 环境变量
 
 代码中：
+
+``` rust
 use std::env;
 let case_sensitive = env::var("CASE_INSENSITIVE").is_err();
+```
 
 运行：
-CASE_INSENSITIVE=1; cargo run
 
+``` shell
+CASE_INSENSITIVE=1; cargo run
+```
 
 # 内建复合类型
 
@@ -2125,7 +2145,8 @@ huaw@test:~/playground/rust/hellocargo$ cargo run
 
 ## 切片
 
-切片（Slice）是对数据值的部分引用。切片结果必须是引用类型
+- Rust还有另外⼀种不持有所有权的数据类型：切⽚（slice）。切⽚允许我们引⽤集合中某⼀段连续的元素序列，⽽不是整个集合。
+- 字符串字⾯量就是切⽚
 
 - ..y 等价于 0..y
 - x.. 等价于位置 x 到数据结束
@@ -2201,7 +2222,6 @@ fn main() {
 }
 ```
 
-
 错误的演示，被切片引用的字符串禁止更改其值
 
 ``` rust
@@ -2220,7 +2240,9 @@ fn main() {
 - 结构体类型是一个自定义数据类型，通过struct关键字加自定义命名，可以把多个类型组合在一起成为新的类型。
 - 结构体中以“name:type”格式定义字段，name是字段名称，type是字段类型。结构体名和字段名都遵循变量的命名规则，结构体名应该能够描述它所组合的数据的意义；字段默认不可变，并要求明确指定数据类型，不能使用自动类型推导功能。
 - 每个字段之间用逗号分隔，最后一个逗号可以省略。
-- 需要注意的是，结构体实例默认是不可变的，且不允许只将某个字段标记为可变，即mut只能加在struct的实例上。
+- 需要注意的是，结构体实例默认是不可变的，且不允许只将某个字段标记为可变，即mut只能加在struct的实例上。⼀旦实例可变，那么实例中的所有字段都将是可变的。Rust不允许我们单独声明某⼀部分字段的可变性
+- 结构体的使⽤要⽐元组更加灵活：你不再需要依赖顺序索引来指定或访问实例中的值。
+- 可以通过声明结构体名称，并使⽤⼀对花括号包含键值对来创建实例。赋值顺序并不需要严格对应结构体中声明顺序
 
 ``` rust
 struct Site {
@@ -2319,9 +2341,9 @@ black = (0, 0, 0)
 origin = (0, 0)
 ```
 
-## 3 单元结构
+## 3 空结构体
 
-“单元结构 unit like struct”最常用作标记。无任何字段的结构
+Rust允许我们创建没有任何字段的结构体！因为这种结构体与空元组()⼗分相似，所以它们也被称为空结构体。当你想要在某些类型上实现⼀个trait，却不需要在该类型中存储任何数据时，空结构体就可以发挥相应的作⽤。
 
 ## 打印结构体
 
@@ -2371,7 +2393,10 @@ rect1 is Site {
 
 ```
 
-## 结构体方法
+## 结构体的方法
+
+- ⽅法与函数⼗分相似：它们都使⽤fn关键字及⼀个名称来进⾏声明；它们都可以拥有参数和返回值；另外，它们都包含了⼀段在调⽤时执⾏的代码。
+- 但是，⽅法与函数依然是两个不同的概念，因为⽅法总是被定义在某个结构体（或者枚举类型、trait对象）的上下⽂中，并且它们的第⼀个参数永远都是self，⽤于指代调⽤该⽅法的结构体实例。
 
 这是一个结构与一个函数的演示，但两部分是分开的
 
@@ -2436,11 +2461,13 @@ false
 true
 ```
 
-## 结构体关联函数
+## 关联函数
 
 - 第一个参数是非self的函数叫关联函数。
 - 这种函数不依赖实例，但是使用它需要声明是在哪个 impl 块中的。
 - 结构体 impl 块可以写几次，效果相当于它们内容的拼接！
+- 关联函数常常被⽤作构造器来返回⼀个结构体的新实例。
+- 关联函数可以将那些不需要实例的特定功能放置到结构体的命名空间中。
 
 ``` rust
 #[derive(Debug)]
@@ -2482,6 +2509,21 @@ fn main() {
 false
 true
 false
+```
+
+多个impl块的案例
+
+``` rust
+impl Rectangle {
+    fn area(&self) -> u32 {
+        self.width * self.height
+    }
+}
+impl Rectangle {
+    fn can_hold(&self, other: &Rectangle) -> bool {
+        self.width > other.width && self.height > other.height
+    }
+}
 ```
 
 # 枚举
@@ -2684,6 +2726,7 @@ clicked at x=20, y=80.
 page loaded
 page unloaded
 ```
+
 # 常用集合类型
 
 ## vector
@@ -2952,6 +2995,8 @@ fn main() {
 
 
 # 字符串
+
+字符串是在任何编程语言中最常用的数据类型之一。在 Rust 中，它们通常以两种形式出现：&str 类型和 String 类型。Rust 字符串保证是有效的 UTF-8 编码字节序列。它们不像C 字符串那样以空值（NULL）终止，并且可以在字符串之间包含空的字节。
 
 ## String
 
@@ -3325,7 +3370,7 @@ mango apple banana litchi watermelon
 ## Option
 
 - 定义于标准库里，在Prelude（预导入模块）中
-- Option（是个枚举）用于某个值可能存在或不存在，即类似Null的作用，可选的枚举值是Some(T)与None
+- Option（是个枚举）可标识⼀个值⽆效或缺失，即类似Null的作用，可选的枚举值是Some(T)与None
 
 ``` rust
 enum Option<T> {
@@ -3644,7 +3689,7 @@ fn main() {
 
 # 错误处理
 
-## 严重错误panic! 
+## 严重错误panic!
 
 是不可恢复的错误
 
@@ -3667,6 +3712,7 @@ panic = 'abort'
 
 - 是可恢复的错误
 - 在 Rust 中通过 Result<T, E> 枚举类作返回值来进行异常表达。T 代表成功时返回的 Ok 成员中的数据的类型，而 E 代表失败时返回的 Err 成员中的错误的类型
+- Result则包含了Ok与Err两个变体
 
 ``` rust
 enum Result<T, E> {
@@ -3735,6 +3781,15 @@ fn main() {
         }
     });
 }
+```
+
+- 下面演示了当⽆法匹配Ok(num)模式⽽跳过match表达式的第⼀个分⽀，并匹配上第⼆个分⽀中的Err(_)模式。这⾥的下画线_是⼀个通配符，它可以在本例中匹配所有可能的Err值，⽽不管其中究竟有何种错误信息。
+
+``` rust
+let guess: u32 = match guess.trim().parse() {
+    Ok(num) => num,
+    Err(_) => continue,
+};
 ```
 
 ### unwrap
@@ -3968,12 +4023,9 @@ fn main() {
 }
 ```
 
-## debug_assert!
+## debug 断言
 
-## debug_assert_eq!
-
-## debug_assert_ne!
-
+这类似于 assert!。debug 断言宏也可以用在除测试代码之外的代码中。在其他代码中，这主要用于代码运行时，对应该保存的任何契约或不变性进行断言的情况。这些断言仅在调试版本中有效，并且有助于在调试模式下运行代码时捕获断言异常。当代码以优化模式编译时，这些宏调用将被忽略，并被优化为无操作。它还有类似的变体，例如 debug_assert_eq!和 debug_assert_ne!，它们的工作方式类似 assert!宏。
 
 # 所有权
 
@@ -4099,7 +4151,8 @@ fn takes_and_gives_back(a_string: String) -> String { 
   - 所有浮点类型，f32 和 f64。
   - 字符类型 char。
   - 仅包含以上类型数据的元组（Tuples）。
-- 复制数字的成本低，因此复制这些值是有意义的。复制字符串、向量或其他复杂类型的成本可能高昂，因此它们没有实现Copy特征，而是被移动。
+- 复制数字的成本低，因此复制这些值是有意义的。复制字符串、向量或其他复杂类型的成本可能高昂，因此它们没有实现Copy特征，而是被移动。（需要分配内存或某种资源的类型都不会是Copy的）
+- 如果⼀种类型本⾝或这种类型的任意成员实现了Drop这种trait，那么Rust就不允许其实现Copy这种trait。尝试给某个需要在离开作⽤域时执⾏特殊指令的类型实现Copy这种trait会导致编译时错误。
 
 下面的代码是安全的
 
@@ -4135,8 +4188,9 @@ fn main() {
 
 - 引用不会获得值的所有权。
 - 引用只能租借（Borrow）值的所有权。
-- 引用本身也是一个类型并具有一个值，这个值记录的是别的值所在的位置，但引用不具有所指值的所有权。
-
+- &代表的就是引⽤ 语义，它允许在不获取所有权的前提下使⽤值。
+- 引用本身也是一个类型并具有一个值，这个值记录的是别的值所在的位置，但引用不具有所指值的所有权。所以当引⽤离开当前作⽤域时，它指向的值也不会被丢弃。
+- 这种通过引⽤传递参数给函数的⽅法也被称为借⽤（borrowing）。
 下面两个案例无需完全拥有某个值即可使用它。但只能读不能写。
 
 ``` rust
@@ -4222,7 +4276,7 @@ fn change(text: &mut String) {
 
 ### 引用的限制
 
-- 允许在一个作用域中存在一个可变引用或多个不可变引用。
+- 允许在一个作用域中有且仅有一个可变引⽤，或是无可变引用但却有任意数量的不可变引⽤
 
 - 不能同时多个可变引用指向同一个变量
 
@@ -4272,7 +4326,8 @@ fn dangle() -> &String {
 
 ## 生命周期
 
-使用引用会出现问题。 引用所引用的项不跟踪其所有引用。 此行为可能会导致一个问题：当删除该项并释放其资源时，我们如何确保没有引用指向现已释放且无效的内存？Rust 给出的回答是通过生命周期实现。 它们使 Rust 能够在不产生垃圾收集性能开销的情况下确保内存安全。
+- ⽣命周期保证了结构体实例中引⽤数据的有效期不短于实例本⾝。
+- 使用引用会出现问题。 引用所引用的项不跟踪其所有引用。 此行为可能会导致一个问题：当删除该项并释放其资源时，我们如何确保没有引用指向现已释放且无效的内存？Rust 给出的回答是通过生命周期实现。 它们使 Rust 能够在不产生垃圾收集性能开销的情况下确保内存安全。
 
 ### 为何需要声明周期
 
@@ -4502,9 +4557,14 @@ fn main() {
 ```
 
 
-# Trait（动态多态）
+# Trait 特征（动态多态）
 
-Rust提供了trait来定义不同type所需的“common behavior”，以此简化代码。可以理解为虚接口。
+- 可以理解为虚接口。
+- Rust提供了trait来定义不同type所需的“common behavior”，以此简化代码。
+- 我们还可以在特征中定义常量，所有实现者都可以共享它
+- 特征中声明的方法也可以具有默认实现（可以理解为虚函数与纯虚函数的关系）
+- 特征中带有self参数的方法（self得是第一个参数）可以理解为类的成员函数。不以self作为参数的方法可以理解为类的静态方法。
+- 实现者可以是任何结构体、枚举、基元类型、函数及闭包，甚至特征
 
 ## 简单定义与使用
 
@@ -4629,9 +4689,52 @@ fn main() {
 喵~
 ```
 
-## 派生Trait
+## Trait的继承
 
-有的Trait可以直接继承，有的则需要手动实现，看下面的代码
+``` rust
+trait Vehicle {
+    fn get_price(&self) -> u64;
+}
+trait Car: Vehicle {
+    fn model(&self) -> String;
+}
+struct TeslaRoadster {
+    model: String,
+    release_date: u16,
+}
+impl TeslaRoadster {
+    fn new(model: &str, release_date: u16) -> Self {
+        Self {
+            model: model.to_string(),
+            release_date,
+        }
+    }
+}
+impl Car for TeslaRoadster {
+    fn model(&self) -> String {
+        "Tesla Roadster I".to_string()
+    }
+}
+impl Vehicle for TeslaRoadster {
+    fn get_price(&self) -> u64 {
+        200_000
+    }
+}
+fn main() {
+    let my_roadster = TeslaRoadster::new("Tesla Roadster II", 2020);
+    println!(
+        "{} is priced at ${}",
+        my_roadster.model,
+        my_roadster.get_price()
+    );
+}
+
+```
+
+
+## 通过derive注解派⽣trait
+
+有的Trait可以直接继承（自动派生一些内置的特征，这有助于我们实现更高级的功能），有的则需要手动实现，看下面的代码
 
 ``` rust
 struct Point {
@@ -4698,6 +4801,27 @@ huaw@huaw:~/playground/rust/tut$ cargo run
 not equal!
 (1, 2)
 Point { x: 1, y: 2 }
+```
+
+## 泛型Trait
+
+特征也可以是泛型。这在用户希望为多种类型实现特征的情况下非常有用：
+
+``` rust
+pub trait From<T> {
+    fn from(T) -> Self;
+}
+```
+
+## 关联类型特征
+
+看着很像c++泛型里的类型定义
+
+``` rust
+trait Foo {
+    type Out;
+    fn get_value(self) -> Self::Out;
+}
 ```
 
 ## 函数参数是Trait
@@ -4946,6 +5070,8 @@ fn main() {
 - 创建闭包不用取名，方便快捷
 - 闭包可以捕获调用者作用域中的值
 - 闭包可以被保存进变量或作为参数传递给其他函数
+- 闭包主要用作高阶函数的参数。高阶函数是一个以另一个函数或闭包作为参数的函数。
+- 闭包提供简便、抽象的另一个场景是，当你有一个对 Vec 等集合进行操作的函数时，希望根据某些条件过滤元素。
 
 ## 创建
 
@@ -4977,6 +5103,12 @@ fn main() {
     closure(10);
 }
 
+什么都不做的无参数闭包
+fn main(){
+    let my_closure = || ();
+    my_closure();
+}
+
 闭包会自动推导参数类型。如定义了闭包，省略参数，而不去调用它则编译出错
 fn main() {
     let closure = |a| println!("a = {}", a);
@@ -4995,13 +5127,60 @@ fn main() {
 
 # 组织管理
 
+Rust允许你将包拆分为不同的单元包，并将单元包拆分为不同的模块，从⽽使你能够在其他模块中引⽤某个特定模块内定义的条⽬。为了引⽤外部条⽬，你需要指定它们的绝对路径或相对路径。我们可以通过use语句将这些路径引⼊作⽤域，接着在该作⽤域中使⽤较短的路径来多次使⽤对应的条⽬。模块中的代码是默认私有的，但你可以通过添加pub关键字来将定义声明为公共的。
+
 代码的组织
 
 - 包 Package
 - 箱 Crate
 - 模块 Module
 
-## 包 Package
+## 标准的目录结构
+
+Cargo推荐的目录结构
+
+- Cargo.toml 和 Cargo.lock 保存在 package 根目录下
+- 源代码放在 src 目录下
+- 默认的 lib 包根是 src/lib.rs
+- 默认的二进制包根是 src/main.rs
+- 其它二进制包根放在 src/bin/ 目录下
+- 基准测试 benchmark 放在 benches 目录下
+- 示例代码放在 examples 目录下
+- 集成测试代码放在 tests 目录下
+- bin、tests、examples 等目录路径都可以通过配置文件进行配置，它们被统一称之为 Cargo Target。
+``` shell
+.
+├── Cargo.lock
+├── Cargo.toml
+├── src/
+│   ├── lib.rs
+│   ├── main.rs
+│   └── bin/
+│       ├── named-executable.rs
+│       ├── another-executable.rs
+│       └── multi-file-executable/
+│           ├── main.rs
+│           └── some_module.rs
+├── benches/
+│   ├── large-input.rs
+│   └── multi-file-bench/
+│       ├── main.rs
+│       └── bench_module.rs
+├── examples/
+│   ├── simple.rs
+│   └── multi-file-example/
+│       ├── main.rs
+│       └── ex_module.rs
+└── tests/
+    ├── some-integration-tests.rs
+    └── multi-file-test/
+        ├── main.rs
+        └── test_module.rs
+```
+
+## 模块系统module system
+
+### 包 Package
 
 - 通过cargo new project-name可以创建一个包，内容如下
 
@@ -5017,19 +5196,24 @@ my-project
 - 一个包可以包含最多一个库Crate与多个可执行Crate（可通过Cargo.toml配置Crate的输出名称）
 - 一个包里至少包含1个crate（可以是库也可以是可执行）
 
-## 箱 Crate
+### 箱 Crate
 
 - 可以理解为项目，编译为可执行程序或库文件。
+- ⼀个⽤于⽣成库或可执⾏⽂件的树形模块结构。
 - cargo new my-project，创建可执行程序，在src内有main.rs
 - cargo new --lib my-lib，创建库，在src内有lib.rs
 - src内可以同时有main.rs与lib.rs，build时则可以同时编译出库与可执行程序，名称与new创建项目时候使用的一致
 - 可将main.rs挪到src/bin下，在此文件夹内的每个rs都会被编译为一个可执行程序，但别忘了每个rs里都要有main函数才可
 
-## 模块 Module
+### 模块 Module
 
 - 关键字是mod，是Crate内的代码组织单位
 - module用于控制作用域和私有性(public、private)，可包含如struct、enum、常量、trait、函数等的定义
-- 可嵌套
+- 模块中定义的元素默认是私有的，你需要使用关键字 pub 将它暴露给调用方
+- 可嵌套（模块可以在其他模块内部声明，也可以组织为文件和目录。）
+- 每个 Rust 程序都需要一个 root 模块。对于可执行文件，它通常是 main.rs 文件，对于程序库，它通常是 lib.rs 文件。
+- src/main.rs 与src/lib.rs 被称作单元包的根节点，因为这两个⽂件的内容各⾃组成了⼀个名为crate的模块，并位于单元包模块结构的根部。这个模块结构也被称为模块树（moduletree）。
+- 为了让编译器能够识别我们的模块，我们需要使用关键字 mod 声明，例如 modmy_module。在我们的 root 模块中，要在模块名称前使用关键字 use，这表示将元素引入作用域。
 
 案例，一个mod里有3个mod，每个mod里还有一个func
 
@@ -5048,95 +5232,21 @@ mod nation {
 
 ```
 
-### mod与main在相同文件
+另一个案例，用到了pub与use
 
 ``` rust
-mod authentication {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-
-    pub struct User {
-        username: String,
-        password_hash: u64,
-    }
-
-    impl User {
-        pub fn new(username: &str, password: &str) -> User {
-            User {
-                username: username.to_string(),
-                password_hash: hash_password(&password.to_owned()),
-            }
-        }
-
-        pub fn get_username(&self) -> &String {
-            &self.username
-        }
-
-        pub fn set_password(&mut self, new_password: &str) {
-            self.password_hash = hash_password(&new_password.to_owned())
-        }
-    }
-    fn hash_password<T: Hash>(t: &T) -> u64 {
-        let mut s = DefaultHasher::new();
-        t.hash(&mut s);
-        s.finish()
-    }
+mod food {
+    pub struct Cake;
+    struct Smoothie;
+    struct Pizza;
 }
-
+use food::Cake;
 fn main() {
-    let mut user = authentication::User::new("jeremy", "super-secret");
-
-    println!("The username is: {}", user.get_username());
-    user.set_password("even-more-secret");
-}
-```
-
-### mod与main在不同文件
-
-``` rust
-huaw@huaw:~/playground/rust/tut/src$ cat authentication.rs 
-
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-
-pub struct User {
-    username: String,
-    password_hash: u64,
-}
-
-impl User {
-    pub fn new(username: &str, password: &str) -> User {
-        User {
-            username: username.to_string(),
-            password_hash: hash_password(&password.to_owned()),
-        }
-    }
-
-    pub fn get_username(&self) -> &String {
-        &self.username
-    }
-
-    pub fn set_password(&mut self, new_password: &str) {
-        self.password_hash = hash_password(&new_password.to_owned())
-    }
-}
-fn hash_password<T: Hash>(t: &T) -> u64 {
-    let mut s = DefaultHasher::new();
-    t.hash(&mut s);
-    s.finish()
-}
-
-huaw@huaw:~/playground/rust/tut/src$ cat main.rs 
-mod authentication; // 可以理解为include的效果
-
-fn main() {
-    let mut user = authentication::User::new("jeremy", "super-secret");
-
-    println!("The username is: {}", user.get_username());
-    user.set_password("even-more-secret");
+    let eatable = Cake;
 }
 
 ```
+
 
 ## 私有与共有
 
@@ -5280,15 +5390,17 @@ fn main() {
 
 - 在需要使用此Crate的rs头部加入一行 use rand::Rng;即为导入完毕
 
-## Module的访问路径
+## 导入模块
 
-为了在Rust 的模块中找到某个条目，需要使用路径：
+### 路径种类
 
-- 绝对路径:从 crate 根开始，以 crate 名或者字面值 crate 开头。
-- 相对路径:从当前模块开始，以 self、super 或当前模块的标识符开头。
-- 绝对路径和相对路径都后跟一个或多个由双冒号（::）分割的标识符。
+类似于在⽂件系统中使⽤路径进⾏导航的⽅式，为了在Rust的模块树中找到某个条⽬，我们同样需要使⽤路径。路径有两种形式：
 
-
+- 绝对路径：从 crate 根开始
+    - crate：绝对导入前缀，指向当前项目的根目录。在上述代码中是 root 模块，即 main.rs文件。任何在关键字 crate 之后的内容都会解析成来自 root 模块。
+- 相对路径：从当前模块开始
+    - self：相对导入前缀，指向与当前模块相关的元素。该前缀用于任何代码想要引用自身包含的模块时，例如“use self::foo::Bar;”。这主要用于在父模块中重新导出子模块中的元素。
+    - super：相对导入前缀，可以用于从父模块导入元素。诸如 tests 这类子模块将使用它从父模块导入元素。例如，如果模块 bar 希望访问父模块 foo 中的元素 Foo，那么可以使用“super::foo::Foo;”将其导入模块 bar。
 
 注意下例里使用了pub才可顺利的调用
 
@@ -5323,7 +5435,7 @@ mod back_of_house {
 }
 ```
 
-## use
+### use
 
 - use 关键字能够将模块标识符引入当前作用域
 
@@ -5370,7 +5482,7 @@ use std::io::{self, Write};
 use std::collections::*;
 ```
 
-## as
+### as
 
 - 有些情况下存在两个相同的名称，且同样需要导入，可以使用 as 关键字为标识符添加别名
 
@@ -5393,7 +5505,7 @@ fn main() {
 }
 ```
 
-## pub use 重导出
+### pub use 重导出
 
 使用 use 关键字，将某个名称导入当前作用域后，这个名称在此作用域中就可以使用了，但它对此作用域之外还是私有的。如果想让其他人调用我们的代码时，也能够正常使用这个名称，就好像它本来就在当前作用域一样，那我们可以将 pub 和 use 合起来使用。这种技术被称为 “重导出（re-exporting）”：我们不仅将一个名称导入了当前作用域，还允许别人把它导入他们自己的作用域。
 
@@ -5428,7 +5540,7 @@ pub fn eat_at_restaurant() {
 }
 ```
 
-## 引用标准库
+### 引用标准库
 
 - 标准库（std）其实也是外部 crate，只不过随 Rust 语言一同分发，所有的系统库模块都是被默认导入的，所以在使用的时候只需要使用 use 关键字简化路径就可以方便的使用了，无需修改 Cargo.toml 来引入 std
 - Rust 官方标准库字典：https://doc.rust-lang.org/stable/std/all.html
@@ -5441,8 +5553,158 @@ fn main() {
 }
 ```
 
+### 合并use语句
+
+``` rust
+use std::cmp::Ordering;
+use std::io;
+可以使用下面一句代替
+use std::{cmp::Ordering, io};
+
+
+--------------
+use std::io;
+use std::io::Write;
+可以使用下面一句代替
+use std::io::{self, Write};
+```
+
+### 通配符
+
+``` rust
+将定义在std::collections内的所有公共条⽬都导⼊当前作⽤域
+use std::collections::*;
+```
 
 ## 多文件
+
+### mod与main在相同文件
+
+``` rust
+mod authentication {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    pub struct User {
+        username: String,
+        password_hash: u64,
+    }
+
+    impl User {
+        pub fn new(username: &str, password: &str) -> User {
+            User {
+                username: username.to_string(),
+                password_hash: hash_password(&password.to_owned()),
+            }
+        }
+
+        pub fn get_username(&self) -> &String {
+            &self.username
+        }
+
+        pub fn set_password(&mut self, new_password: &str) {
+            self.password_hash = hash_password(&new_password.to_owned())
+        }
+    }
+    fn hash_password<T: Hash>(t: &T) -> u64 {
+        let mut s = DefaultHasher::new();
+        t.hash(&mut s);
+        s.finish()
+    }
+}
+
+fn main() {
+    let mut user = authentication::User::new("jeremy", "super-secret");
+
+    println!("The username is: {}", user.get_username());
+    user.set_password("even-more-secret");
+}
+```
+
+### mod与main在不同文件
+
+2个文件在同级目录中的简单案例
+
+``` rust
+huaw@huaw:~/playground/rust/tut$ cat src/foo.rs 
+pub struct Bar;
+impl Bar {
+    pub fn init() {
+        println!("Bar type initialized");
+    }
+}
+
+
+huaw@huaw:~/playground/rust/tut$ cat src/main.rs 
+
+写法1：
+mod foo;
+fn main() {
+    let _bar = foo::Bar::init();
+}
+
+写法2：
+mod foo;
+use crate::foo::Bar;
+fn main() {
+    let _bar = Bar::init();
+}
+
+
+huaw@huaw:~/playground/rust/tut$ cargo run
+    Finished dev [unoptimized + debuginfo] target(s) in 0.02s
+     Running `target/debug/tut`
+Bar type initialized
+```
+
+另一个案例
+
+``` rust
+huaw@huaw:~/playground/rust/tut/src$ cat authentication.rs 
+
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
+pub struct User {
+    username: String,
+    password_hash: u64,
+}
+
+impl User {
+    pub fn new(username: &str, password: &str) -> User {
+        User {
+            username: username.to_string(),
+            password_hash: hash_password(&password.to_owned()),
+        }
+    }
+
+    pub fn get_username(&self) -> &String {
+        &self.username
+    }
+
+    pub fn set_password(&mut self, new_password: &str) {
+        self.password_hash = hash_password(&new_password.to_owned())
+    }
+}
+fn hash_password<T: Hash>(t: &T) -> u64 {
+    let mut s = DefaultHasher::new();
+    t.hash(&mut s);
+    s.finish()
+}
+
+huaw@huaw:~/playground/rust/tut/src$ cat main.rs 
+mod authentication; // 可以理解为include的效果
+
+fn main() {
+    let mut user = authentication::User::new("jeremy", "super-secret");
+
+    println!("The username is: {}", user.get_username());
+    user.set_password("even-more-secret");
+}
+
+```
+
+### 多文件拆分案例
 
 - 单文件形式
 
@@ -5592,7 +5854,7 @@ test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; 
 error: test failed, to rerun pass `--bin tut`
 ```
 
-### should_panic
+### 故障测试should_panic
 
 - 在许多情况下经常要测试某种条件是否会导致 panic!。使用should_panic便可以检查 panic!。
 - 在#[test]下一行加上#[should_panic]，代表下面的函数会在测试过程中崩溃。还可以带个参数expected，用以更加严格的匹配panic错误信息
@@ -5649,7 +5911,7 @@ mod tests {
 }
 ```
 
-### ignore
+### 忽略测试ignore
 
 - 在#[test]下面加上#[ignore]则此函数就会被忽略
 - 也可以使用 “cargo test -- --ignored” 专门对所有被忽略的函数进行测试
@@ -5771,7 +6033,7 @@ test result: ok. 2 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; fini
 
 ## 文档测试
 
-Rust也可对文档中的示例代码进行测试。
+Rust也可对文档中的示例代码进行测试。更加详细参考"精通Rust第二版 3.5节"
 
 - 得是库项目
 
@@ -5992,6 +6254,60 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 - 所有测试手段仅针对库crate，无法测试二进制的可执行程序。因此，许多Rust二进制Crate都包含一个库项目（即src/lib.rs），该库文件包含大部分的逻辑，然后被src/main.rs调用。此时，集成测试可使用use将Crate作为库导入，从而测试二进制文件的大部分功能。
 
+另一个集成测试案例，演示了在tests里加入了一些工具代码common.rs
+
+``` rust 
+huaw@huaw:~/playground/rust/integration_test$ tree
+.
+├── Cargo.lock
+├── Cargo.toml
+├── src
+│   └── lib.rs
+└── tests
+    ├── common.rs
+    └── sum.rs
+
+huaw@huaw:~/playground/rust/integration_test$ cat src/lib.rs 
+pub fn add(left: usize, right: usize) -> usize {
+    left + right
+}
+
+pub fn sum(a: i8, b: i8) -> i8 {
+    a + b
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_works() {
+        let result = add(2, 2);
+        assert_eq!(result, 4);
+    }
+}
+huaw@huaw:~/playground/rust/integration_test$ cat tests/common.rs 
+pub fn setup() {
+    println!("Setting up fixtures");
+}
+pub fn teardown() {
+    println!("Tearing down");
+}
+huaw@huaw:~/playground/rust/integration_test$ cat tests/sum.rs 
+use integration_test::sum;
+mod common;
+use common::{setup, teardown};
+#[test]
+fn sum_test() {
+    assert_eq!(sum(6, 8), 14);
+}
+#[test]
+fn test_with_fixture() {
+    setup();
+    assert_eq!(sum(7, 14), 21);
+    teardown();
+}
+```
 
 ## 使用Result<T, E>测试
 
@@ -6038,8 +6354,44 @@ mod tests {
 - 测试单个函数，cargo test 后面接要被测试的函数名即可，如“cargo test name_of_target_func”
 - 测试多个函数，只要在参数中包含多个目标名称的共同部分，就可以特定这几个测试用来运行。由于模块名称本身是测试名称的一部分，因此也可以用来做过滤器。
 
+## unimplemented
+
+在编译时，如果你只是提供一个空的函数体，那么将会得到未提供其他方法实现的错误提示。对于这些方法，我们可以在其中放置一个 unimplemented!()宏，使其通过类型检查器的校验从而顺利编译，并在运行时避免这些错误。
+
+``` rust
+fn pow(base: i64, exponent: usize) -> i64 {
+    unimplemented!();
+}
+#[cfg(test)]
+mod tests {
+    use super::pow;
+    #[test]
+    fn minus_two_raised_three_is_minus_eight() {
+        assert_eq!(pow(-2, 3), -8);
+    }
+}
+
+huaw@huaw:~/playground/rust/tut$ cargo test
+.
+.
+.
+running 1 test
+test tests::minus_two_raised_three_is_minus_eight ... FAILED
+
+failures:
+
+---- tests::minus_two_raised_three_is_minus_eight stdout ----
+thread 'tests::minus_two_raised_three_is_minus_eight' panicked at 'not implemented', src/main.rs:2:5
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 
 
+failures:
+    tests::minus_two_raised_three_is_minus_eight
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--bin tut`
+```
 
 # 文件读写
 
