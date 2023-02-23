@@ -16,7 +16,7 @@ www.runoob.com/rust                 Rust 面向对象
 
 
 Rust编程之道
-Rust权威指南                继续第八章
+Rust权威指南                继续第十章 使⽤⽣命周期保证引⽤的有效性
 精通Rust(第2版)             4.3
 
 案例：https://www.cnblogs.com/jiangbo4444/category/2071807.html
@@ -2731,7 +2731,8 @@ page unloaded
 
 ## vector
 
-Vec\<T>，也被称为 vector。vector在内存中是连续的，内存布局上真实数据在堆上，栈上只是个引用
+- vector在内存中是连续的，内存布局上真实数据在堆上，栈上只是个引用
+- vec!宏可以根据提供的值来创建⼀个新的vector
 
 下面演示了vec的创建、增删改查、遍历、连接
 
@@ -2780,7 +2781,9 @@ fn main() {
     Vector: [15, 3, 46], three = 3
     Vector: [15, 8, 46]
 
-// 访问元素，注意下面两种都是取引用，取值会导致所有权的移动
+// 访问元素，注意下面两种都是取引用（使⽤&与[]），取值会导致所有权的移动
+// get⽅法则会返回⼀个Option<&T>
+
     let mut nums: Vec<u32> = Vec::new();
     nums.push(10);
     nums.push(11);
@@ -2825,6 +2828,7 @@ fn main() {
     println!("names: {:?}", names);
 
     // 在遍历中修改元素
+    // 使⽤解引⽤运算符*跳转到指针指向的值
     let mut v = vec![100, 32, 57];
     for i in &mut v {
         *i += 50;
@@ -2836,6 +2840,19 @@ fn main() {
 
     
 // 存储不同类型的值
+// 可以使⽤枚举，枚举中的所有值都是类型的变体
+    enum SpreadsheetCell {
+        Int(i32),
+        Float(f64),
+        Text(String),
+    }
+    let row = vec![
+        SpreadsheetCell::Int(3),
+        SpreadsheetCell::Text(String::from("blue")),
+        SpreadsheetCell::Float(10.12),
+    ]
+
+// 另一个枚举案例
     let mut data_sets: Vec<Data> = Vec::new();
     data_sets.push(Data::IData(10));
     data_sets.push(Data::FData(3.14159));
@@ -2856,7 +2873,7 @@ fn main() {
 
 ## HashMap
 
-- HashMap的所有权规则与其它Rust类型没有区别:若类型实现Copy特征，该类型会被复制进HashMap, 因此无所谓所有权。若没实现Copy特征，所有权将被转移给HashMap中
+对于实现了Copy trait的类型，例如i32，它们的值会被简单地复制到哈希映射中。⽽对于String这种持有所有权的值，其值将会转移且所有权会转移给哈希映射
 
 ``` rust
 
@@ -2890,7 +2907,7 @@ fn main() {
     let teams_map: HashMap<_,_> = teams_list.into_iter().collect();
     println!("{:?}",teams_map);
 
-    // 源自2个vec，使用zip合并
+    // 源自2个vec，使用collect和zip合并
     let teams = vec![String::from("Blue"), String::from("Yellow")];
     let initial_scores = vec![10, 50];
     let scores: HashMap<_, _> = teams.into_iter().zip(initial_scores.into_iter()).collect();
@@ -3000,8 +3017,11 @@ fn main() {
 
 ## String
 
-- String 是一个 Vec\<u8> 的封装。String是由标准库提供的，是可增长的、可变的、有所有权的、UTF-8 编码的字符串类型。
+- String 是一个 Vec\<u8> 的封装。并通过功能性的⽅法将字节解析为⽂本。
+- String是由标准库提供的，是可增长的、可变的、有所有权的、UTF-8 编码的字符串类型。
 - 操作字符串前要确定是要操作字符还是字节，因为一个Unicode字符不一定是一个字节。对于Unicode可以使用chars获取所有字符，使用bytes则能得到所有字节。
+- 尝试通过索引访问String中的字符往往是⼗分复杂的，这是因为⼈和计算机对String数据的解释⽅式不同。
+- Rust中的字符串并不⽀持索引方式获取单个字符。
 
 ``` rust
 fn main() {
@@ -3087,6 +3107,9 @@ fn main() {
 ```
 
 ## &Str
+
+- Rust在语⾔核⼼部分只有⼀种字符串类型，那就是字符串切⽚str，它通常以借⽤的形式（&str）出现
+- 字符串切⽚是⼀些指向存储在别处的UTF-8编码字符串的引⽤
 
 # 函数
 
@@ -3371,6 +3394,7 @@ mango apple banana litchi watermelon
 
 - 定义于标准库里，在Prelude（预导入模块）中
 - Option（是个枚举）可标识⼀个值⽆效或缺失，即类似Null的作用，可选的枚举值是Some(T)与None
+- 基于泛型的描述见[带有类型参数的枚举](#带有类型参数的枚举)
 
 ``` rust
 enum Option<T> {
@@ -3691,7 +3715,8 @@ fn main() {
 
 ## 严重错误panic!
 
-是不可恢复的错误
+panic! 宏表⽰程序正处于⼀个⽆法处理的状态下，你需要终⽌进
+程运⾏，⽽不是基于⽆效或⾮法的值继续执⾏命令。
 
 - 可以手动触发，如 panic!("crash and burn");
 - 也可逻辑触发，如数组越界
@@ -3710,9 +3735,12 @@ panic = 'abort'
 
 ## 使用Result类型来处理错误
 
-- 是可恢复的错误
-- 在 Rust 中通过 Result<T, E> 枚举类作返回值来进行异常表达。T 代表成功时返回的 Ok 成员中的数据的类型，而 E 代表失败时返回的 Err 成员中的错误的类型
-- Result则包含了Ok与Err两个变体
+Result枚举可以借助Rust的类型系统表明某个操作有失败的可能，并且代码能够从这种失败中恢复过来。你也可以使⽤Result来强制代码的调⽤者对可能的成功或失败情形都做出处理。合理地搭配使⽤panic! 和Result可以让我们的代码在⾯对⽆法避免的错误时显得更加可靠。
+
+- 在Rust中通过 Result<T, E> 枚举类作返回值来进行异常表达，是可恢复的错误
+- Result则包含了Ok与Err两个变体，T代表了Ok变体中包含的值类型，该变体中的值会在执⾏成功时返回；⽽E则代表了Err变体中包含的错误类型，该变体中的值会在执⾏失败时返回。
+- 正是因为Result拥有这些泛型参数，我们才得以将Result类型及标准库中为它编写的函数应⽤于众多场景中，这些场景往往会需要返回不同的成功值与错误值。
+- 基于泛型的描述见[带有类型参数的枚举](#带有类型参数的枚举)
 
 ``` rust
 enum Result<T, E> {
@@ -3792,9 +3820,15 @@ let guess: u32 = match guess.trim().parse() {
 };
 ```
 
+## 失败时触发panic的快捷⽅式
+
+虽然使⽤match运⾏得很不错，但使⽤它所编写出来的代码可能会
+显得有些冗⻓，且⽆法较好地表明其意图。类型Result<T, E>本⾝也定义了许多辅助⽅法来应对各式各样的任务
+
 ### unwrap
 
-如果 Result 值是成员 Ok，unwrap 会返回 Ok 中的值。如果 Result 是成员 Err，unwrap 会调用 panic!
+- 如果 Result 值是成员 Ok，unwrap 会返回 Ok 中的值。
+- 如果 Result 是成员 Err，unwrap 会调用 panic!
 
 ``` rust
 use std::fs::File;
@@ -3807,7 +3841,7 @@ fn main() {
 
 ### expect
 
-expect比unwrap多一个功能，就是可以自定义panic的错误信息
+允许在unwrap的基础上指定panic! 所附带的错误提⽰信息。使⽤expect并附带上⼀段清晰的错误提⽰信息可以阐明你的意图，并使你更容易追踪到panic的起源。
 
 ``` rust
 use std::fs::File;
@@ -3949,6 +3983,34 @@ fn read_username_from_file() -> Result<String, io::Error> {
 -------------------
 fn read_username_from_file() -> Result<String, io::Error> {
     fs::read_to_string("hello.txt")
+}
+```
+
+## 要不要使⽤panic!
+
+- 我们会在定义⼀个可能失败的函数时优先考虑使⽤Result⽅案。但对于某些不太常⻅的场景，直接触发panic要⽐返回Result更为合适⼀些。
+- 在⽰例、原型和测试中使⽤unwrap与expect⽅法会⾮常⽅便，因为测试的失败状态正是通过panic来进⾏标记的
+- 假如你可以通过⼈⼯检查确保代码永远不会出现Err变体，那就放⼼⼤胆地使⽤unwrap吧。
+
+## 创建⾃定义类型来进⾏有效性验证
+
+- 如果程序多处要验证一个数字是否在1到100之间，那不如定义一个新类型直接使用
+- 如果⼀个函数需要将1〜100之间的数字作为参数或返回值，那么它就可以在⾃⼰的签名中使⽤Guess（⽽不是i32），并且再也不需要在函数体内做任何额外的检查了
+
+``` rust
+pub struct Guess {
+    value: i32,
+}
+impl Guess {
+    pub fn new(value: i32) -> Guess {
+        if value < 1 || value > 100 {
+            panic!("Guess value must be between 1 and 100, got {}.", value);
+        }
+        Guess { value }
+    }
+    pub fn value(&self) -> i32 {
+        self.value
+    }
 }
 ```
 
@@ -4534,6 +4596,34 @@ fn main() {
 
 ## 带有类型参数的函数
 
+- 一个类型参数的函数案例
+
+``` rust
+largest函数可以被⽤于任何实现了PartialOrd与Copy这两个trait的泛型
+
+fn largest<T: PartialOrd + Copy>(list: &[T]) -> T {
+    let mut largest = list[0];
+    for &item in list.iter() {
+        if item > largest {
+            largest = item;
+        }
+    }
+    largest
+}
+fn main() {
+    let number_list = vec![34, 50, 25, 100, 65];
+    let result = largest(&number_list);
+    println!("The largest number is {}", result);
+    let char_list = vec!['y', 'm', 'a', 'q'];
+    let result = largest(&char_list);
+    println!("The largest char is {}", result);
+}
+
+
+```
+
+- 一个类型参数的struct案例
+
 ``` rust
 struct Container<T> {
     value: T,
@@ -4553,6 +4643,57 @@ fn main() {
     assert_eq!(Container::new(true).value, true);
     assert_eq!(Container::new(-12).value, -12);
     assert_eq!(Container::new(Some("text")).value, Some("text"));
+}
+```
+
+- 两个类型参数的struct案例
+
+``` rust
+struct Point<T, U> {
+    x: T,
+    y: U,
+}
+impl<T, U> Point<T, U> {
+    fn mixup<V, W>(self, other: Point<V, W>) -> Point<T, W> {
+        Point {
+            x: self.x,
+            y: other.y,
+        }
+    }
+}
+fn main() {
+    let p1 = Point { x: 5, y: 10.4 };
+    let p2 = Point { x: "Hello", y: 'c' };
+    let p3 = p1.mixup(p2);
+    println!("p3.x = {}, p3.y = {}", p3.x, p3.y);
+}
+```
+
+## 带有类型参数的枚举
+
+类似于结构体，枚举定义也可以在它们的变体中存放泛型数据。
+
+- 一个类型参数
+
+Option<T>是⼀个拥有泛型T的枚举。它拥有两个变体：持有T类型值的Some变体，以及⼀个不持有任何值的None变体。Option<T>被我们⽤来表⽰⼀个值可能存在的抽象概念。也正是因为Option<T>使⽤了泛型，所以⽆论这个可能存在的值是什么类型，我们都可以通过Option<T>来表达这⼀抽象。
+
+``` rust
+enum Option<T> {
+    Some(T),
+    None,
+}
+```
+
+- 两个类型参数
+
+Result枚举拥有两个泛型：T和E。它也同样拥有两个变体：持有T类型值的Ok，以及⼀个持有E类型值的Err。这个定义使得Result枚举可以很⽅便地被⽤在操作可能成功（返回某个T类型的值），也可能失败（返回某个E类型的错误）的场景。
+
+如打开文件File::open的泛型参数T被替换为std::fs::File类型，⽤来在⽂件成功打开时返回；⽽泛型参数E则被替换为了std::io::Error类型，⽤来描述打开⽂件过程中触发的问题。
+
+``` rust
+enum Result<T, E> {
+    Ok(T),
+    Err(E),
 }
 ```
 
@@ -4687,6 +4828,12 @@ fn main() {
 汪！
 喵~ 真香真香真香
 喵~
+```
+
+如果NewsArticle完全使用Summary的默认实现则可以这样书写
+
+``` rust
+impl Summary for NewsArticle {}
 ```
 
 ## Trait的继承
@@ -4826,6 +4973,8 @@ trait Foo {
 
 ## 函数参数是Trait
 
+### 一个Trait
+
 ``` rust
 #![allow(dead_code, unused_variables)]
 
@@ -4835,7 +4984,7 @@ trait AsJson {
 }
 
 // 定义函数，参数是trait
-// 两种写法都可以：一种是泛型，一种是普通
+// 两种写法都可以：一种是泛型（泛型其实是正式的写法），一种是普通（这个是语法糖）
 fn send_data_as_json<T: AsJson>(value: &T) {
 // fn send_data_as_json(value: &impl AsJson) {
     println!("Sending JSON data to server...");
@@ -4913,6 +5062,83 @@ Done!
 Sending JSON data to server...
 -> { "type": "dog", "name": "Fido", "color": "Black", "likesPetting": true }
 Done!
+```
+
+### 两个Trait
+
+``` rust
+假设我们需要接收两个都实现了Summary的参数，那么使⽤impl Trait的写法如下
+只要item1和item2都实现了Summary，即使不同类型这段代码就没有任何问题
+pub fn notify(item1: impl Summary, item2: impl Summary) {
+}
+
+
+想明确两个参数使⽤同样的类型，则要这样才行
+pub fn notify<T: Summary>(item1: T, item2: T) {
+}
+
+实现两个不同的impl trait则需要使用加号
+pub fn notify(item: impl Summary + Display) {
+}
+
+两个不同泛型trait的写法
+pub fn notify<T: Summary + Display>(item: T) {
+}
+```
+
+### 多类型参数与where
+
+下面两种写法效果一样
+
+``` rust
+fn some_function<T: Display + Clone, U: Clone + Debug>(t: T, u: U) -> i32 {
+}
+
+函数名、参数列表及返回类型的排布要紧密得多，与没有trait约束的函数相差⽆⼏。
+fn some_function<T, U>(t: T, u: U) -> i32
+    where T: Display + Clone, U: Clone + Debug{
+}
+```
+
+## 使⽤trait约束来有条件地实现⽅法
+
+没看懂，见“RUST权威指南”的“使⽤trait约束来有条件地实现⽅法”一节
+
+``` rust
+use std::fmt::Display;
+struct Pair<T> {
+    x: T,
+    y: T,
+}
+impl<T> Pair<T> {
+    fn new(x: T, y: T) -> Self {
+        Self { x, y }
+    }
+}
+impl<T: Display + PartialOrd> Pair<T> {
+    fn cmp_display(&self) {
+        if self.x >= self.y {
+            println!("The largest member is x = {}", self.x);
+        } else {
+            println!("The largest member is y = {}", self.y);
+        }
+    }
+}
+fn main() {}
+
+```
+
+## 函数返回Trate
+
+``` rust
+fn returns_summarizable() -> impl Summary {
+    Tweet {
+        username: String::from("horse_ebooks"),
+        content: String::from("of course, as you probably already know, people"),
+        reply: false,
+        retweet: false,
+    }
+}
 ```
 
 ## 自定义Iterator
@@ -5059,9 +5285,7 @@ fn main() {
 
 ```
 
-## 多类型参数与where
 
-待完善
 
 # 闭包
 
