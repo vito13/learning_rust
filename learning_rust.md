@@ -16,7 +16,7 @@ www.runoob.com/rust                 Rust 面向对象
 
 
 Rust编程之道
-Rust权威指南                继续第十章 使⽤⽣命周期保证引⽤的有效性
+Rust权威指南                继续第13章 使⽤迭代器处理元素序列
 精通Rust(第2版)             4.3
 
 案例：https://www.cnblogs.com/jiangbo4444/category/2071807.html
@@ -4372,6 +4372,8 @@ fn main() {
 
 ### 垂悬引用
 
+即引用了一个已经离开作用域的变量（也就是被引用的变量已经销毁了）
+
 伴随着 dangle 函数的结束，其局部变量的值本身没有被当作返回值，被释放了。但它的引用却被返回，这个引用所指向的值已经不能确定的存在，故不允许其出现
 
 ``` rust
@@ -4385,169 +4387,6 @@ fn dangle() -> &String {
     &s
 }
 ```
-
-## 生命周期
-
-- ⽣命周期保证了结构体实例中引⽤数据的有效期不短于实例本⾝。
-- 使用引用会出现问题。 引用所引用的项不跟踪其所有引用。 此行为可能会导致一个问题：当删除该项并释放其资源时，我们如何确保没有引用指向现已释放且无效的内存？Rust 给出的回答是通过生命周期实现。 它们使 Rust 能够在不产生垃圾收集性能开销的情况下确保内存安全。
-
-### 为何需要声明周期
-
-下面的代码无法编译，编译器无法判断所有引用的有效性与生存期
-
-``` rust
-fn main() {
-    let magic1 = String::from("abracadabra!");
-    let magic2 = String::from("shazam!");
-
-    let result = longest_word(&magic1, &magic2);
-    println!("The longest magic word is {}", result);
-}
-
-fn longest_word(x: &String, y: &String) -> &String {
-    if x.len() > y.len() {
-        x
-    } else {
-        y
-    }
-}
-```
-
-所以需要向函数签名中添加通用生存期参数。这些参数定义了引用之间的关系，方便借用检查器完成其分析。确保在尖括号内声明通用生存期参数，并在参数列表和函数名称之间添加声明。
-
-``` rust
-fn main() {
-    let magic1 = String::from("abracadabra!");
-    let magic2 = String::from("shazam!");
-
-    let result = longest_word(&magic1, &magic2);
-    println!("The longest magic word is {}", result);
-}
-
-fn longest_word<'a>(x: &'a String, y: &'a String) -> &'a String {
-    if x.len() > y.len() {
-        x
-    } else {
-        y
-    }
-}
-```
-
-### 在函数中添加生存期
-
-- 生命周期注解用单引号开头，跟着一个小写字母单词
-
-``` rust
-&i32        // 常规引用
-&'a i32     // 带有显式生命周期的引用
-&'a mut i32 // 带有显式生命周期的可变引用
-```
-
-- 需要用泛型声明来规范生命周期的名称，且使用相同的生存期名称
-- 返回值和所有参数引用必须具有相同的生存期。
-
-``` rust
-fn longer<'a>(s1: &'a str, s2: &'a str) -> &'a str {
-    if s2.len() > s1.len() {
-        s2
-    } else {
-        s1
-    }
-}
-
-fn main() {
-    let r;
-    {
-        let s1 = "rust";
-        let s2 = "ecmascript";
-        r = longer(&s1, &s2);
-        println!("{} is longer", r);
-    }
-}
-
-```
-
-另一个案例，返回对插入到向量中的值的引用
-
-``` rust
-fn copy_and_return<'a>(vector: &'a mut Vec<String>, value: &str) -> &'a String{
-    vector.push(String::from(value));
-    &vector[vector.len() - 1]
-}
-
-fn main() {
-    let name1 = "Joe";
-    let name2 = "Chris";
-    let name3 = "Anne";
-
-    let mut names = Vec::new();
-
-    assert_eq!("Joe", copy_and_return(&mut names, &name1));
-    assert_eq!("Chris", copy_and_return(&mut names, &name2));
-    assert_eq!("Anne", copy_and_return(&mut names, &name3));
-
-    assert_eq!(
-        names,
-        vec!["Joe".to_string(), "Chris".to_string(), "Anne".to_string()]
-    )
-}
-
-```
-
-### 在类型中添加生存期
-
-每当一个结构或枚举在它的字段之一中包含引用时，我们必须用它所携带的每个引用的生存期来批注该类型定义。
-
-
-案例：
-- 有一个 text 字符串（它拥有自己的内容）和一个 Highlight 元组结构。 此结构有一个字段，该字段包含一个字符串切片。 切片是来自程序的另一部分的借用值。
-- 将通用生存期参数的名称放在结构名称后面的尖括号内。 这样，就可以在结构定义的主体中使用该生存期参数。 由于声明的原因，此 Highlight 实例的生存期不能超过其字段中的引用。
-- 使用名为 'document 的生存期对我们的结构进行了批注。 此批注是一个提醒，它提醒 Highlight 结构的生存期不能超过它借用的 &str 的源（一个假定的文档）的生存期。
-
-``` rust
-#[derive(Debug)]
-struct Highlight<'document>(&'document str);
-
-fn main() {
-    let text = String::from("The quick brown fox jumps over the lazy dog.");
-    let fox = Highlight(&text[4..19]);
-    let dog = Highlight(&text[35..43]);
-    println!("{:?}", fox);
-    println!("{:?}", dog);
-}
-
-输出
-Highlight("quick brown fox")
-Highlight("lazy dog")
-```
-
-另一个案例
-
-``` rust
-struct ImportantExcerpt<'a> {
-    part: &'a str,
-}
-
-fn main() {
-    let novel = String::from("Call me Ishmael. Some years ago...");
-    let first_sentence = novel.split('.').next().expect("Could not find a '.'");
-    let i = ImportantExcerpt {
-        part: first_sentence,
-    };
-}
-```
-
-### 生命周期省略规则
-
-- 函数或方法的参数的生命周期被称为 输入生命周期（input lifetimes），而返回值的生命周期被称为 输出生命周期（output lifetimes）。
-- 第一条规则是每一个是引用的参数都有它自己的生命周期参数。
-- 第二条规则是如果只有一个输入生命周期参数，那么它被赋予所有输出生命周期参数
-- 第三条规则是如果方法有多个输入生命周期参数并且其中一个参数是 &self 或 &mut self，说明是个对象的方法(method)，那么所有输出生命周期参数被赋予 self 的生命周期。
-
-### 方法定义中的生命周期注解
-
-### 静态生命周期
-
 
 # 泛型（静态多态）
 
@@ -5285,7 +5124,213 @@ fn main() {
 
 ```
 
+# 生命周期
 
+- ⽣命周期保证了结构体实例中引⽤数据的有效期不短于实例本⾝。
+- 使用引用会出现问题。 引用所引用的项不跟踪其所有引用。 此行为可能会导致一个问题：当删除该项并释放其资源时，我们如何确保没有引用指向现已释放且无效的内存？Rust 给出的回答是通过生命周期实现。 它们使 Rust 能够在不产生垃圾收集性能开销的情况下确保内存安全。
+
+## 为何需要声明周期
+
+下面的代码无法编译，编译器无法判断所有引用的有效性与生存期
+
+``` rust
+fn main() {
+    let magic1 = String::from("abracadabra!");
+    let magic2 = String::from("shazam!");
+
+    let result = longest_word(&magic1, &magic2);
+    println!("The longest magic word is {}", result);
+}
+
+fn longest_word(x: &String, y: &String) -> &String {
+    if x.len() > y.len() {
+        x
+    } else {
+        y
+    }
+}
+```
+
+所以需要向函数签名中添加通用生存期参数。这些参数定义了引用之间的关系，方便借用检查器完成其分析。确保在尖括号内声明通用生存期参数，并在参数列表和函数名称之间添加声明。
+
+``` rust
+fn main() {
+    let magic1 = String::from("abracadabra!");
+    let magic2 = String::from("shazam!");
+
+    let result = longest_word(&magic1, &magic2);
+    println!("The longest magic word is {}", result);
+}
+
+fn longest_word<'a>(x: &'a String, y: &'a String) -> &'a String {
+    if x.len() > y.len() {
+        x
+    } else {
+        y
+    }
+}
+```
+
+## 函数签名中的⽣命周期标注
+
+- 生命周期注解用单引号开头，跟着一个小写字母单词。单个⽣命周期的标注本⾝并没有太多意义，标注之所以存在是为了向Rust描述多个泛型⽣命周期参数之间的关系。
+
+``` rust
+&i32        // 常规引用
+&'a i32     // 带有显式生命周期的引用
+&'a mut i32 // 带有显式生命周期的可变引用
+```
+
+- 需要用泛型声明来规范生命周期的名称，且使用相同的生存期名称
+- 返回值和所有参数引用必须具有相同的生存期。
+
+``` rust
+fn longer<'a>(s1: &'a str, s2: &'a str) -> &'a str {
+    if s2.len() > s1.len() {
+        s2
+    } else {
+        s1
+    }
+}
+
+fn main() {
+    let r;
+    {
+        let s1 = "rust";
+        let s2 = "ecmascript";
+        r = longer(&s1, &s2);
+        println!("{} is longer", r);
+    }
+}
+
+```
+
+另一个案例，返回对插入到向量中的值的引用
+
+``` rust
+fn copy_and_return<'a>(vector: &'a mut Vec<String>, value: &str) -> &'a String{
+    vector.push(String::from(value));
+    &vector[vector.len() - 1]
+}
+
+fn main() {
+    let name1 = "Joe";
+    let name2 = "Chris";
+    let name3 = "Anne";
+
+    let mut names = Vec::new();
+
+    assert_eq!("Joe", copy_and_return(&mut names, &name1));
+    assert_eq!("Chris", copy_and_return(&mut names, &name2));
+    assert_eq!("Anne", copy_and_return(&mut names, &name3));
+
+    assert_eq!(
+        names,
+        vec!["Joe".to_string(), "Chris".to_string(), "Anne".to_string()]
+    )
+}
+
+```
+
+## 结构体定义中的⽣命周期标注
+
+每当一个结构或枚举在它的字段之一中包含引用时，我们必须用它所携带的每个引用的生存期来批注该类型定义。
+
+案例：
+- 有一个 text 字符串（它拥有自己的内容）和一个 Highlight 元组结构。 此结构有一个字段，该字段包含一个字符串切片。 切片是来自程序的另一部分的借用值。
+- 将通用生存期参数的名称放在结构名称后面的尖括号内。 这样，就可以在结构定义的主体中使用该生存期参数。 由于声明的原因，此 Highlight 实例的生存期不能超过其字段中的引用。
+- 使用名为 'document 的生存期对我们的结构进行了批注。 此批注是一个提醒，它提醒 Highlight 结构的生存期不能超过它借用的 &str 的源（一个假定的文档）的生存期。
+
+``` rust
+#[derive(Debug)]
+struct Highlight<'document>(&'document str);
+
+fn main() {
+    let text = String::from("The quick brown fox jumps over the lazy dog.");
+    let fox = Highlight(&text[4..19]);
+    let dog = Highlight(&text[35..43]);
+    println!("{:?}", fox);
+    println!("{:?}", dog);
+}
+
+输出
+Highlight("quick brown fox")
+Highlight("lazy dog")
+```
+
+另一个案例
+
+``` rust
+struct ImportantExcerpt<'a> {
+    part: &'a str,
+}
+
+fn main() {
+    let novel = String::from("Call me Ishmael. Some years ago...");
+    let first_sentence = novel.split('.').next().expect("Could not find a '.'");
+    let i = ImportantExcerpt {
+        part: first_sentence,
+    };
+}
+```
+
+## 生命周期省略规则
+
+- 函数或方法的参数的生命周期被称为 输入生命周期（input lifetimes），而返回值的生命周期被称为 输出生命周期（output lifetimes）。
+- 第一条规则是每一个是引用的参数都有它自己的生命周期参数。
+- 第二条规则是如果只有一个输入生命周期参数，那么它被赋予所有输出生命周期参数
+- 第三条规则是如果方法有多个输入生命周期参数并且其中一个参数是 &self 或 &mut self，说明是个对象的方法(method)，那么所有输出生命周期参数被赋予 self 的生命周期。
+
+## 方法定义中的生命周期注解
+
+两个案例
+
+``` rust
+impl<'a> ImportantExcerpt<'a> {
+    fn level(&self) -> i32 {
+        3
+    }
+}
+
+impl<'a> ImportantExcerpt<'a> {
+    fn announce_and_return_part(&self, announcement: &str) -> &str {
+        println!("Attention please: {}", announcement);
+        self.part
+    }   
+}
+```
+
+## 静态生命周期
+
+- Rust中还存在⼀种特殊的⽣命周期'static，它表⽰整个程序的执⾏期。所有的字符串字⾯量都拥有'static⽣命周期，可以像下⾯⼀样显式地把它们标注出来：
+
+``` rust
+let s: &'static str = "I have a static lifetime.";
+```
+
+- 字符串的⽂本被直接存储在⼆进制程序中，并总是可⽤的。因此，所有字符串字⾯量的⽣命周期都是'static
+
+## 同时使⽤泛型参数、trait约束与⽣命周期
+
+案例：返回两个字符串切⽚中较⻓者的longest函数。
+
+- 多了⼀个额外的ann参数，这个参数的类型为泛型T。根据where从句中的约束，该参数的类型可以被替换为任何实现了Display trait的类型。
+- 这个额外的参数会在函数⽐较字符串切⽚⻓度之前被打印出来，所以我们需要Display来作为trait约束。
+- 因为⽣命周期也是泛型的⼀种，所以⽣命周期参数'a和泛型参数T都被放置到了函数名后的尖括号列表中。
+
+``` rust
+use std::fmt::Display;
+fn longest_with_an_announcement<'a, T>(x: &'a str, y: &'a str, ann: T) -> &'a str
+    where T: Display
+{
+    println!("Announcement! {}", ann);
+    if x.len() > y.len() {
+        x
+    } else {
+        y
+    }
+}
+```
 
 # 闭包
 
@@ -5296,8 +5341,10 @@ fn main() {
 - 闭包可以被保存进变量或作为参数传递给其他函数
 - 闭包主要用作高阶函数的参数。高阶函数是一个以另一个函数或闭包作为参数的函数。
 - 闭包提供简便、抽象的另一个场景是，当你有一个对 Vec 等集合进行操作的函数时，希望根据某些条件过滤元素。
+- 闭包变量只是存储了⼀个匿名函数的定义，⽽不是调⽤该匿名函数⽽产⽣的返回值。
+- 使⽤闭包是因为想要在⼀个地⽅定义要调⽤的代码，将其存储起来，并在稍后的地⽅调⽤它。
 
-## 创建
+## 简单的创建与调用
 
 语法：
 |参数列表| -> 返回类型 {代码段}
@@ -5341,11 +5388,111 @@ fn main() {
 }
 ```
 
-## 捕获的三种方式
+## 捕获上下⽂环境
 
-- Fn
-- FnMut
-- FnOnce
+- 闭包可以捕获⾃⼰所在的环境并访问⾃⼰被定义时的作⽤域中的变量
+- 当闭包从环境中捕获值时，它会使⽤额外的空间来存储这些值以便在闭包体内使⽤
+
+``` rust
+fn main() {
+    let x = 4;
+    let equal_to_x = |z| z == x;
+    let y = 4;
+    assert!(equal_to_x(y));
+}
+```
+
+## 不同的捕获类型
+
+- 闭包可以通过3种⽅式从它们的环境中捕获值，这和函数接收参数的3种⽅式是完全⼀致的：获取所有权、可变借⽤及不可变借⽤。
+
+这3种⽅式被分别编码在如下所⽰的3种Fn系列的 trait中：
+
+- FnOnce 意味着闭包可以从它的封闭作⽤域中，也就是闭包所处的环境 中，消耗捕获的变量。为了实现这⼀功能，闭包必须在定义时取得这些变量的所有权并将它们移动⾄闭包中。这也是名称FnOnce中Once⼀词的含义：因为闭包不能多次获取并消耗掉同⼀变量的所有权，所以它只能被调⽤⼀次。
+
+- FnMut可以从环境中可变地借⽤值并对它们进⾏修改。
+- Fn可以从环境中不可变地借⽤值。
+
+当创建闭包时，Rust会基于闭包从环境中使⽤
+值的⽅式来⾃动推导出它需要使⽤的trait。所有闭包都⾃动实现了FnOnce，因为它们⾄少都可以被调⽤⼀次。那些不需要移动被捕获变量的闭包还会实现FnMut，⽽那些不需要对被捕获变量进⾏可变访问的闭包则同时实现了Fn。
+
+假如希望强制闭包获取环境中值的所有权，那么你可以在参数列表前添加move关键字。这个特性在把闭包传⼊新线程时相当有⽤，它可以将捕获的变量⼀并移动到新线程中去。
+
+## 使⽤泛型参数和Fn trait来存储闭包
+
+- 创建⼀个同时存放闭包及闭包返回值的结构体。这个结构体只会在我们需要获得结果值时运⾏闭包，并将⾸次运⾏闭包时的结果缓存起来，这样余下的代码就不必再负责存储结果，⽽可以直接复⽤该结果。这种模式⼀般被称作 记忆化 （memoization）或 惰性求值 （lazy evaluation）。
+- 缓存值其实是⼀种相当通⽤且有效的策略，你可能会想要在其他部分的闭包代码中使⽤它。
+- 下面缺陷的缺陷见“Rust编程之道”的“13章 Cacher实现的局限性”
+
+案例
+
+``` rust
+use std::thread;
+use std::time::Duration;
+struct Cacher<T>
+where
+    T: Fn(u32) -> u32,
+{
+    calculation: T,
+    value: Option<u32>,
+}
+
+impl<T> Cacher<T>
+where
+    T: Fn(u32) -> u32,
+{
+    fn new(calculation: T) -> Cacher<T> {
+        Cacher {
+            calculation,
+            value: None,
+        }
+    }
+    fn value(&mut self, arg: u32) -> u32 {
+        match self.value {
+            Some(v) => v,
+            None => {
+                let v = (self.calculation)(arg);
+                self.value = Some(v);
+                v
+            }
+        }
+    }
+}
+fn generate_workout(intensity: u32, random_number: u32) {
+    let mut expensive_result = Cacher::new(|num| {
+        println!("calculating slowly...");
+        thread::sleep(Duration::from_secs(2));
+        num
+    });
+    if intensity < 25 {
+        println!("Today, do {} pushups!", expensive_result.value(intensity));
+        println!("Next, do {} situps!", expensive_result.value(intensity));
+    } else {
+        if random_number == 3 {
+            println!("Take a break today! Remember to stay hydrated!");
+        } else {
+            println!(
+                "Today, run for {} minutes!",
+                expensive_result.value(intensity)
+            );
+        }
+    }
+}
+fn main() {
+    let simulated_user_specified_value = 10;
+    let simulated_random_number = 7;
+    generate_workout(simulated_user_specified_value, simulated_random_number);
+}
+
+
+huaw@huaw:~/playground/rust/tut$ cargo run
+   Compiling tut v0.1.0 (/home/huaw/playground/rust/tut)
+    Finished dev [unoptimized + debuginfo] target(s) in 0.37s
+     Running `target/debug/tut`
+calculating slowly...
+Today, do 10 pushups!
+Next, do 10 situps!
+```
 
 ## 闭包作为函数参数
 
@@ -6105,7 +6252,6 @@ fn add_fails() {
 
 另一个案例
 
-
 ``` rust
 pub fn add_two(a: i32) -> i32 {
     internal_adder(a, 2)
@@ -6533,6 +6679,33 @@ fn test_with_fixture() {
 }
 ```
 
+## 在测试中打印输出
+
+使用“cargo test  -- --nocapture”运行测试即可看到println的输出内容
+
+``` rust
+fn prints_and_returns_10(a: i32) -> i32 {
+    println!("I got the value {}", a);
+    10
+}
+fn main() {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn this_test_will_pass() {
+        let value = prints_and_returns_10(4);
+        assert_eq!(10, value);
+    }
+    #[test]
+    fn this_test_will_fail() {
+        let value = prints_and_returns_10(8);
+        assert_eq!(5, value);
+    }
+}
+```
+
 ## 使用Result<T, E>测试
 
 - 无需panic，可使用Result<T, E>作为返回类型编写测试，返回 ok测试通过，返回 Err:测试失败
@@ -6577,6 +6750,18 @@ mod tests {
 
 - 测试单个函数，cargo test 后面接要被测试的函数名即可，如“cargo test name_of_target_func”
 - 测试多个函数，只要在参数中包含多个目标名称的共同部分，就可以特定这几个测试用来运行。由于模块名称本身是测试名称的一部分，因此也可以用来做过滤器。
+
+如下面会运行包含“add”的所有测试函数
+
+``` shell
+$ cargo test add
+Finished dev [unoptimized + debuginfo] target(s) in 0.0 secs
+Running target/debug/deps/adder-06a75b4a1f2515e9
+running 2 tests
+test tests::add_two_and_two ... ok
+test tests::add_three_and_two ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out
+```
 
 ## unimplemented
 
