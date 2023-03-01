@@ -15,8 +15,8 @@ https://kaisery.github.io/trpl-zh-cn/title-page.html        迭代器与闭包
 www.runoob.com/rust                 Rust 面向对象
 
 
-Rust编程之道
-Rust权威指南                继续第13章 使⽤迭代器处理元素序列
+Rust编程之道                继续2.9 ，差常用集合类型中的案例     
+Rust权威指南                继续第15章 函数和⽅法的隐式解引⽤转换
 精通Rust(第2版)             4.3
 
 案例：https://www.cnblogs.com/jiangbo4444/category/2071807.html
@@ -543,6 +543,17 @@ huaw@test:~/playground/rust/hellocargo$ cargo build
 huaw@test:~/playground/rust/hellocargo$ cargo build --release
    Compiling hellocargo v0.1.0 (/home/huaw/playground/rust/hellocargo)
     Finished release [optimized] target(s) in 0.19s
+```
+
+### debug与release下的不同配置
+
+当项⽬的Cargo.toml ⽂件中没有任何[profile.*]区域时，Cargo针对每个配置都会有⼀套可以应⽤的默认选项。通过为任意的配置添加[profile.*]区域，我们可以覆盖默认设置的任意⼦集。例如，下⾯是opt-level选项分别在debug与release配置中的默认值：
+
+``` toml
+[profile.dev]
+opt-level = 0
+[profile.release]
+opt-level = 3
 ```
 
 ### clean
@@ -1533,7 +1544,19 @@ let c3 = '\u{7FFF}'; // unicode字符
 
 ## 类型转换
 
-与 C 和 C++ 不同，Rust 几乎不进行隐式数值类型转换。如果函数接收 f64 参数，传入 i32 值就会导致错误。事实上，Rust 甚至都不会隐式地将 i16 值转换为 i32 值，即使每个 i16 值也是 i32 值。不过，这里的关键词是隐式。使用 as 操作符进行显式转换是没有问题的，
+与 C 和 C++ 不同，Rust 几乎不进行隐式数值类型转换。如果函数接收 f64 参数，传入 i32 值就会导致错误。事实上，Rust 甚至都不会隐式地将 i16 值转换为 i32 值，即使每个 i16 值也是 i32 值。不过，可以通过as操作符将bool类型转换为数字0和1。但要注意，Rust并不支持将数字转换为bool类型。
+
+``` rust
+fn main(){
+    let x = true;
+    let y: bool = false;
+    let x = 5;
+    if x > 1{ println!("x is bigger than 1")};
+    assert_eq!(x as i32,5);
+    assert_eq!(y as i32,0);
+}
+```
+
 ## 打印输出
 
 println! 和 print! 类似，只是多 ln 的会多一个换行，会输出到标准输出流。eprint! 和 eprintln! 会将内容输出到标准错误流。
@@ -1866,6 +1889,33 @@ huaw@test:~/playground/rust/hellocargo$ cargo run
 type Double<T> = (T, Vec<T>); // 小括号包围的是一个 tuple,请参见后文中的复合数据类型
 ```
 
+## 原生指针
+
+Rust 提供了多种类型的指针，包括
+
+- 引用 Reference
+  它本质上是一种非空指针，属于Safe Rust范畴，见[引用](#引用)
+- 原生指针 Raw Pointer
+  原生指针主要用于Unsafe Rust中。直接使用原生指针是不安全的，比如原生指针可能指向一个Null，或者一个已经被释放的内存区域，因为使用原生指针的地方不在Safe Rust的可控范围内，所以需要程序员自己保证安全。Rust支持两种原生指针：不可变原生指针*constT和可变原生指针*mut T。
+
+    ``` rust
+    fn main() {
+        let mut x = 10;
+        let ptr_x = &mut x as *mut i32;
+        let y = Box::new(20);
+        let ptr_y = &*y as *const i32;
+        unsafe {
+            *ptr_x += *ptr_y;
+        }
+        assert_eq!(x, 30);
+    }
+    ```
+
+- 函数指针 fn Pointer
+  见[函数指针](##函数指针)
+- 智能指针 Smart Pointer
+  见[智能指针](#智能指针)
+
 ## 静态变量
 
 - 用static声明的变量的生命周期是整个程序，从启动到退出。static变量的生命周期永远是'static，它占用的内存空间也不会在执行过程中回收。这也是Rust中唯一的声明全局变量的方法。
@@ -2145,12 +2195,14 @@ huaw@test:~/playground/rust/hellocargo$ cargo run
 
 ## 切片
 
-- Rust还有另外⼀种不持有所有权的数据类型：切⽚（slice）。切⽚允许我们引⽤集合中某⼀段连续的元素序列，⽽不是整个集合。
+- Rust还有另外⼀种不持有所有权的数据类型：切⽚（slice）。
+- 切⽚允许我们引⽤集合中某⼀段连续的元素序列（不需要拷贝，切片引用的是已经存在的变量），⽽不是整个集合。
+  - ..y 等价于 0..y
+  - x.. 等价于位置 x 到数据结束
+  - .. 等价于位置 0 到结束
+- 在底层，切片代表一个指向数组起始位置的指针和数组长度。用[T]类型表示连续序列，那么切片类型就是&[T]和&mut [T]
 - 字符串字⾯量就是切⽚
-
-- ..y 等价于 0..y
-- x.. 等价于位置 x 到数据结束
-- .. 等价于位置 0 到结束
+- 切片也提供了两个const fn方法，len和is_empty，分别用来得到切片的长度和判断切片是否为空
 
 ``` rust
 fn main() {
@@ -2237,6 +2289,7 @@ fn main() {
 
 ## 1 经典结构的定义、赋值、取值
 
+- 具名结构体（Named-Field Struct）
 - 结构体类型是一个自定义数据类型，通过struct关键字加自定义命名，可以把多个类型组合在一起成为新的类型。
 - 结构体中以“name:type”格式定义字段，name是字段名称，type是字段类型。结构体名和字段名都遵循变量的命名规则，结构体名应该能够描述它所组合的数据的意义；字段默认不可变，并要求明确指定数据类型，不能使用自动类型推导功能。
 - 每个字段之间用逗号分隔，最后一个逗号可以省略。
@@ -2321,6 +2374,7 @@ name: lisi, score: 60
 
 ## 2 元组结构
 
+- 元组结构体（Tuple-Like Struct）
 - 有struct的名称，但struct的内部成员没有名称
 - 用于处理那些需要定义类型（经常使用）又不想太复杂的简单数据
 - 可以对其进行模式匹配与解构（即tuple的使用方式）
@@ -2343,7 +2397,8 @@ origin = (0, 0)
 
 ## 3 空结构体
 
-Rust允许我们创建没有任何字段的结构体！因为这种结构体与空元组()⼗分相似，所以它们也被称为空结构体。当你想要在某些类型上实现⼀个trait，却不需要在该类型中存储任何数据时，空结构体就可以发挥相应的作⽤。
+- 单元结构体（Unit-Like Struct）
+- Rust允许我们创建没有任何字段的结构体！因为这种结构体与空元组()⼗分相似，所以它们也被称为空结构体。当你想要在某些类型上实现⼀个trait，却不需要在该类型中存储任何数据时，空结构体就可以发挥相应的作⽤。
 
 ## 打印结构体
 
@@ -2528,7 +2583,30 @@ impl Rectangle {
 
 # 枚举
 
-## 传统的使用样式
+## 枚举的三种形式
+
+- 无参数枚举
+
+案例里包含了三个值Zero、One和Two。需要注意，这三个是值，而非类型
+
+``` rust
+enum Number {
+    Zero,
+    One,
+    Two,
+}
+
+fn main() {
+    let a= Number::One;
+    match a {
+        Number::Zero => println!("0"),
+        Number::One => println!("1"),
+        Number::Two => println!("2"),
+    }
+}
+```
+
+另一个案例
 
 ``` rust
 #[derive(Debug)]
@@ -2548,29 +2626,67 @@ fn main() {
 
     println!("{:?}", today);
 }
+
 ```
 
-## 将数据附加到枚举
+- 类C枚举体
 
-- 省去了额外还需要创建struct对此枚举进行再次封装
-- 每个枚举值都可以拥有不同的类型以及与其相关联的数据
+案例里包含了三个枚举值：Red、Green和Blue，还分别被赋予了相应的值。同样，如果要使用具体的枚举值，需要加 Color 前缀
+
+``` rust
+enum Color {
+    Red = 0xff0000,
+    Green = 0x00ff00,
+    Blue = 0x0000ff,
+}
+fn main() {
+    println!("roses are #{:06x}", Color::Red as i32);
+    println!("violets are #{:06x}", Color::Blue as i32);
+}
+
+```
+
+- 携带类型参数的枚举体
+  - 枚举值携带了类型参数本质上属于函数指针，使用这类枚举值就像函数调用那样，需要传入实际的参数
+  - 省去了额外还需要创建struct对此枚举进行再次封装，每个枚举值都可以拥有不同的类型以及与其相关联的数据
 
 下例中的枚举值有两种，且每种对应不同的数据结构，但其都属于addr这个枚举
 
 ``` rust
-fn main() {
-    enum IpAddr {
-        V4(u8, u8, u8, u8),
-        V6(String),
-    }
-
-    let home = IpAddr::V4(127, 0, 0, 1);
+enum IpAddr {
+    V4(u8, u8, u8, u8),
+    V6(String),
+}
+fn main(){
+    let x: fn(u8,u8,u8,u8) -> IpAddr = IpAddr::V4;
+    let y : fn(String) -> IpAddr = IpAddr::V6;
+    let home = IpAddr::V4(127,0,0,1);
+    let home2 = x(127,0,0,2);
     let loopback = IpAddr::V6(String::from("::1"));
 }
+```
 
---------------------------
-使用结构定义枚举
+另一个案例，每种枚举值都不同类型
 
+``` rust
+fn main() {
+    enum Message {
+        Quit,
+        Move {x:i32, y: i32},   // 匿名struct
+        Write(String),  // 字符串
+        ChangeColor(i32, i32, i32),  // 3个整数
+    }
+
+    let q = Message::Quit;
+    let m = Message::Move { x: 12, y: 12 };
+    let w = Message::Write(String::from("hello"));
+    let c = Message::ChangeColor(0, 255, 255);
+}
+```
+
+使用结构定义枚举的案例
+
+``` rust
 // Define a tuple struct
 #[derive(Debug)]
 struct KeyPress(String, char);
@@ -2632,22 +2748,6 @@ WebEvent enum structure:
         'N',
     ),
 )
---------------------------
-另一个案例，每种枚举值都不同类型
-
-fn main() {
-    enum Message {
-        Quit,
-        Move {x:i32, y: i32},   // 匿名struct
-        Write(String),  // 字符串
-        ChangeColor(i32, i32, i32),  // 3个整数
-    }
-
-    let q = Message::Quit;
-    let m = Message::Move { x: 12, y: 12 };
-    let w = Message::Write(String::from("hello"));
-    let c = Message::ChangeColor(0, 255, 255);
-}
 ```
 
 ## 枚举也能有方法
@@ -2677,7 +2777,6 @@ fn main() {
     m.call();
 }
 ```
-
 
 ## 综合案例
 
@@ -2729,7 +2828,11 @@ page unloaded
 
 # 常用集合类型
 
-## vector
+在Rust标准库std::collections模块下有多种通用集合类型
+
+## 线性序列
+
+### 向量 Vec
 
 - vector在内存中是连续的，内存布局上真实数据在堆上，栈上只是个引用
 - vec!宏可以根据提供的值来创建⼀个新的vector
@@ -2869,11 +2972,20 @@ fn main() {
   
 ```
 
-## VecDeque
+### 双端队列 VecDeque
 
-## HashMap
+双端队列（Double-ended Queue，缩写为Deque）是一种同时具有队列（先进先出）和栈（后进先出）性质的数据结构。双端队列中的元素可以从两端弹出，插入和删除操作被限定在队列的两端进行。
 
-对于实现了Copy trait的类型，例如i32，它们的值会被简单地复制到哈希映射中。⽽对于String这种持有所有权的值，其值将会转移且所有权会转移给哈希映射
+### 链表 LinkedList
+
+Rust提供的链表是双向链表，允许在任意一端插入或弹出元素。但是通常最好使用Vec或VecDeque类型，因为它们比链表更加快速，内存访问效率更高，并且可以更好地利用CPU缓存。
+
+## Key-Value映射表
+
+### 无序哈希表 HashMap
+
+- HashMap＜K,V＞, Key必须是可哈希的类型，Value必须是在编译期已知大小的类型。
+- 对于实现了Copy trait的类型，例如i32，它们的值会被简单地复制到哈希映射中。⽽对于String这种持有所有权的值，其值将会转移且所有权会转移给哈希映射
 
 ``` rust
 
@@ -2904,6 +3016,8 @@ fn main() {
         ("美国队".to_string(),10),
         ("日本队".to_string(),50),
     ];
+    // into_iter创建可以获取动态数组所有权的迭代器
+    // 调⽤collect来将迭代器适配器返回的值收集到动态数组中
     let teams_map: HashMap<_,_> = teams_list.into_iter().collect();
     println!("{:?}",teams_map);
 
@@ -2939,8 +3053,8 @@ fn main() {
     }
 
     运行输出
-    'Ancient Roman History' removed.
-    Review for 'Ancient Roman History': None
+    //'Ancient Roman History' removed.
+    // Review for 'Ancient Roman History': None
 
 
 // 访问元素
@@ -3010,6 +3124,24 @@ fn main() {
 
 ```
 
+### 有序哈希表 BTreeMap
+
+- BTreeMap＜K，V＞是有序的，Key必须是可哈希的类型，Value必须是在编译期已知大小的类型。
+
+## 集合类型
+
+HashSet＜K＞和BTreeSet＜K＞其实就是HashMap＜K，V＞和BTreeMap＜K，V＞把Value设置为空元组的特定类型，等价于HashSet＜K，（）＞和BTreeSet＜K，（）＞。所以这两种集合类型的特性大概如下：
+
+- 集合中的元素应该是唯一的，因为是Key-Value映射表的Key。同理，集合中的元素应该都是可哈希的类型。
+- HashSet应该是无序的，BTreeSet应该是有序的。
+
+### 无序集合 HashSet
+
+### 有序集合 BTreeSet
+
+## 优先队列
+
+### 二叉堆 BinaryHeap
 
 # 字符串
 
@@ -3106,10 +3238,28 @@ fn main() {
 
 ```
 
-## &Str
+## &str
 
-- Rust在语⾔核⼼部分只有⼀种字符串类型，那就是字符串切⽚str，它通常以借⽤的形式（&str）出现
-- 字符串切⽚是⼀些指向存储在别处的UTF-8编码字符串的引⽤
+- Rust提供了原始的字符串类型str，也叫作字符串切片 。它通常以不可变借用的形式存在，即&str。
+- str字符串类型由两部分组成：指向字符串序列的指针和记录长度的值。可以通过str模块提供的as_ptr和len方法分别求得指针和长度
+- Rust中的字符串本质上是一段有效的UTF8字节序列。字符串切⽚则是指向此字节序列的引⽤。
+- 可以将一段字节序列转换为str字符串。
+
+下面的案例演示了上面的叙述
+
+``` rust
+fn main(){
+    let truth:&'static str ="Rust是一门优雅的语言";
+    let ptr = truth.as_ptr();
+    let len = truth.len();
+    assert_eq!(28,len);
+    let s = unsafe {
+        let slice = std::slice::from_raw_parts(ptr, len);
+        std::str::from_utf8(slice)
+    };
+    assert_eq!(s,Ok(truth));
+}
+```
 
 # 函数
 
@@ -3149,6 +3299,52 @@ fn main() {
     println!("five() 的值为: {}", five());
 }
 ```
+
+## 函数指针
+
+fn pointer
+
+- 函数当作参数
+
+``` rust
+pub fn math(op: fn(i32,i32) -> i32,a: i32,b:i32) -> i32{
+    op(a,b)
+}
+
+fn sum(a: i32,b:i32) -> i32 {
+    a+b
+}
+fn product(a: i32,b:i32) -> i32 {
+    a*b
+}
+fn main(){
+    let a= 2;
+    let b=3;
+    assert_eq!(math(sum,a,b),5); // 注意这里直接使用函数的名字来作为函数指针
+    assert_eq!(math(product,a,b),6);
+}
+```
+
+- 函数当作返回值
+
+``` rust
+
+fn is_true() -> bool { 
+    true 
+}
+
+fn true_maker() -> fn() -> bool {
+    is_true //使用了函数名字作为函数指针，如果加上括号，就会调用该函数，就像如下
+}
+
+fn main(){
+    // true_maker（）（）调用相当于（true_maker（））（）。
+    // 首先调用true_maker（），会返回is_true函数指针；
+    // 然后再调用is_true（）函数，最终得到true。
+    assert_eq!(true_maker()(), true);
+}
+```
+
 
 # 流程控制
 
@@ -3386,7 +3582,6 @@ huaw@test:~/playground/rust/hellocargo$ cargo run
      Running `target/debug/hellocargo`
 mango apple banana litchi watermelon 
 ```
-
 
 # Option与匹配
 
@@ -3710,6 +3905,29 @@ fn main() {
 ```
 
 ## while let
+
+通过案例演示使用while let来简化代码。与if let类似，其左侧Some（x）为匹配模式，它会匹配右侧pop方法调用返回的Option类型结果，并自动创建x绑定供println！宏语句使用。如果数组中的值取空，则自动跳出循环。
+
+``` rust
+未使用while let的代码
+fn main() {
+    let mut v = vec![1, 2, 3, 4, 5];
+    loop {
+        match v.pop() {
+            Some(x) => println!("{}", x),
+            None => break,
+        }
+    }
+}
+
+使用while let的代码
+fn main(){
+    let mut v= vec![1,2,3,4,5];
+    while let Some(x) = v.pop() {
+        println!("{}", x);
+    }
+}
+```
 
 # 错误处理
 
@@ -4244,9 +4462,9 @@ fn main() {
 
 这种方法可能有用，但会导致代码运行速度变慢，因为每次调用 clone 都是对数据的一次完整复制。 此方法通常包括内存分配或其他成本高昂的操作。 我们可使用引用来“借用”值，从而避免这些成本。
 
-## 引用（借用）
+# 引用
 
-通过引用，我们可以“借用”一些值，而无需拥有它们。
+通过引用（借用），我们可以“借用”一些值，而无需拥有它们。
 
 - 引用不会获得值的所有权。
 - 引用只能租借（Borrow）值的所有权。
@@ -4303,7 +4521,7 @@ fn main() {
 }
 ```
 
-### 改变借用的值
+## 改变借用的值
 
 通过&mut借用（称为“可变借用”），可以读取和更改数据。
 
@@ -4336,7 +4554,7 @@ fn change(text: &mut String) {
 }
 ```
 
-### 引用的限制
+## 引用的限制
 
 - 允许在一个作用域中有且仅有一个可变引⽤，或是无可变引用但却有任意数量的不可变引⽤
 
@@ -4370,7 +4588,7 @@ fn main() {
 }
 ```
 
-### 垂悬引用
+## 垂悬引用
 
 即引用了一个已经离开作用域的变量（也就是被引用的变量已经销毁了）
 
@@ -4385,6 +4603,21 @@ fn dangle() -> &String {
     let s = String::from("hello");
 
     &s
+}
+```
+
+## 解引用
+
+- 解引用并非取得所有权
+
+当要断⾔变量y中的值时，由于数值和引⽤是两种不同的类型，所以不能直接⽐较这两者。必须使⽤解引⽤运算符来跳转到引⽤指向的值。即使⽤*y来跟踪引⽤并跳转到它指向的值。
+
+``` rust
+fn main() {
+    let x = 5;
+    let y = &x;
+    assert_eq!(5, x);
+    assert_eq!(5, *y);
 }
 ```
 
@@ -4983,11 +5216,11 @@ fn returns_summarizable() -> impl Summary {
 ## 自定义Iterator
 
 - 该接口在标准库中定义，用于（如范围、数组、矢量和哈希映射）这些容器。
-- Iterator 具有方法 next，调用时它将返回 Option<Item>。 只要有元素，next 方法就会返回 Some(Item)。 用尽所有元素后，它将返回 None 以指示迭代已完成。
+- Iterator 具有方法 next（还有很多其它方法），调用时它将返回 Option<Item>。 只要有元素，next 方法就会返回 Some(Item)。 用尽所有元素后，它将返回 None 以指示迭代已完成。
 
 ``` rust
 trait Iterator {
-    type Item;
+    type Item; // 为了实现Iterator trait必须要定义⼀个具体的Item类型（关联类型），⽽这个Item类型会被⽤作next⽅法的返回值类型。
     fn next(&mut self) -> Option<Self::Item>;
 }
 ```
@@ -5495,6 +5728,39 @@ Next, do 10 situps!
 ```
 
 ## 闭包作为函数参数
+
+- 函数closure_math的参数的类型是F，且F受Fn（）-＞i32 trait的限定，即只允许实现了Fn（）-＞i32 trait的类型作为参数
+- Rust中闭包实际上就是由一个匿名结构体和trait来组合实现的 。
+- main里分别传入||a+b和||a*b这两个闭包，都实现了Fn（）-＞i32。
+- 在math函数内部，通过在后面添加一对圆括号来调用传入的闭包。
+
+``` rust
+fn closure_math<F: Fn() -> i32>(op: F) -> i32 {
+    op()
+}
+fn main() {
+    let a = 2;
+    let b = 3;
+    assert_eq!(closure_math(|| a + b),5);
+    assert_eq!(closure_math(|| a * b),6);
+}
+```
+
+## 闭包作为返回值
+
+- 使用impl Fn（i32）-＞i32作为函数的返回值
+- 返回闭包时使用了move关键字，将捕获变量i的所有权转移到闭包中，就不会按引用进行捕获变量，这样闭包才可以安全地返回。
+
+``` rust
+fn two_times_impl() -> impl Fn(i32) -> i32 {
+    let i= 2;
+    move|j|j*i
+}
+fn main(){
+    let result = two_times_impl();
+    assert_eq!(result(2), 4);
+}
+```
 
 # 组织管理
 
@@ -6412,7 +6678,9 @@ $ cargo new --lib basic_math
 $ cd basic_math
 ```
 
-- 编辑src/lib.rs，使用三斜杠 (///) 注释源代码
+- 编辑src/lib.rs，使⽤三斜线（///）⽽不是双斜线来编写⽂档注释，并且可以在⽂档注释中使⽤Markdown语法来格式化内容。⽂档注释被放置在它所说明的条⽬之前。
+- 可以通过运⾏cargo doc命令来基于这段⽂档注释⽣成HTML⽂档。这条命令会调⽤Rust内置的rustdoc⼯具在target/doc 路径下⽣成HTML⽂档。
+- 为了⽅便，也可以调⽤cargo doc --open来⽣成并⾃动在浏览器中打开当前的包的⽂档（以及所有依赖包的⽂档）
 
 ``` rust
 /// Generally, the first line is a brief summary describing the function.
@@ -6800,6 +7068,61 @@ failures:
 test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 
 error: test failed, to rerun pass `--bin tut`
+```
+
+# 智能指针
+
+## Box
+
+- 在堆上分配数据，并在栈中保留⼀个指向堆数据的指针。
+- Box属于智能指针的⼀种，因为它实现了Deref trait，并允许我们将Box的值当作引⽤来对待。
+- 当⼀个Box值离开作⽤域时，因为它实现了Drop trait，所以Box指向的堆数据会⾃动地被清理释放掉。
+
+常常被⽤于下⾯的场景中:
+
+- 当你拥有⼀个⽆法在编译时确定⼤⼩的类型，但⼜想要在⼀个要求固定尺⼨的上下⽂环境中使⽤这个类型的值时。
+- 当你需要传递⼤量数据的所有权，但⼜不希望产⽣⼤量数据的复制⾏为时。
+- 当你希望拥有⼀个实现了指定trait的类型值，但⼜不关⼼具体的类型时。
+
+``` rust
+fn main() {
+    let x = 5;
+    let y = Box::new(x);
+    assert_eq!(5, x);
+    使⽤解引⽤运算符来跟踪装箱指针
+    assert_eq!(5, *y);
+}
+```
+
+## 使用Deref解引用
+
+- 自定义的类型默认是不能使用*完成解引⽤操作的，只能对&形式的常规引⽤执⾏解引⽤操作。
+- 实现Deref trait就能使⽤了，所有权系统决定了deref⽅法需要返回⼀个引⽤，再使用*即解引⽤了
+- deref返回的是引⽤，如果是值则会被移出self。其实在⼤多数使⽤解引⽤的时候，并不希望获得智能指针内部值的所有权
+  
+``` rust
+use std::ops::Deref;
+
+struct MyBox<T>(T);
+impl<T> MyBox<T> {
+    fn new(x: T) -> MyBox<T> {
+        MyBox(x)
+    }
+}
+
+impl<T> Deref for MyBox<T> {
+    type Target = T; // 定义了Deref trait的⼀个关联类型
+    fn deref(&self) -> &T {
+        &self.0 // deref会返回⼀个指向值的引⽤，进⽽允许调⽤者通过*运算符访问值
+    }
+}
+
+fn main() {
+    let x = 5;
+    let y = MyBox::new(x);
+    assert_eq!(5, x);
+    assert_eq!(5, *y);  // 这里其实是*(y.deref())的语法糖
+}
 ```
 
 # 文件读写
