@@ -16,7 +16,7 @@ www.runoob.com/rust                 Rust 面向对象
 
 
 Rust编程之道                继续2.9 ，差常用集合类型中的案例     
-Rust权威指南                继续第15章 函数和⽅法的隐式解引⽤转换
+Rust权威指南                继续第15章 函数和⽅法的隐式解引⽤转换，第16章已完毕
 精通Rust(第2版)             4.3
 
 案例：https://www.cnblogs.com/jiangbo4444/category/2071807.html
@@ -7122,6 +7122,241 @@ fn main() {
     let y = MyBox::new(x);
     assert_eq!(5, x);
     assert_eq!(5, *y);  // 这里其实是*(y.deref())的语法糖
+}
+```
+
+# 并发
+
+## 通用概念
+
+- 并发编程（concurrent programming）与并⾏编程（parallel programming）这两种概念随着计算机设备的多核⼼化⽽变得越来越重要。前者允许程序中的不同部分相互独⽴地运⾏，⽽后者则允许程序中的不同部分同时执⾏。
+
+- 当某个计算的正确性取决于多个线程交替执行的顺序时，就会产生竞态条件（Race Condition）。也就是说，想计算出正确的结果，全靠运气。最常见的竞态条件类型是“读取-修改-写入 ”和“先检查后执行 ”操作。
+- 当一个线程写一个变量而另一个线程读这个变量时，如果这两个线程没有进行同步，则会发生数据竞争（DataRace）。
+- 当两个线程同时尝试获取对⽅持有的资源时产⽣的死锁（deadlock），它会导致这两个线程⽆法继续运⾏。
+
+- 要消除竞态条件，只需要保证线程按指定顺序来访问即可。
+- 要避免数据竞争，只需要保证相关数据结构操作的原子性即可。
+
+- 通过同步机制来消除竞态条件，使用互斥和原子类型来避免数据竞争。
+- 同步是指保证多线程按指定顺序执行的手段。
+- 互斥是指同一时刻只允许单个线程对临界资源进行访问，对其他线程具有排他性，线程之间的关系表现为互斥。
+- 原子类型是指修改临界数据结构的内部实现，确保对它们做任何更新，在外界看来都是原子性的，不可中断
+
+- 通常可以使用锁 、信号量（Semaphores） 、屏障（Barrier） 和条件变量（Condition Variable） 机制来实现线程同步。
+- 不同的并发场景分为很多不同类型的锁，有互斥锁（Mutex）、读写锁（RwLock）和自旋锁（Spinlock）等。锁的作用是可以保护临界区，同时达到同步和互斥的效果。不同的锁表现不同，比如互斥锁，每次只允许单个线程访问临界资源；读写锁可以同时支持多个线程读或单个线程写；自旋锁和互斥锁类似，但当获取锁失败时，它不会让线程睡眠，而是不断地轮询直到获取锁成功。
+- 信号量可以在线程间传递信号，也叫作信号灯，它可以为资源访问进行计数。信号量是一个非负整数，所有通过它的线程都会将该整数减 1，如果信号量为 0，那么其他线程只能等待。当线程执行完毕离开临界区时，信号量会再次加1。当信号量只允许设置0和1时，效果相当于互斥锁。
+- 屏障可以让一系列线程在某个指定的点进行同步。通过让参与指定屏障区域的线程等待，直到所有参与线程都到达指定的点。
+- 条件变量用来自动阻塞一个线程，直到出现指定的条件，通常和互斥锁配合使用。
+
+## 线程
+
+### thread::spawn
+
+- spawn生成的线程，默认没有名称，并且其栈大小默认为2MB
+- thread::spawn的返回值类型是⼀个⾃持有所有权的JoinHandle，调⽤它的join⽅法可以阻塞当前线程直到对应的新线程运⾏结束。
+- 在线程句柄上调⽤join函数会阻塞当前线程，直到句柄代表的线程结束
+- move闭包常常被⽤来与thread::spawn函数配合使⽤，它允许你在某个线程中使⽤来⾃另⼀个线程的数据。
+
+``` rust
+use std::thread;
+fn main() {
+    let mut v = vec![];
+    for id in 0..5 {
+        // 使用spawn函数创建子线程，接收一个闭包作为参数
+        // move关键字来强行将捕获变量id的所有权转移到闭包中
+        let child = thread::spawn(move || {
+            println!("in child:{}", id);
+        });
+        v.push(child);
+    }
+    println!("in main : join before ");
+    for child in v {
+        child.join();
+    }
+    println!("in main : join after");
+}
+```
+
+另一个案例
+
+``` rust
+use std::thread;
+use std::time::Duration;
+
+fn main() {
+    thread::spawn(|| {
+        for i in 1..10 {
+            println!("hi number {} from the spawned thread!", i);
+            thread::sleep(Duration::from_millis(1));
+        }
+    });
+
+    for i in 1..5 {
+        println!("hi number {} from the main thread!", i);
+        thread::sleep(Duration::from_millis(1));
+    }
+}
+```
+
+### thread::Builder
+
+如果想为线程指定名称或者修改默认栈大小，则可以使用thread：：Builder 结构体来创建可配置的线程
+
+``` rust
+use std::thread::{Builder, current};
+use std::panic;
+
+fn main() {
+    let mut v = vec![];
+    for id in 0..5 {
+        let thread_name = format!("child-{}", id);
+        let size: usize = 3 * 1024;
+        let builder = Builder::new().name(thread_name).stack_size(size);
+        let child = builder.spawn(move || {
+            println!("in child:{}", current().name().unwrap());
+            if id == 3{
+                panic::catch_unwind(||{
+                    panic!("oh no");
+                });
+                println!("in {} do sm", current().name().unwrap());
+            }
+        }).unwrap();
+        v.push(child);
+    }
+
+    for child in v {
+        child.join().unwrap_or_default();
+    }
+}
+```
+
+### Mutex
+
+互斥体（mutex）是英⽂mutual exclusion的缩写。也就是说，⼀个互斥体在任意时刻只允许⼀个线程访问数据。为了访问互斥体中的数据，线程必须⾸先发出信号来获取互斥体的锁（lock）。锁是互斥体的⼀部分，这种数据结构被⽤来记录当前谁拥有数据的唯⼀访问权。通过锁机制，互斥体守护（guarding）了它所持有的数据。
+
+互斥体的两条规则：
+
+- 必须在使⽤数据前尝试获取锁。
+- 必须在使⽤完互斥体守护的数据后释放锁，这样其他线程才能继续完成获取锁的操作。
+
+案例：使⽤（atomically reference counted）原⼦引⽤计数Arc<T>包裹Mutex<T>来实现多线程共享所有权
+
+``` rust
+use std::sync::{Arc, Mutex};
+use std::thread;
+fn main() {
+    let counter = Arc::new(Mutex::new(0));
+    let mut handles = vec![];
+    for _ in 0..10 {
+        let counter = Arc::clone(&counter);
+        let handle = thread::spawn(move || {
+            let mut num = counter.lock().unwrap();
+            *num += 1;
+        });
+        handles.push(handle);
+    }
+    for handle in handles {
+        handle.join().unwrap();
+    }
+    println!("Result: {}", *counter.lock().unwrap());
+}
+```
+
+### tls
+
+
+## channel
+
+- Rust在标准库中实现了⼀个名为通道（channel）的编程概念来实现消息传递（message passing）
+- 编程中的通道由发送者（transmitter）和接收者（receiver）两个部分组成。
+- 使⽤mpsc::channel函数创建了⼀个新的通道，返回⼀个含有发送端tx与接收端rx的元组。
+- mpsc是英⽂ “multiple producer, single consumer”（多个⽣产者，单个消费者）的缩写。
+
+- 只有实现了Send trait的类型才可以安全地在线程间转移所有权。其实⼏乎所有的Rust类型都实现了Send trait。
+- 只有实现了Sync trait的类型才可以安全地被多个线程引⽤。与Send类似，所有原⽣类型都满⾜Sync约束。
+- 当某个类型完全由实现了Send与Sync的类型组成时，它就会⾃动实现Send与Sync。
+
+send函数会获取参数的所有权，并在参数传递时将所有权转移给接收者。下面的打印会编译失败
+
+``` rust
+use std::sync::mpsc;
+use std::thread;
+fn main() {
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let val = String::from("hi");
+        tx.send(val).unwrap();
+        // println!("val is {}", val);
+    });
+    let received = rx.recv().unwrap();
+    println!("Got: {}", received);
+}
+
+```
+
+主线程在等待接收新线程中传递过来的值
+
+``` rust
+use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
+fn main() {
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let vals = vec![
+            String::from("hi"),
+            String::from("from"),
+            String::from("the"),
+            String::from("thread"),
+        ];
+        for val in vals {
+            tx.send(val).unwrap();
+            thread::sleep(Duration::from_secs(1));
+        }
+    });
+    for received in rx {
+        println!("Got: {}", received);
+    }
+}
+```
+
+通过克隆通道的发送端来创建出多个能够发送值到同⼀个接收端的线程
+
+``` rust
+use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
+fn main() {
+    let (tx, rx) = mpsc::channel();
+    let tx1 = mpsc::Sender::clone(&tx);
+    thread::spawn(move || {
+        let vals = vec![
+            String::from("hi"),
+            String::from("from"),
+            String::from("the"),
+            String::from("thread"),
+        ];
+        thread::spawn(move || {
+            let vals = vec![
+                String::from("more"),
+                String::from("messages"),
+                String::from("for"),
+                String::from("you"),
+            ];
+            for val in vals {
+                tx.send(val).unwrap();
+                thread::sleep(Duration::from_secs(1));
+            }
+        });
+        for val in vals {
+            tx1.send(val).unwrap();
+            thread::sleep(Duration::from_secs(1));
+        }
+    });
+    for received in rx {
+        println!("Got: {}", received);
+    }
 }
 ```
 
