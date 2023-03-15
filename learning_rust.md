@@ -15,7 +15,7 @@ https://kaisery.github.io/trpl-zh-cn/title-page.html        迭代器与闭包
 www.runoob.com/rust                 Rust 面向对象
 
 
-Rust编程之道                继续2.9 ，差常用集合类型中的案例     
+Rust编程之道                继续3.5     
 Rust权威指南                继续第15章 函数和⽅法的隐式解引⽤转换，第16章已完毕
 精通Rust(第2版)             4.3
 
@@ -1974,6 +1974,18 @@ static FLAG: AtomicBool = AtomicBool::new(true);
 
 在release中溢出会翻转（wrap）为负值（与 C++ 不同，C++ 中的有符号整数溢出是未定义行为）
 
+## sizeof
+
+- &[u32；5]类型为普通指针，占8个字节；&mut[u32]类型为胖指针，占16个字节。
+- 空枚举，空元组，空数组，空struct大小都是0，以及由大小为0的元素构成的struct也是0
+
+``` rust
+fn main() {
+    assert_eq!(std::mem::size_of::<&[u32; 5]>(), 8);
+    assert_eq!(std::mem::size_of::<&mut [u32]>(), 16);
+}
+```
+
 ## 命令行参数
 
 - 使用cargo run方式输入命令行参数
@@ -2119,9 +2131,10 @@ x: -10, y: 7.7, z: false
 ## 数组
 
 数组（Array）是Rust内建的原始集合类型，数组的特点为：
-· 数组大小固定。
-· 元素均为同类型。
-· 默认不可变。
+
+- 数组大小固定。
+- 元素均为同类型。
+- 默认不可变。
 
 数组类型是由相同类型的元素组合成的复合类型，我们可以使用
 [T; n]表示，T代表元素类型，n代表长度即元素个数。
@@ -2133,6 +2146,8 @@ x: -10, y: 7.7, z: false
 - 省略数组类型，为所有元素使用默认值初始化。如 let arr = [1; 5]; // 等价于：let arr = [1, 1, 1, 1, 1];
 
 使用“数组名［索引］”来访问数组中相应索引位置的元素，元素的索引从0开始计数。
+
+- 数组做函数参数时候还要添加一个元素个数做参数才可
 
 ``` rust
 fn main() {
@@ -2158,6 +2173,68 @@ huaw@test:~/playground/rust/hellocargo$ cargo run
 [1, 1, 1, 1, 1]
 arr1[0]: 1, arr3[2]: 1
 ```
+
+### 函数参数是数组
+
+- 传值
+
+从输出结果可以看出来，修改的数组并未影响原来的数组。这是因为u32类型是可复制的类型，实现了Copytrait，所以整个数组也是可复制的。所以当数组被传入函数中时就会被复制一份新的副本。这里值得注意的是，[u32]和[u32；5]是两种不同的类型。
+
+``` rust
+fn reset1(mut arr: [u32; 5]) {
+    arr[0] = 5;
+    arr[1] = 4;
+    arr[2] = 3;
+    arr[3] = 2;
+    arr[4] = 1;
+    println!("reset arr {:?}", arr); // [5，4，3，2，1]
+}
+
+
+fn main() {
+    let arr: [u32; 5] = [1, 2, 3, 4, 5];
+    reset1(arr);
+    println!("origin arr {:?}", arr); //[1，2，3，4，5]
+}
+
+
+reset arr [5, 4, 3, 2, 1]
+origin arr [1, 2, 3, 4, 5]
+```
+
+- 传引用
+
+使用了&mut [u32]，它是可变借用，&[u32]是不可变借用。因为这里要修改数组元素，所以使用可变借用。从输出的结果可以看出，胖指针&mut [u32]包含了长度信息。将引用当作函数参数，意味着被修改的是原数组，而不是最新的数组，所以原数组在reset之后也发生了改变
+
+``` rust
+fn reset(arr: &mut[u32]) {
+    arr[0] = 5;
+    arr[1] = 4;
+    arr[2] = 3;
+    arr[3] = 2;
+    arr[4] = 1;
+    // 重置之后，原始数组为 [5，4，3，2，1]
+    println!("array length {:?}",arr.len());
+    // arr已被重置为 [5，4，3，2，1]
+    println!("reset array {:?}",arr);
+}
+
+fn main() {
+    let mut arr =[1,2,3,4,5];// 重置之前，原始数组为 [1，2，3，4，5]
+    println!("reset before : origin array {:?}",arr);
+    {
+        let mut_arr: &mut[u32] = &mut arr;
+        reset(mut_arr);
+    }
+    println!("reset after : origin array {:?}",arr);
+}
+
+reset before : origin array [1, 2, 3, 4, 5]
+array length 5
+reset array [5, 4, 3, 2, 1]
+reset after : origin array [5, 4, 3, 2, 1]
+```
+
 ## range
 
 范围类型常用来生成从一个整数开始到另一个整数结束的整数序列，有左闭右开和全闭两种形式，比如（1..5）是左闭右开区间，表示生成1、2、3、4这4个数字；（1..=5）是全闭区间，表示生成1、2、3、4、5这5个数字。范围类型自带一些方法，如
@@ -4621,7 +4698,11 @@ fn main() {
 }
 ```
 
-# 泛型（静态多态）
+# 泛型
+
+- 泛型（Generic）是一种参数化多态。
+- Rust中的泛型属于静多态，它是一种编译期多态。在编译期，不管是泛型枚举，还是泛型函数和泛型结构体，都会被展开为具体类型代码。
+- 静态分发的好处是性能好，没有运行时开销；缺点是容易造成编译后生成的二进制文件膨胀 。
 
 泛型数据类型是根据其他部分未知类型定义的类型，例如：
 
@@ -4770,14 +4851,17 @@ enum Result<T, E> {
 ```
 
 
-# Trait 特征（动态多态）
+# Trait 特征
 
-- 可以理解为虚接口。
+可以说trait是Rust的灵魂。Rust中所有的抽象，比如接口抽象、OOP范式抽象、函数式范式抽象等，均基于trait来完成。同时，trait也保证了这些抽象几乎都是运行时零开销的。
+
+- trait是Rust唯一的接口抽象方式。trait是对类型行为的抽象。可以理解为虚接口。
 - Rust提供了trait来定义不同type所需的“common behavior”，以此简化代码。
 - 我们还可以在特征中定义常量，所有实现者都可以共享它
 - 特征中声明的方法也可以具有默认实现（可以理解为虚函数与纯虚函数的关系）
 - 特征中带有self参数的方法（self得是第一个参数）可以理解为类的成员函数。不以self作为参数的方法可以理解为类的静态方法。
 - 实现者可以是任何结构体、枚举、基元类型、函数及闭包，甚至特征
+- Rust中的很多操作符都是基于trait来实现的。比如加法操作符就是一个trait，加法操作不仅可以针对整数、浮点数，也可以针对字符串。
 
 ## 简单定义与使用
 
@@ -5200,7 +5284,7 @@ fn main() {}
 
 ```
 
-## 函数返回Trate
+## 函数返回Trait
 
 ``` rust
 fn returns_summarizable() -> impl Summary {
@@ -5353,6 +5437,49 @@ fn main() {
             vec![3],
         ]
     )
+}
+
+```
+
+# 继承与多态
+
+- Rust中并没有传统面向对象语言中的继承的概念。Rust通过trait将类型和行为明确地进行了区分，充分贯彻了“组合优于继承”和“面向接口编程”的编程思想。
+- 在Rust中使⽤泛型来构建不同类型的抽象，并使⽤trait约束来决定类型必须提供的具体特性。这⼀技术有时也被称作限定参数化多态（bounded parametric polymorphism）
+
+## 静态多态与动态多态
+
+- 静多态就是一种零成本抽象。
+
+``` rust
+struct Duck;
+struct Pig;
+trait Fly {
+    fn fly(&self) -> bool;
+}
+impl Fly for Duck {
+    fn fly(&self) -> bool {
+        return true;
+    }
+}
+impl Fly for Pig {
+    fn fly(&self) -> bool {
+        return false;
+    }
+}
+fn fly_static<T: Fly>(s: T) -> bool {
+    s.fly()
+}
+fn fly_dyn(s: &dyn Fly) -> bool {
+    s.fly()
+}
+fn main() {
+    let pig = Pig;
+    assert_eq!(fly_static::<Pig>(pig), false);  // 静态多态, 在编译阶段泛型会被展开为具体类型
+    let duck = Duck;
+    assert_eq!(fly_static::<Duck>(duck), true); // 静态多态
+
+    assert_eq!(fly_dyn(&Pig), false);   // 动态多态，运行时查找相应类型的方法，会有小开销
+    assert_eq!(fly_dyn(&Duck), true);   // 参数是类型的地址？为何不是对象呢。。。传对象地址编译失败了。。。
 }
 
 ```
@@ -7273,8 +7400,8 @@ fn main() {
 - 使⽤mpsc::channel函数创建了⼀个新的通道，返回⼀个含有发送端tx与接收端rx的元组。
 - mpsc是英⽂ “multiple producer, single consumer”（多个⽣产者，单个消费者）的缩写。
 
-- 只有实现了Send trait的类型才可以安全地在线程间转移所有权。其实⼏乎所有的Rust类型都实现了Send trait。
-- 只有实现了Sync trait的类型才可以安全地被多个线程引⽤。与Send类似，所有原⽣类型都满⾜Sync约束。
+- 只有实现了Send trait的类型才可以安全地在线程间转移所有权，也就是说，可以跨线程移动。其实⼏乎所有的Rust类型都实现了Send trait。
+- 只有实现了Sync trait的类型才可以安全地被多个线程引⽤，也就是说，可以跨线程共享。与Send类似，所有原⽣类型都满⾜Sync约束。
 - 当某个类型完全由实现了Send与Sync的类型组成时，它就会⾃动实现Send与Sync。
 
 send函数会获取参数的所有权，并在参数传递时将所有权转移给接收者。下面的打印会编译失败
@@ -7362,7 +7489,7 @@ fn main() {
 
 # 文件读写
 
-## 文本一次全读
+## 文本文件一次全读到string
 
 content是string类型
 
@@ -7373,9 +7500,32 @@ fn main() {
     let text = fs::read_to_string("Cargo.toml").unwrap();
     println!("{}", text);
 }
+
+
+这样是包装起来使用的
+fn read_file_string(filepath: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let data = fs::read_to_string(filepath)?;
+    Ok(data)
+}
+
 ```
 
-## 二进制一次全读
+## 文本文件一次读一行
+
+``` rust
+fn read_file_line_by_line(filepath: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let file = File::open(filepath)?;
+    let reader = BufReader::new(file);
+
+    for line in reader.lines() {
+        println!("{}", line?);
+    }
+
+    Ok(())
+}
+```
+
+## 二进制一次全读到Vector
 
 content是vec[u8]类型
 
@@ -7385,6 +7535,12 @@ use std::fs;
 fn main() {
     let content = fs::read("Cargo.toml").unwrap();
     println!("{:?}", content);
+}
+
+这样是包装起来使用的
+fn read_file_vec(filepath: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let data = fs::read(filepath)?;
+    Ok(data)
 }
 ```
 
@@ -7402,6 +7558,24 @@ fn main() {
     println!("{:?}", buffer);
     file.read(&mut buffer).unwrap();
     println!("{:?}", buffer);
+}
+
+这样是包装起来使用的
+
+fn read_file_buffer(filepath: &str) -> Result<(), Box<dyn std::error::Error>> {
+    const BUFFER_LEN: usize = 512;
+    let mut buffer = [0u8; BUFFER_LEN];
+    let mut file = File::open(filepath)?;
+
+    loop {
+        let read_count = file.read(&mut buffer)?;
+        do_something(&buffer[..read_count]);
+
+        if read_count != BUFFER_LEN {
+            break;
+        }
+    }
+    Ok(())
 }
 ```
 
