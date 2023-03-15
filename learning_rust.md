@@ -16,7 +16,7 @@ www.runoob.com/rust                 Rust 面向对象
 
 
 Rust编程之道                继续3.5     
-Rust权威指南                继续第15章 函数和⽅法的隐式解引⽤转换，第16章已完毕
+Rust权威指南                继续第15章 函数和⽅法的隐式解引⽤转换，第16章已完毕，第18章646页
 精通Rust(第2版)             4.3
 
 案例：https://www.cnblogs.com/jiangbo4444/category/2071807.html
@@ -3660,6 +3660,21 @@ huaw@test:~/playground/rust/hellocargo$ cargo run
 mango apple banana litchi watermelon 
 ```
 
+使⽤了enumerate⽅法来作为迭代器的适配器，它会在每次迭代过程中⽣成⼀个包含值本⾝及值索引的元组。
+
+``` rust
+fn main() {
+    let v = vec!['a', 'b', 'c'];
+    for (index, value) in v.iter().enumerate() {
+        println!("{} is at index {}", value, index);
+    }
+}
+
+a is at index 0
+b is at index 1
+c is at index 2
+```
+
 # Option与匹配
 
 ## Option
@@ -3713,12 +3728,25 @@ None
 
 ## Match
 
-### 匹配数值与枚举
-
 - match是运算符，用于流程控制的模式匹配，检查当前值是否匹配一系列模式中的某一个。
 - 模式可由字面值、变量、通配符和其他内容构成。
 - Rust要求match模式匹配是穷尽式的，即必须穷举所有的可能性，否则会导致程序错误。
 - 每一个模式都是一个分支，程序根据匹配的模式执行相应的代码。按照从上到下的顺序对 match arm 进行评估。 必须在一般事例之前定义具体事例，否则它们将无法进行匹配和评估。如下案例的“Some(&"coconut")”与“Some(fruit_name)”的先后关系
+- 可以使用通配符“\_”放置在其他分支之后，作用类似default
+
+### 匹配字面值
+
+``` rust
+fn main() {
+    let x = 1;
+    match x {
+        1 => println!("one"),
+        2 => println!("two"),
+        3 => println!("three"),
+        _ => println!("anything"),
+    }
+}
+```
 
 ```rust
 let fruits = vec!["banana", "apple", "coconut", "orange", "strawberry"];
@@ -3737,8 +3765,9 @@ Coconuts are awesome!!!
 There is no fruit! :(
 ```
 
+### 匹配区间
 
-- 可以使用通配符“\_”放置在其他分支之后，作用类似default
+可以使⽤...来匹配闭区间的值。
 
 ``` rust
 fn main() {
@@ -3756,12 +3785,26 @@ fn main() {
 }
 
 You are a teenager.
+```
 
+下⾯是⼀个使⽤char值区间的例⼦
 
+``` rust
+fn main() {
+    let x = 'c';
+    match x {
+        'a'..='j' => println!("early ASCII letter"),
+        'k'..='z' => println!("late ASCII letter"),
+        _ => println!("something else"),
+    }
+}
+```
 
----------------------
-这里演示了匹配后执行多行代码的写法
+### 匹配枚举
 
+- 匹配简单的枚举，并且演示了匹配后执行多行代码的写法
+
+``` rust
 fn main() {
     enum Number {
         Zero,
@@ -3784,11 +3827,10 @@ fn main() {
     println!("{}", tostr(a))
 }
 
-~~~
 this is 1
 ```
 
-下面演示使用match取枚举中的成员值
+- 使用match取枚举中的成员值
 
 ``` rust
 #[derive(Debug)] // 这样可以立刻看到州的名称
@@ -3823,6 +3865,34 @@ fn main() {
 
 State quarter from Alaska!
 25
+
+----------------------
+另一个枚举的案例
+
+enum Message {
+    Quit,
+    Move { x: i32, y: i32 },
+    Write(String),
+    ChangeColor(i32, i32, i32),
+}
+fn main() {
+    let msg = Message::ChangeColor(0, 160, 255);
+    match msg {
+        Message::Quit => {
+            println!("The Quit variant has no data to destructure.")
+        }
+        Message::Move { x, y } => {
+            println!("Move in the x direction {} and in the y direction {}", x, y);
+        }
+        Message::Write(text) => println!("Text message: {}", text),
+        Message::ChangeColor(r, g, b) => {
+            println!("Change the color to red {}, green {}, and blue {}", r, g, b)
+        }
+    }
+}
+
+Change the color to red 0, green 160, and blue 255
+
 ----------------------
 另一个简单的案例
 
@@ -3846,6 +3916,167 @@ fn main() {
 }
 
 Papery book 1001
+```
+
+
+- 匹配嵌套的枚举
+
+``` rust
+enum Color {
+    Rgb(i32, i32, i32),
+    Hsv(i32, i32, i32),
+}
+enum Message {
+    Quit,
+    Move { x: i32, y: i32 },
+    Write(String),
+    ChangeColor(Color),
+}
+fn main() {
+    let msg = Message::ChangeColor(Color::Hsv(0, 160, 255));
+    match msg {
+        Message::ChangeColor(Color::Rgb(r, g, b)) => {
+            println!("Change the color to red {}, green {}, and blue {}", r, g, b)
+        }
+        Message::ChangeColor(Color::Hsv(h, s, v)) => {
+            println!(
+                "Change the color to hue {}, saturation {}, and value {}",
+                h, s, v
+            )
+        }
+        _ => (),
+    }
+}
+
+Change the color to hue 0, saturation 160, and value 255
+```
+
+### 匹配命名变量
+
+由于match开启了⼀个新的作⽤域，所以被定义在match表达式内作为模式⼀部分的变量会覆盖掉match结构外的同名变量，正如覆盖其他普通变量⼀样。
+
+注意下面match里的Some(y)的y不是外面的y，而是一个能匹配Some变体中携带的任意值的临时变量
+
+``` rust
+fn main() {
+    let x = Some(5);
+    let y = 10;
+    match x {
+        Some(50) => println!("Got 50"),
+        Some(y) => println!("Matched, y = {:?}", y),
+        _ => println!("Default case, x = {:?}", x),
+    }
+    println!("at the end: x = {:?}, y = {:?}", x, y);
+}
+
+Matched, y = 5
+at the end: x = Some(5), y = 10
+```
+
+### 多重模式
+
+可以在match表达式的分⽀匹配中使⽤|来表⽰或 （or）的意思，它可以被⽤来⼀次性地匹配多个模式。
+
+``` rust
+fn main() {
+    let x = 1;
+    match x {
+        1 | 2 => println!("one or two"),
+        3 => println!("three"),
+        _ => println!("anything"),
+    }
+}
+
+one or two
+```
+
+### 匹配struct
+
+⽰例展⽰的match表达式将Point值分为了3种不同的情况：
+
+- 位于x轴上的点（即y = 0）
+- 位于y轴上的点（即x = 0）
+- 以及不在任意⼀个轴上的点
+
+``` rust
+struct Point {
+    x: i32,
+    y: i32,
+}
+fn main() {
+    let p = Point { x: 0, y: 7 };
+    let Point { x: a, y: b } = p;
+    assert_eq!(0, a);
+    assert_eq!(7, b);
+    match p {
+        Point { x, y: 0 } => println!("On the x axis at {}", x),
+        Point { x: 0, y } => println!("On the y axis at {}", y),
+        Point { x, y } => println!("On neither axis: ({}, {})", x, y),
+    }
+}
+
+On the y axis at 7
+```
+
+### 解构结构体和元组
+
+``` rust
+let ((feet, inches), Point {x, y}) = ((3, 10), Point { x: 3, y: -10 });
+```
+
+### 忽略模式中的值
+
+#### 使⽤_忽略整个值
+
+下画线_作为通配符模式来匹配任意可能的值⽽不绑定值本⾝的内容。虽然_模式最常被⽤在match表达式的最后⼀个分⽀中，但实际上我们可以把它⽤于包括函数参数在内的⼀切模式中
+
+- 假设你正在实现⼀个trait，⽽这个trait的⽅法包含了你不需要的某些参数。在这种情形下，可以借助忽略模式来避免编译器产⽣未使⽤变量的警告。
+
+``` rust
+fn foo(_: i32, y: i32) { // 忽略传给第⼀个参数的值3
+    println!("This code only uses the y parameter: {}", y);
+}
+fn main() {
+    foo(3, 4);
+}
+
+This code only uses the y parameter: 4
+```
+
+- 当我们不需要使⽤Some中的值时，在模式中使⽤下画线来匹配Some变体
+
+``` rust
+fn main() {
+    let mut setting_value = Some(5);
+    let new_setting_value = Some(10);
+    match (setting_value, new_setting_value) {
+        (Some(_), Some(_)) => { // 确定setting_value和new_setting_value是否都是Some变体
+            println!("Can't overwrite an existing customized value");
+        }
+        _ => {
+            setting_value = new_setting_value;
+        }
+    }
+    println!("setting is {:?}", setting_value);
+}
+
+Can't overwrite an existing customized value
+setting is Some(5)
+```
+
+- 在⼀个模式中多次使⽤下画线来忽略多个特定的值。
+
+``` rust
+fn main() {
+    let numbers = (2, 4, 8, 16, 32);
+    match numbers {
+        (first, _, third, _, fifth) => { // 在匹配拥有5个元素的元组时忽略了其中第⼆个与第四个元素的值。
+            println!("Some numbers: {}, {}, {}", first, third, fifth)
+        }
+    }
+}
+
+Some numbers: 2, 8, 32
 ```
 
 ### 匹配Option
@@ -3902,7 +4133,6 @@ fn main() {
     let none = plus_one(None);
 }
 ```
-
 
 ## if let
 
@@ -3977,6 +4207,29 @@ fn main() {
         println!("Papery {}", index);
     } else {
         println!("Not papery book");
+    }
+}
+```
+
+其实还能elseif
+
+``` rust
+fn main() {
+    let favorite_color: Option<&str> = None;
+    let is_tuesday = false;
+    let age: Result<u8, _> = "34".parse();
+    if let Some(color) = favorite_color {
+        println!("Using your favorite color, {}, as the background", color);
+    } else if is_tuesday {
+        println!("Tuesday is green day!");
+    } else if let Ok(age) = age {
+        if age > 30 {
+            println!("Using purple as the background color");
+        } else {
+            println!("Using orange as the background color");
+        }
+    } else {
+        println!("Using blue as the background color");
     }
 }
 ```
