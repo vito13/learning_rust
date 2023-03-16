@@ -4,7 +4,7 @@
 https://learn.microsoft.com/zh-cn/training/paths/rust-first-steps/      完毕
 
 【弃】Rust入门秘笈                        Rust所有权
-Rust编程：入门、实战与进阶          第四章，差2.4，2.5，枚举
+Rust编程：入门、实战与进阶          第6章  
 通过例子学Rust
 深入浅出Rust                        2.3.1
 
@@ -1539,22 +1539,92 @@ let c2 = '\x7f'; // 8 bit 字符变量
 let c3 = '\u{7FFF}'; // unicode字符
 ```
 
-
-
-
 ## 类型转换
 
-与 C 和 C++ 不同，Rust 几乎不进行隐式数值类型转换。如果函数接收 f64 参数，传入 i32 值就会导致错误。事实上，Rust 甚至都不会隐式地将 i16 值转换为 i32 值，即使每个 i16 值也是 i32 值。不过，可以通过as操作符将bool类型转换为数字0和1。但要注意，Rust并不支持将数字转换为bool类型。
+Rust中类型转换分为隐式类型转换和显式类型转换。隐式类型转换是由编译器来完成的，显式类型转换是由开发者来指定的。一般，我们所说的类型转换是指显式类型转换。
+
+### 原生类型间的转换
+
+- as关键字用于Rust中原生数据类型间的转换。需要注意的是，短类型转换为长类型是没有问题的，但是长类型转换为短类型会被截断处理。此外，当有符号类型向无符号类型转换时，不适合使用as关键字。
+- 与 C 和 C++ 不同，Rust 几乎不进行隐式数值类型转换。如果函数接收 f64 参数，传入 i32 值就会导致错误。事实上，Rust 甚至都不会隐式地将 i16 值转换为 i32 值，即使每个 i16 值也是 i32 值。不过，可以通过as操作符将bool类型转换为数字0和1。但要注意，Rust并不支持将数字转换为bool类型。
 
 ``` rust
-fn main(){
-    let x = true;
-    let y: bool = false;
-    let x = 5;
-    if x > 1{ println!("x is bigger than 1")};
-    assert_eq!(x as i32,5);
-    assert_eq!(y as i32,0);
+fn main() {
+    let x: u16 = 7;
+    let y = x as u32; // 将u16类型转换为u32类型基本没有问题
+    println!("u16: {}, u32: {}", x, y);
+
+    let x = std::u32::MAX; // 将变量x赋值为u32类型的最大值
+    let y = x as u16; // 将其转换为u16类型时会被截断处理，变量y的值变成了u16类型的最大值。
+    println!("u32: {}, u16: {}", x, y);
+
+    let x = 65u8;
+    let y = x as char; // 将u8类型转换为char类型
+    println!("u8: {}, char: {}", x, y);
+
+    let x = 'A';
+    let y = x as u8; // 将char类型转换为u8类型，可以看到u8类型和char类型可以相互转换
+    println!("char: {}, u8: {}", x, y);
+
+    let x = 7;
+    let y = x as f64; // 将i32类型转换为f64类型
+    println!("i32: {}, f64: {}", x, y);
+
+    let x = 7.7;
+    let y = x as i32; // 将f64类型转换为i32类型，可以看到f64类型转换为i32类型会有精度丢失问题。
+    println!("f64: {}, i32: {}", x, y);
 }
+
+u16: 7, u32: 7
+u32: 4294967295, u16: 65535
+u8: 65, char: A
+char: A, u8: 65
+i32: 7, f64: 7
+f64: 7.7, i32: 7
+```
+
+### 数字与String类型间的转换
+
+使用to_string方法可以将任意数字转换为String类型，使用parse方法可以将String类型解析为指定的数字类型。
+
+``` rust
+fn main() {
+    let x = 7;
+    let y = x.to_string(); // 将i32类型转换为String类型
+    println!("i32: {}, String: {}", x, y);
+
+    let x = 7.7;
+    let y = x.to_string(); // 将f64类型转换为String类型
+    println!("f64: {}, String: {}", x, y);
+
+    let x = String::from("7");
+    let y = x.parse::<i32>().unwrap(); // 将String类型转换为i32类型
+    println!("String: {}, i32: {}", x, y);
+
+    let x = String::from("7.7");
+    let y = x.parse::<f64>().unwrap(); // 将String类型转换为f64类型
+    println!("String: {}, f64: {}", x, y);
+}
+
+i32: 7, String: 7
+f64: 7.7, String: 7.7
+String: 7, i32: 7
+String: 7.7, f64: 7.7
+```
+
+### &str与String类型间的转换
+
+使用as_str方法可以将String类型转换为&str类型，使用to_string方法可以将&str类型转换为String类型
+
+``` rust
+fn main() {
+    let x = String::from("hello");
+    let y = x.as_str();
+
+    let x = "hello";
+    let y = x.to_string();
+}
+
 ```
 
 ## 打印输出
@@ -3226,11 +3296,13 @@ HashSet＜K＞和BTreeSet＜K＞其实就是HashMap＜K，V＞和BTreeMap＜K，
 
 ## String
 
+- 可变长度的字符串对象
 - String 是一个 Vec\<u8> 的封装。并通过功能性的⽅法将字节解析为⽂本。
 - String是由标准库提供的，是可增长的、可变的、有所有权的、UTF-8 编码的字符串类型。
 - 操作字符串前要确定是要操作字符还是字节，因为一个Unicode字符不一定是一个字节。对于Unicode可以使用chars获取所有字符，使用bytes则能得到所有字节。
 - 尝试通过索引访问String中的字符往往是⼗分复杂的，这是因为⼈和计算机对String数据的解释⽅式不同。
 - Rust中的字符串并不⽀持索引方式获取单个字符。
+- String类型的本质是一个字段为Vec<u8>类型的结构体，它把字符内容存放在堆上，由指向堆上字节序列的指针（as_ptr方法）、记录堆上字节序列的长度（len方法）和堆分配的容量（capacity方法）3部分组成。
 
 ``` rust
 fn main() {
@@ -3239,7 +3311,8 @@ fn main() {
     let hello = String::from("你好");
     let one = 1.to_string(); // 整数到字符串
     let float = 1.3.to_string(); // 浮点数到字符串
-    let slice = "slice".to_string(); // 字符串切片到字符串
+    let str = "Hello, Rust!";
+    let s = str.to_string(); // 字符串字面值到字符串
     
 
 // 追加
@@ -3251,7 +3324,17 @@ fn main() {
     println!("s is {}", s);
     println!("s2 is {}", s2);
 
+// 插入
+    // 使用insert方法在字符串中插入字符，使用insert_str方法在字符串中插入字符串字面量。
+    // 这两个方法都接收两个参数，第1个参数是插入位置的索引，第2个参数是插入字符或字符串字面量。
+    // 同样地，这两个方法都是在原字符串上插入，并不会返回新的字符串。
+    let mut s = String::from("Hello World!");
+    s.insert(5, ',');
+    s.insert_str(7, "Rust ");
+    println!("{}", s);  // Hello, Rust World!
+
 // 连接
+    // 使用“+”或“+=”运算符将两个字符串连接成一个新的字符串，要求运算符的右边必须是字符串字面量，但不能对两个String类型字符串使用“+”或“+=”运算符。连接与追加的区别在于，连接会返回新的字符串，而不是在原字符串上的追加。
     // 使用加号连接
     let s1 = String::from("Hello, ");
     let s2 = String::from("world!");
@@ -3264,7 +3347,9 @@ fn main() {
     let s3 = String::from("toe");
     let s = s1 + "-" + &s2 + "-" + &s3;
     // println!("s1 is {}", s1);  同上
+    s += "!";
 
+    // 对于较为复杂或带有格式的字符串连接，我们可以使用格式化宏format!，它对于String类型和&str类型的字符串都适用，
     // format!宏拼接能解决上面的问题
     let s1 = String::from("tic");
     let s2 = String::from("tac");
@@ -3311,12 +3396,44 @@ fn main() {
     let s = String::from("EN中文");
     let sub = &s[1..5]; // N中
     println!("{}", sub);
+
+// 使用as_str方法将字符串对象转换为字符串字面量
+    let str = String::from("Hello, Rust!");
+    let s2 = str.as_str(); // 指向堆上字节序列的指针
+
+// 替换
+    // 使用replace和replacen方法将字符串中指定的子串替换为另一个字符串。replace方法接收两个参数，第1个参数是要被替换的字符串子串，第2个参数是新字符串，它会搜索和替换所有匹配到的要被替换的子串。replacen方法除replace方法接收的两个参数外，还接收第3个参数来指定替换的个数。
+    let s = String::from("aaabbbbccaadd");
+    let s1 = s.replace("aa", "77");
+    let s2 = s.replacen("aa", "77", 1);
+    println!("{}", s1);     // 77abbbbcc77dd
+    println!("{}", s2);     // 77abbbbccaadd
+
+// 删除
+
+    let mut s = String::from("Löwe 老虎 Léopard");
+    // pop：删除并返回字符串的最后一个字符，返回值类型是Option<char>。如果字符串为空，则返回None。
+    println!("{:?}", s.pop());  // Some('d')
+    println!("{}", s);  // Löwe 老虎 Léopar
+
+    // remove：删除并返回字符串中指定位置的字符，其参数是该字符的起始索引位置。remove方法是按字节处理字符串的，如果给定的索引位置不是合法的字符边界，将会导致程序错误。
+    println!("{:?}", s.remove(9));  // '虎'
+    println!("{}", s);  // Löwe 老 Léopar
+
+    // truncate：删除字符串中从指定位置开始到结尾的全部字符，其参数是起始索引位置。truncate方法也是按字节处理字符串的，如果给定的索引位置不是合法的字符边界，将会导致程序错误。
+    s.truncate(9);
+    println!("{}", s);  // Löwe 老
+
+    // clear：等价于将truncate方法的参数指定为0，删除字符串中所有字符。
+    s.clear();
+    println!("{}", s);
 }
 
 ```
 
-## &str
+## str
 
+- 固定长度的字符串字面量str
 - Rust提供了原始的字符串类型str，也叫作字符串切片 。它通常以不可变借用的形式存在，即&str。
 - str字符串类型由两部分组成：指向字符串序列的指针和记录长度的值。可以通过str模块提供的as_ptr和len方法分别求得指针和长度
 - Rust中的字符串本质上是一段有效的UTF8字节序列。字符串切⽚则是指向此字节序列的引⽤。
@@ -3356,8 +3473,6 @@ fn another_function(x: i32, y: i32) {
     println!("y 的值为 : {}", y);
 }
 ```
-
-
 
 ## 返回值
 
@@ -3673,6 +3788,186 @@ fn main() {
 a is at index 0
 b is at index 1
 c is at index 2
+```
+
+# 迭代器
+
+迭代器主要用来遍历数据集合，把集合中所有元素按顺序传递给处理逻辑。Rust基于结构体和trait实现了迭代器模式和迭代器适配器模式，但这些迭代器和迭代器适配器都是惰性的，必须通过消费器发生消费数据的行为才会促使其工作。标准库std::iter中定义了很多迭代器相关的方法
+
+## Iterator trait
+
+Iterator trait是迭代器模式的抽象接口，接口中有两个重要方法。
+
+- iter方法用于返回一个迭代器实例。
+- next方法用于返回迭代器中的下一个元素，并将其封装在Some函数中。如果已经迭代到集合的末尾（最后一个元素的后面），则返回None。
+
+``` rust
+fn main() {
+    let v = [1, 2, 3];
+    let mut iter = v.iter();
+
+    println!("{:?}", iter.next());
+    println!("{:?}", iter.next());
+    println!("{:?}", iter.next());
+    println!("{:?}", iter.next());
+}
+
+Some(1)
+Some(2)
+Some(3)
+None
+```
+
+## 消费器
+
+Rust中的迭代器都是惰性的，它们不会自动发生遍历行为。Iterator trait中定义了一类方法，这类方法叫作消费器。通过消费器可以消费迭代器中的元素，这些方法的默认实现都调用了next方法。下面介绍常用的消费器sum、any和collect，其他消费器可以在std::iter::Iterator中找到。
+
+### sum
+
+消费期sum可以对迭代器中的元素执行求和操作，它将迭代器中每个元素进行累加并返回总和。
+
+``` rust
+fn main() {
+    let v = [1, 2, 3];
+    // 通过iter方法将数组转换为迭代器，再调用sum消费器获取迭代器中所有元素的总和。
+    let total: i32 = v.iter().sum();
+    println!("total: {}", total);
+}
+
+total: 6
+```
+
+### any
+
+消费器any可以查找迭代器中是否存在满足条件的元素。
+
+``` rust
+fn main() {
+    let v = [1, 3, 4, 5];
+    // 消费器any使用了两种方式检查数组中是否存在数值等于2的元素。
+    // 在消费器any调用闭包中只有使用引用和解引用两种方式，程序才能正常运行。
+    let result1 = v.iter().any(|&x| x == 2);
+    let result2 = v.iter().any(|x| *x == 2);
+    // let result3 = v.iter().any(|x| x == 2); 编译会失败
+
+    println!("{}", result1);
+    println!("{}", result2);
+}
+
+false
+false
+```
+
+### collect
+
+collect可以将迭代器转换成指定的容器类型，即将迭代器中的元素收集到指定的容器中。
+
+``` rust
+fn main() {
+    let v1 = [1, 2, 3, 4, 5];
+    // 通过iter方法将数组转换为迭代器，再使用map方法对原迭代器中的每个元素调用闭包执行加1操作并生成一个新迭代器，最后调用collect方法将新迭代器中的元素收集到动态数组中。
+    let v2: Vec<i32> = v1.iter().map(|x| x + 1).collect();
+    println!("{:?}", v2);
+}
+
+[2, 3, 4, 5, 6]
+```
+
+## 迭代器适配器
+
+适配器Iterator trait中定义了一类方法，这类方法叫作迭代器适配器。它会将当前迭代器转换成另一种类型的迭代器，并支持链式调用多个迭代器适配器。不过，由于所有的迭代器都是惰性的，必须使用一个消费器来获取迭代器适配器的调用结果。
+
+### map
+
+适配器map对迭代器中每个元素调用闭包并生成一个新迭代器
+
+``` rust
+fn main() {
+    let v = [1, 2, 3];
+    // 通过iter方法将数组转换为迭代器，再使用map方法对原迭代器中的每个元素调用闭包执行加3操作并生成一个新迭代器，最后调用collect方法将新迭代器中的元素收集到动态数组中。
+    let result: Vec<i32> = v.iter().map(|x| x + 3).collect();
+    println!("{:?}", result);
+}
+
+[4, 5, 6]
+```
+
+### take
+
+适配器take生成一个仅迭代原迭代器中前n个元素的新迭代器，常用于遍历指定数量元素的场景。
+
+``` rust
+fn main() {
+    let v = [1, 2, 3, 4, 5];
+    // 迭代器使用适配器take生成一个由前3个元素组成的新迭代器。
+    let result = v.iter().take(3);
+
+    for i in result {
+        println!("{}", i);
+    }
+}
+
+1
+2
+3
+```
+
+### filter
+
+适配器filter对迭代器中每个元素调用闭包并生成一个过滤元素的新迭代器。闭包会返回true或false，如果返回true则该元素放入新迭代器，否则该元素将被忽略。
+
+``` rust
+fn main() {
+    let v = [1, 2, 3];
+    // 通过iter方法将数组转换为迭代器，再使用map方法对原迭代器中的每个元素调用闭包执行加3操作并生成一个新迭代器，然后新迭代器调用filter方法生成一个由能被3整除的元素组成的新迭代器，最后调用collect方法将新迭代器中的元素收集到动态数组中。
+    let result: Vec<i32> = v.iter().map(|x| x + 3).filter(|x| x % 3 == 0).collect();
+
+    println!("{:?}", result);
+}
+
+[6]
+```
+
+### rev
+
+通常，迭代器从左到右进行迭代。适配器rev可以反转迭代方向，生成一个方向相反的新迭代器，即新迭代器将从右向左进行迭代
+
+``` rust
+fn main() {
+    let v = [1, 2, 3];
+    let result = v.iter().rev();
+
+    for i in result {
+        println!("{}", i);
+    }
+}
+
+3
+2
+1
+```
+
+### zip
+
+适配器zip可将两个迭代器压缩在一起生成一个新迭代器。实际上，它在两个迭代器上同时迭代并返回一个元组，其中第一个元素来自第一个迭代器，第二个元素来自第二个迭代器。如果两个迭代器中任一迭代器返回None，适配器zip就返回None。
+
+``` rust
+fn main() {
+    let v1 = [1, 2, 3];
+    let v2 = [2, 3, 6];
+    // 通过iter方法将数组v1和v2分别转换为迭代器，再使用适配器在两个迭代器上同时迭代，生成一个由元组（a,b）组成的新迭代器，接着使用map方法调用闭包对新迭代器中的每个元素执行a、b相加操作并生成一个新迭代器，然后新迭代器调用filter方法再次生成一个由能被3整除的元素组成的新迭代器，最后调用collect方法将新迭代器中的元素收集到动态数组中。
+
+    let result: Vec<i32> = v1
+        .iter()
+        .zip(v2.iter())
+        .map(|(a, b)| a + b)
+        .filter(|x| x % 3 == 0)
+        .collect();
+
+    println!("{:?}", result);
+}
+
+[3, 9]
 ```
 
 # Option与匹配
@@ -5103,11 +5398,45 @@ enum Result<T, E> {
 }
 ```
 
+Option作为返回值类型，下案例中：第1行代码option_add函数的返回值类型是Option<i32>，如果有返回值就返回Some值，如果返回值为空就返回None。第5行代码unwrap方法可将Some(3)中的数值3取出，但是值为None时使用unwrap方法会导致程序错误，因此应该先使用is_none方法判断值是否为None。
+
+``` rust
+fn option_add(x: Option<i32>, y: Option<i32>) -> Option<i32> {
+    return if x.is_none() && y.is_none() {
+        None
+    } else if x.is_none() {
+        y
+    } else if y.is_none() {
+        x
+    } else {
+        Some(x.unwrap() + y.unwrap())
+    };
+}
+
+fn option_print(opt: Option<i32>) {
+    match opt {
+        Some(result) => println!("Option: {}", result),
+        _ => println!("Option is None!"),
+    }
+}
+
+fn main() {
+    let result1 = option_add(Some(3), Some(5));
+    let result2 = option_add(Some(3), None);
+    let result3 = option_add(None, None);
+
+    option_print(result1);
+    option_print(result2);
+    option_print(result3);
+}
+```
 
 # Trait 特征
 
 可以说trait是Rust的灵魂。Rust中所有的抽象，比如接口抽象、OOP范式抽象、函数式范式抽象等，均基于trait来完成。同时，trait也保证了这些抽象几乎都是运行时零开销的。
 
+- Rust中没有类（Class）和接口（Interface）这样的概念。trait是唯一的接口抽象方式，用于跨多个结构体以一种抽象的方式定义共享的行为（方法），即trait可以让不同的结构体实现相同的行为。
+- trait的本质是一组方法原型，是实现某些目的的行为集合。
 - trait是Rust唯一的接口抽象方式。trait是对类型行为的抽象。可以理解为虚接口。
 - Rust提供了trait来定义不同type所需的“common behavior”，以此简化代码。
 - 我们还可以在特征中定义常量，所有实现者都可以共享它
@@ -5287,6 +5616,196 @@ fn main() {
 
 ```
 
+## 标准库的常用trait
+
+标准库中提供了很多有用的trait，其中一些trait可应用于结构体或枚举定义的derive属性中。对于使用＃[derive]语法标记的类型，编译器会自动为其生成对应trait的默认实现代码。
+
+### 格式化输出Debug与Display
+
+- Debug trait可以开启格式化字符串中的调试格式，常用于调试上下文中以{:?}或{:#?}格式打印输出一个类型的实例。Debug可以与derive属性一起使用。
+- Display trait是以{}格式打印输出信息的，主要用于面向用户的输出。但是，Display不能与derive属性一起使用。要实现Display，需要实现fmt方法。
+
+``` rust
+use std::fmt::{Display, Formatter, Result};
+
+#[derive(Debug)] // 在结构体Point定义上标记#[derive(Debug)]，并为Point自动生成Debug trait的默认实现代码。
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+impl Display for Point { // Point实现了Display trait的fmt方法。下面使用“{:#?}”格式，以优雅的方式打印输出。
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(f, "({}, {})", self.x, self.y)
+    }
+}
+
+fn main() {
+    let origin = Point { x: 0, y: 0 };
+    println!("{}", origin);
+    println!("{:?}", origin); 
+    println!("{:#?}", origin); 
+}
+
+(0, 0)
+Point { x: 0, y: 0 }
+Point {
+    x: 0,
+    y: 0,
+}
+```
+
+### 等值比较Eq与PartialEq
+
+- Eq trait和PartialEq trait来自数学中的等价关系和局部等价关系。两者都满足以下两个特性。
+  - 对称性（Symmetric），即a == b可推导出b == a。
+  - 传递性（Transitive），即a == b且b == c可推导出a == c。
+- Eq相比PartialEq还需要满足反身性（Reflexive），即a == a。对于浮点数类型，两个非数字值NaN（Not-a-Number）是互不相等的，即NaN != NaN，因此Rust只为其实现了PartialEq。实现Eq不需要额外的代码，只需要在实现PartialEq的基础上，在类型上标记#[derive(Eq)]即可。
+- PartialEq也可以与derive属性一起使用，用于比较一个类型的两个实例是否相等，并开启“==”和“!=”运算符功能。在结构体上标记#[derive(PartialEq)]，只有所有字段都相等，两个实例才相等，只要有任何字段不相等则两个实例不相等。在枚举上标记#[derive(PartialEq)]，当每一个成员都和其自身相等，且和其他成员都不相等时，两个实例才相等。
+
+案例：自定义实现PartialEq中用于判断两个实例是否相等的eq方法。Rust会根据eq方法自动实现判断两个实例是否相等的ne方法。
+
+``` rust
+enum BookFormat {
+    Paperback,
+    Hardback,
+    Ebook,
+}
+
+struct Book {
+    isbn: i32,
+    format: BookFormat,
+}
+
+// 为Book实现了PartialEq trait的eq方法，只要字段isbn值相等，即使字段format值不同，两本书也视为同一本书。
+impl PartialEq for Book {
+    fn eq(&self, other: &Self) -> bool {
+        self.isbn == other.isbn
+    }
+}
+
+fn main() {
+    let b1 = Book {
+        isbn: 3,
+        format: BookFormat::Paperback,
+    };
+    let b2 = Book {
+        isbn: 3,
+        format: BookFormat::Ebook,
+    };
+    let b3 = Book {
+        isbn: 5,
+        format: BookFormat::Paperback,
+    };
+
+    assert!(b1 == b2);
+    assert!(b1 != b3);
+}
+
+```
+
+### 次序比较Ord与PartialOrd
+
+- Ord trait是表示全序关系的trait，全序关系是指集合中任何一对元素都是相互可比较的。Ord应该满足以下两个特性。
+    - 完全反对称性（Total and Asymmetric），即任何一对元素之间的关系只能是a < b、a == b或a > b中的其中一种。
+    - 传递性（Transitive），即a < b且b < c可推导出a < c，“==”和“>”同理。
+
+``` rust
+use std::cmp::Ordering;
+
+#[derive(Eq)]
+struct Person {
+    id: u32,
+    name: String,
+    height: u32,
+}
+
+impl Ord for Person {
+    fn cmp(&self, other: &Person) -> Ordering {
+        self.height.cmp(&other.height)
+    }
+}
+
+impl PartialOrd for Person {
+    fn partial_cmp(&self, other: &Person) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for Person {
+    fn eq(&self, other: &Person) -> bool {
+        self.height == other.height
+    }
+}
+
+fn main() {
+    let person1 = Person {
+        id: 1,
+        name: String::from("zhangsan"),
+        height: 168,
+    };
+    let person2 = Person {
+        id: 2,
+        name: String::from("lisi"),
+        height: 175,
+    };
+    let person3 = Person {
+        id: 3,
+        name: String::from("wanwu"),
+        height: 180,
+    };
+
+    assert_eq!(person1 < person2, true);
+    assert_eq!(person2 > person3, false);
+
+    assert!(person1.lt(&person2));
+    assert!(person3.gt(&person2));
+
+    let tallest_person = person1.max(person2).max(person3);
+    println!("id: {}, name: {}", tallest_person.id, tallest_person.name);
+}
+
+id: 3, name: wanwu
+
+```
+
+### 复制值Clone与Copy
+
+- Clone trait用于标记可以对值进行深复制的类型，即对栈上和堆上的数据一起复制。要实现Clone，需要实现clone方法。如果要使用#[derive(Clone)]语法标记结构体或枚举，要求结构体的每个字段或枚举的每个值都可调用clone方法，意味着所有字段或值的类型都必须实现Clone。
+- Copy trait用于标记可以按位复制其值的类型，即复制栈上的数据。Copy继承自Clone，这意味着要实现Copy的类型，必须实现Clone的clone方法。如果想让一个类型实现Copy，就必须同时实现Clone，会比较烦琐且累赘，所以Rust提供了方便的derive属性来完成这项重复的工作
+- Rust为数字类型、字符类型、布尔类型、单元值等实现了Copy，但并非所有类型都可以实现Copy。对于结构体来说，必须所有字段都实现了Copy，这个结构体才能实现Copy。
+- Copy是一个隐式行为。开发者不能重载Copy行为，它永远是简单的位复制。Copy的隐式行为常发生在执行变量绑定、函数参数传递、函数返回等场景中。与Copy不同的是，Clone是一个显式行为。任何类型都可以实现Clone，开发者可以按需实现clone方法。
+
+``` rust
+#[derive(Copy, Clone)]
+struct MyStruct;
+```
+
+### 默认值Default
+
+Default trait为类型提供有用的默认值，通常用于为结构体的字段提供默认值。如果结构体每个字段的类型都实现了Default，那么Default可以与derive属性一起使用，对每个字段的类型都使用默认值。
+
+``` rust
+#[derive(Default, Debug)] // 由于Rust已经为基本数据类型实现了Default，因此可以在结构体MyStruct上标记#[derive(Default)]
+struct MyStruct {
+    foo: i32,
+    bar: f32,
+}
+
+fn main() {
+    let options1: MyStruct = Default::default(); // Default::default函数为MyStruct的所有字段提供默认值
+    let options2 = MyStruct { // 实现了自定义MyStruct的一部分字段，而其他字段使用..Default::default()设置为默认值。
+        foo: 7,
+        ..Default::default()
+    };
+
+    println!("options1: {:?}", options1);
+    println!("options2: {:?}", options2);
+}
+
+options1: MyStruct { foo: 0, bar: 0.0 }
+options2: MyStruct { foo: 7, bar: 0.0 }
+```
 
 ## 通过derive注解派⽣trait
 
@@ -5380,9 +5899,317 @@ trait Foo {
 }
 ```
 
-## 函数参数是Trait
+## Trait作为参数
 
-### 一个Trait
+trait作为参数的两种常用方式，一是使用impl Trait语法表示参数类型，二是使用trait对泛型参数进行约束。
+
+### impl Trait
+
+``` rust
+trait Geometry {
+    fn area(&self) -> f32;
+    fn perimeter(&self) -> f32;
+}
+
+struct Rectangle {
+    width: f32,
+    height: f32,
+}
+
+impl Geometry for Rectangle {
+    fn area(&self) -> f32 {
+        self.width * self.height
+    }
+
+    fn perimeter(&self) -> f32 {
+        (self.width + self.height) * 2.0
+    }
+}
+
+struct Circle {
+    radius: f32,
+}
+
+impl Geometry for Circle {
+    fn area(&self) -> f32 {
+        3.14 * self.radius * self.radius
+    }
+
+    fn perimeter(&self) -> f32 {
+        3.14 * 2.0 * self.radius
+    }
+}
+
+// print函数的参数类型是impl Geometry，该参数支持任何实现了Geometry trait的结构体实例，即可以向其传递Rectangle或Circle的实例，这样函数体内就可以调用area、perimeter方法了。
+fn print1(geometry: impl Geometry) {
+    println!(
+        "area: {}, perimeter: {}",
+        geometry.area(),
+        geometry.perimeter()
+    );
+}
+
+// 如果希望print函数除了能调用area、perimeter方法外，还能输出geometry的格式化内容，那么geometry需要同时实现Geometry trait和Display trait。
+use std::fmt::{Display, Formatter, Result};
+impl Display for Rectangle {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(f, "Rectangle: ({}, {})", self.width, self.height)
+    }
+}
+
+// Geometry trait和Display trait通过“+”运算符来完成
+fn print2(geometry: impl Geometry + Display) {
+    println!(
+        "{}, area: {}, perimeter: {}",
+        geometry,
+        geometry.area(),
+        geometry.perimeter()
+    );
+}
+
+
+// impl Trait语句还支持为多个参数指定类型。多impl Geometry作为参数类型
+fn area_add(geo1: impl Geometry, geo2: impl Geometry) {
+    println!(
+        "rect.area: {}, circle.area: {}, total area:
+    {}",
+        geo1.area(),
+        geo2.area(),
+        geo1.area() + geo2.area()
+    );
+}
+
+fn main() {
+    // 普通的调用方式
+    let rect = Rectangle {
+        width: 8.8,
+        height: 2.2,
+    };
+    println!(
+        "rect.area: {}, rect.perimeter: {}",
+        rect.area(),
+        rect.perimeter()
+    );
+
+    let circle = Circle { radius: 3.0 };
+    println!(
+        "circle.area: {}, circle.perimeter: {}",
+        circle.area(),
+        circle.perimeter()
+    );
+
+    let rect = Rectangle {
+        width: 10.5,
+        height: 5.5,
+    };
+    // 调用impl Trait
+    print1(rect);
+
+    let rect = Rectangle {
+        width: 10.5,
+        height: 5.5,
+    };
+    // 调用impl Geometry + Display
+    print2(rect);
+
+
+    let rect = Rectangle {
+        width: 10.5,
+        height: 5.5,
+    };
+    let circle = Circle { radius: 3.0 };
+    // area_add函数的两个参数类型都是impl Geometry，可以分别向它们传递Rectangle或Circle的实例。
+    area_add(rect, circle);
+
+}
+
+rect.area: 19.36, rect.perimeter: 22
+circle.area: 28.26, circle.perimeter: 18.84
+area: 57.75, perimeter: 32
+Rectangle: (10.5, 5.5), area: 57.75, perimeter: 32
+rect.area: 57.75, circle.area: 28.26, total area:
+    86.01
+```
+
+### trait约束
+
+trait约束是指使用trait对泛型进行约束。trait约束与泛型类型的参数声明在一起，适用于复杂的开发场景，其语法如下：
+
+``` rust
+fn generic<T: MyTrait + MyOtherTrait + SomeStandarTrait>(t: T){
+
+}
+```
+
+``` rust
+trait Geometry {
+    fn area(&self) -> f32;
+    fn perimeter(&self) -> f32;
+}
+
+struct Rectangle {
+    width: f32,
+    height: f32,
+}
+
+impl Geometry for Rectangle {
+    fn area(&self) -> f32 {
+        self.width * self.height
+    }
+
+    fn perimeter(&self) -> f32 {
+        (self.width + self.height) * 2.0
+    }
+}
+
+struct Circle {
+    radius: f32,
+}
+
+impl Geometry for Circle {
+    fn area(&self) -> f32 {
+        3.14 * self.radius * self.radius
+    }
+
+    fn perimeter(&self) -> f32 {
+        3.14 * 2.0 * self.radius
+    }
+}
+
+// print函数的参数类型是impl Geometry，该参数支持任何实现了Geometry trait的结构体实例，即可以向其传递Rectangle或Circle的实例，这样函数体内就可以调用area、perimeter方法了。
+fn print1(geometry: impl Geometry) {
+    println!(
+        "area: {}, perimeter: {}",
+        geometry.area(),
+        geometry.perimeter()
+    );
+}
+
+// 如果希望print函数除了能调用area、perimeter方法外，还能输出geometry的格式化内容，那么geometry需要同时实现Geometry trait和Display trait。
+use std::fmt::{Display, Formatter, Result};
+impl Display for Rectangle {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(f, "Rectangle: ({}, {})", self.width, self.height)
+    }
+}
+
+// Geometry trait和Display trait通过“+”运算符来完成
+fn print2(geometry: impl Geometry + Display) {
+    println!(
+        "{}, area: {}, perimeter: {}",
+        geometry,
+        geometry.area(),
+        geometry.perimeter()
+    );
+}
+
+// impl Trait语句还支持为多个参数指定类型。多impl Geometry作为参数类型
+fn area_add(geo1: impl Geometry, geo2: impl Geometry) {
+    println!(
+        "rect.area: {}, circle.area: {}, total area:
+    {}",
+        geo1.area(),
+        geo2.area(),
+        geo1.area() + geo2.area()
+    );
+}
+
+impl Display for Circle {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(f, "Circle: ({})", self.radius)
+    }
+}
+
+// print3 函数是泛型函数，对泛型参数使用了trait约束，<T: Geometry + Display>表示泛型参数实现了Geometry trait和Display trait。
+fn print3<T: Geometry + Display>(geometry: T) {
+    println!(
+        "{}, area: {}, perimeter: {}",
+        geometry,
+        geometry.area(),
+        geometry.perimeter()
+    );
+}
+
+// 可以对多个泛型参数使用trait约束
+fn area_add2<T: Geometry, U: Geometry>(geo1: T, geo2: U) {
+    println!(
+        "rect.area: {}, circle.area: {}, total area:
+    {}",
+        geo1.area(),
+        geo2.area(),
+        geo1.area() + geo2.area()
+    );
+}
+
+fn main() {
+    // 普通的调用方式
+    let rect = Rectangle {
+        width: 8.8,
+        height: 2.2,
+    };
+    println!(
+        "rect.area: {}, rect.perimeter: {}",
+        rect.area(),
+        rect.perimeter()
+    );
+
+    let circle = Circle { radius: 3.0 };
+    println!(
+        "circle.area: {}, circle.perimeter: {}",
+        circle.area(),
+        circle.perimeter()
+    );
+
+    let rect = Rectangle {
+        width: 10.5,
+        height: 5.5,
+    };
+    // 调用impl Trait
+    print1(rect);
+
+    let rect = Rectangle {
+        width: 10.5,
+        height: 5.5,
+    };
+    // 调用impl Geometry + Display
+    print2(rect);
+
+    let rect = Rectangle {
+        width: 10.5,
+        height: 5.5,
+    };
+    let circle = Circle { radius: 3.0 };
+    // area_add函数的两个参数类型都是impl Geometry，可以分别向它们传递Rectangle或Circle的实例。
+    area_add(rect, circle);
+
+    let circle = Circle { radius: 3.0 };
+    // 调用trait约束作为函数参数
+    print3(circle);
+
+    
+    let rect = Rectangle {
+        width: 10.5,
+        height: 5.5,
+    };
+    let circle = Circle { radius: 3.0 };
+    // 调用多个带有trait约束的泛型参数函数
+    area_add2(rect, circle);
+}
+
+rect.area: 19.36, rect.perimeter: 22
+circle.area: 28.26, circle.perimeter: 18.84
+area: 57.75, perimeter: 32
+Rectangle: (10.5, 5.5), area: 57.75, perimeter: 32
+rect.area: 57.75, circle.area: 28.26, total area:
+    86.01
+Circle: (3), area: 28.26, perimeter: 18.84
+rect.area: 57.75, circle.area: 28.26, total area:
+    86.01
+```
+
+### 其余案例
+
+- 一个Trait
 
 ``` rust
 #![allow(dead_code, unused_variables)]
@@ -5473,7 +6300,7 @@ Sending JSON data to server...
 Done!
 ```
 
-### 两个Trait
+- 两个Trait
 
 ``` rust
 假设我们需要接收两个都实现了Summary的参数，那么使⽤impl Trait的写法如下
@@ -5497,6 +6324,24 @@ pub fn notify<T: Summary + Display>(item: T) {
 
 ### 多类型参数与where
 
+如果泛型参数有多个trait约束，那么拥有多个泛型参数的函数，在函数名和参数列表之间会有很长的trait约束信息，使得函数签名可读性差。比如：
+
+``` rust
+fn area_add<T: Geometry + Display + Clone, U: Geometry + Display + Debug>(geo1: T, geo2: U) {
+
+}
+```
+
+Rust提供where关键字来处理这种情况，对上面的area_add函数进行重构。下述代码在函数签名后面跟上where从句，为每个泛型参数指定trait约束，这样函数签名的可读性就提高了。
+
+``` rust
+fn area_add<T, U>(geo1: T, geo2: U)
+    where T: Geometry + Display + Clone,
+        U: Geometry + Display + Debug {
+
+        }
+```
+
 下面两种写法效果一样
 
 ``` rust
@@ -5504,6 +6349,7 @@ fn some_function<T: Display + Clone, U: Clone + Debug>(t: T, u: U) -> i32 {
 }
 
 函数名、参数列表及返回类型的排布要紧密得多，与没有trait约束的函数相差⽆⼏。
+
 fn some_function<T, U>(t: T, u: U) -> i32
     where T: Display + Clone, U: Clone + Debug{
 }
@@ -5539,7 +6385,19 @@ fn main() {}
 
 ## 函数返回Trait
 
+函数的返回值类型也可以使用impl Trait语法，返回某个实现了trait的类型
+
 ``` rust
+return_geometry函数的返回值类型是impl Geometry，函数体中返回了实现Geometry trait的Rectangle类型。需要注意的是，这只适用于返回单一类型的情况，如果返回可能为Rectangle，也可能为Circle，将会导致程序错误。
+
+fn return_geometry() -> impl Geometry {
+    Rectangle {
+        width: 12.5,
+        height: 5.5,
+    }
+}
+
+
 fn returns_summarizable() -> impl Summary {
     Tweet {
         username: String::from("horse_ebooks"),
@@ -5946,6 +6804,8 @@ fn longest_with_an_announcement<'a, T>(x: &'a str, y: &'a str, ann: T) -> &'a st
 ```
 
 # 闭包
+
+闭包由管道符“||”和大括号“{}”组合而成。管道符中指定闭包的参数，如果有多个参数，使用逗号分隔。闭包的参数类型可以省略。管道符后可以指定返回值类型，但不是必需的。大括号即闭包体，用来存放执行语句。如果闭包体只有一行，大括号也可以省略。闭包体中最后一个表达式的值默认为闭包的返回值。
 
 特点：
 
