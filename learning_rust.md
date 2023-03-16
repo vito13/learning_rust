@@ -4,7 +4,7 @@
 https://learn.microsoft.com/zh-cn/training/paths/rust-first-steps/      完毕
 
 【弃】Rust入门秘笈                        Rust所有权
-Rust编程：入门、实战与进阶          第6章  
+Rust编程：入门、实战与进阶          第7章 智能指针
 通过例子学Rust
 深入浅出Rust                        2.3.1
 
@@ -2342,94 +2342,83 @@ huaw@test:~/playground/rust/hellocargo$ cargo run
 
 ## 切片
 
-- Rust还有另外⼀种不持有所有权的数据类型：切⽚（slice）。
-- 切⽚允许我们引⽤集合中某⼀段连续的元素序列（不需要拷贝，切片引用的是已经存在的变量），⽽不是整个集合。
-  - ..y 等价于 0..y
-  - x.. 等价于位置 x 到数据结束
-  - .. 等价于位置 0 到结束
-- 在底层，切片代表一个指向数组起始位置的指针和数组长度。用[T]类型表示连续序列，那么切片类型就是&[T]和&mut [T]
-- 字符串字⾯量就是切⽚
-- 切片也提供了两个const fn方法，len和is_empty，分别用来得到切片的长度和判断切片是否为空
+切片本身是没有所有权的，它是通过引用语法实现对集合中一段连续的元素序列的借用。切片可以和常见的能够在内存中开辟一段连续内存块的数据结构一起使用，比如数组、动态数组、字符串等。字符串切片就是指向字符串中一段连续的字符。
+
+### 切片定义
+
+切片本质上是指向一段内存空间的指针，用于访问一段连续内存块中的数据。它的数据结构存储了切片的起始位置和长度。切片定义的语法如下所示。
 
 ``` rust
-fn main() {
-    let s = String::from("broadcast");
-
-    let part1 = &s[0..5];
-    let part2 = &s[5..9];
-
-    println!("{}={}+{}", s, part1, part2);
-}
-
-broadcast=broad+cast
-
-----------------------------------
-
-fn main() {
-    let arr = [1, 3, 5, 7, 9];
-    let part = &arr[0..3];
-    for i in part.iter() {
-        println!("{}", i);
-    }
-}
-
-1
-3
-5
+let slice = &data[start_index..end_index];
 ```
 
-``` rust
-let arr: [i32; 5] = [1, 2, 3, 4, 5];
-assert_eq!(&arr, &[1, 2,3,4,5]);
-assert_eq!(&arr[1..], [2,3,4,5]);
-assert_eq!(&arr.len(), &5);
-assert_eq!(&arr.is_empty(), &false);
-let arr = &mut [1, 2, 3];
-arr[1] = 7;
-assert_eq!(arr, &[1, 7, 3]);
-let vec = vec![1, 2, 3];
-assert_eq!(&vec[..], [1,2,3]);
-let str_slice: &[&str] = &["one", "two", "three"];
-assert_eq!(str_slice, ["one", "two", "three"]);
-```
+- start_index..end_index表示一个范围类型，
+- starting_index是切片的第一个位置，ending_index是切片最后一个位置的后一个值，即生成的是从start_index开始到end_index结束的元素序列，但end_index索引指向的字符不包含在内。
+- start_index和end_index都可以省略，省略start_index表示从0开始，且start_index的最小取值也是0；而省略end_index表示取最大长度，且end_index的最大取值也就是最大长度。
 
-函数的参数是切片
+案例：字符串切片与动态数组切片
 
 ``` rust
-fn largest(list: &[i32]) -> i32 {
-    let mut largest = list[0];
-
-    for &item in list {
-        if item > largest {
-            largest = item;
-        }
-    }
-
-    largest
-}
-
 fn main() {
-    let number_list = vec![34, 50, 25, 100, 65];
+    let s = String::from("Hello, Rust!");
+    println!("{}", &s[0..5]); // Hello
+    println!("{}", &s[..5]); // Hello
+    println!("{}", &s[7..s.len()]); // Rust!
+    println!("{}", &s[7..]); // Rust!
+    println!("{}", &s[0..s.len()]); // Hello, Rust!
+    println!("{}", &s[..]); // Hello, Rust!
 
-    let result = largest(&number_list);
-    println!("The largest number is {}", result);
-
-    let number_list = vec![102, 34, 6000, 89, 54, 2, 43, 8];
-
-    let result = largest(&number_list);
-    println!("The largest number is {}", result);
+    let vec = vec![1, 2, 3, 4, 5];
+    println!("{:?}", &vec[0..2]); // [1, 2]
+    println!("{:?}", &vec[..2]); // [1, 2]
+    println!("{:?}", &vec[2..vec.len()]); // [3, 4, 5]
+    println!("{:?}", &vec[2..]); // [3, 4, 5]
+    println!("{:?}", &vec[0..vec.len()]); // [1, 2, 3, 4, 5]
+    println!("{:?}", &vec[..]); // [1, 2, 3, 4, 5]
 }
 ```
 
-错误的演示，被切片引用的字符串禁止更改其值
+### 切片作为函数参数
+
+切片可以作为函数的参数，把数组、动态数组、字符串中一段连续的元素序列通过引用的方式传递给函数。
 
 ``` rust
 fn main() {
-    let mut s = String::from("runoob");
-    let slice = &s[0..3];
-    s.push_str("yes!"); // 错误
-    println!("slice = {}", slice);
+    let s = String::from("Hello, Rust!");
+    let str = "Hello";
+    let vec = vec![1, 2, 3, 4, 5];
+
+    print_str(&s[0..5]); // slice: "Hello", length: 5
+    print_str(&str); // slice: "Hello", length: 5
+    print_vec(&vec[2..]); // slice: [3, 4, 5], length: 3
 }
+
+// print_str和print_vec函数的参数类型都是切片，print_str函数以&str为参数类型，这样既能接收字符串切片作为实参，也能接收字符串字面量作为实参，以便于函数更加灵活、通用。
+fn print_str(s: &str) {
+    println!("slice: {:?}, length: {}", s, s.len());
+}
+
+fn print_vec(vec: &[i32]) {
+    println!("slice: {:?}, length: {}", vec, vec.len());
+}
+
+```
+
+### 可变切片
+
+默认情况下，切片是不能改变所引用的数组、动态数组、字符串中的元素的，也就是说不能通过更改切片的元素来影响源数据。但是，如果声明源数据是可变的，同时声明切片也是可变的，就可以通过更改切片的元素来更改源数据。
+
+案例：更改可变切片的元素会更改源数据。动态数组和动态数组切片都是可变的，修改切片第1个元素的值，动态数组中对应的第4个元素的值也会被更改。
+
+``` rust
+fn main() {
+    let mut vec = vec![1, 2, 3, 4, 5];
+    let vec_slice = &mut vec[3..];
+    vec_slice[0] = 7;
+    println!("{:?}", vec);
+}
+
+[1, 2, 3, 7, 5]
 ```
 
 # 结构体
@@ -3792,14 +3781,38 @@ c is at index 2
 
 # 迭代器
 
-迭代器主要用来遍历数据集合，把集合中所有元素按顺序传递给处理逻辑。Rust基于结构体和trait实现了迭代器模式和迭代器适配器模式，但这些迭代器和迭代器适配器都是惰性的，必须通过消费器发生消费数据的行为才会促使其工作。标准库std::iter中定义了很多迭代器相关的方法
+迭代器主要用来遍历数据集合，把集合中所有元素按顺序传递给处理逻辑。Rust基于结构体和trait实现了迭代器模式和迭代器适配器模式，但这些迭代器和迭代器适配器都是惰性的，必须通过消费器发生消费数据的行为才会促使其工作。标准库std::iter中定义了很多迭代器相关的方法。
 
-## Iterator trait
+Rust提供的迭代器IntoIter、Iter、IterMut和所有权借用的对应关系如下表
 
-Iterator trait是迭代器模式的抽象接口，接口中有两个重要方法。
+![迭代器](迭代器.png)
 
-- iter方法用于返回一个迭代器实例。
+## 不可变借用Iter
+
+- 迭代器Iter由iter方法创建，能把容器中元素的引用传递给迭代器，而不发生所有权转移。引用传递之后，原容器还可以继续使用。
 - next方法用于返回迭代器中的下一个元素，并将其封装在Some函数中。如果已经迭代到集合的末尾（最后一个元素的后面），则返回None。
+
+案例：iter方法获得所有权的不可变借用。由于迭代器中元素是对动态数组中元素的引用，因此在match模式匹配时需要使用&操作符。迭代器遍历元素后，原动态数组还可以继续使用。
+
+``` rust
+fn main() {
+    let vec = vec!["Java", "Rust", "Python"];
+    for str in vec.iter() {
+        match str {
+            &"Rust" => println!("Niubility"),
+            _ => println!("{}", str),
+        }
+    }
+
+    println!("{:?}", vec);
+}
+Java
+Niubility
+Python
+["Java", "Rust", "Python"]
+```
+
+另一个案例
 
 ``` rust
 fn main() {
@@ -3968,6 +3981,52 @@ fn main() {
 }
 
 [3, 9]
+```
+
+## 转移所有权IntoIter
+
+迭代器IntoIter由into_iter方法创建，会把容器中元素的所有权转移给迭代器，之后原容器不能再使用。
+
+``` rust
+fn main() {
+    let vec = vec!["Java", "Rust", "Python"];
+    for str in vec.into_iter() {
+        match str {
+            "Rust" => println!("Niubility"),
+            _ => println!("{}", str),
+        }
+    }
+
+    // println!("{:?}", vec); into_iter方法创建迭代器后，原动态数组不能再使用。如果取消注释，将会抛出value borrowed here after ove的错误提示。
+}
+```
+
+## 可变借用IterMut
+
+迭代器IterMut由iter_mut方法创建，会把容器中元素的可变引用传递给迭代器，不发生所有权转移。引用传递之后，原容器还可以继续使用。iter_mut方法与iter方法的不同点在于，iter方法创建的是只读迭代器，不能在迭代器中改变原容器的元素。但iter_mut方法创建的是可变迭代器，在迭代器中可以改变原容器的元素。
+
+案例：iter_mut方法获得所有权的可变借用。由于迭代器中元素是对动态数组中元素的可变引用，因此在match模式匹配时需要使用&mut，并且通过解引用操作符“*”可以更改原动态数组中的元素。迭代器遍历元素后，原动态数组还可以继续使用。
+
+``` rust
+fn main() {
+    let mut vec = vec!["Java", "Rust", "Python"];
+    for str in vec.iter_mut() {
+        match str {
+            &mut "Rust" => {
+                *str = "Niubility";
+                println!("{}", str);
+            }
+            _ => println!("{}", str),
+        }
+    }
+
+    println!("{:?}", vec);
+}
+
+Java
+Niubility
+Python
+["Java", "Niubility", "Python"]
 ```
 
 # Option与匹配
@@ -4966,60 +5025,111 @@ println!("{}", mascot);
 }
 ```
 
-## 移动语义
+## 所有权转移(移动语义 move)
 
-有时，我们不希望在作用域末尾删除与变量关联的内容。 相反，我们希望将某个项的所有权从一个绑定转移到另一个绑定。
+与绑定概念相辅相成的另一个机制是所有权转移，所有权转移对应于移动语义。一个属于移动语义类型的值，其绑定变量的所有权转移给另一个变量的过程叫作所有权转移。所有权转移之后原变量不能再继续使用。Rust中会发生所有权转移的场景主要有变量赋值、向函数传递值、从函数返回值。
+
+### 变量赋值
+
+所有权机制只针对在堆上分配的数据，而基本类型的存储都是在栈上，因此其没有所有权的概念。对于基本类型来说，把一个变量赋值给另一个变量可以在内存上重新开辟一个空间来存储复制的数据，再与新的变量绑定。
 
 ``` rust
 {
     let mascot = String::from("ferris");
     let ferris = mascot; // 注意这里，所有权一旦转移，旧变量将不再有效
     println!("{}", mascot) // 将 String 的所有权从 mascot 转移到 ferris 之后，将无法再使用 mascot 变量。
+
+
+    let s1 = String::from("hello");
+    let s2 = s1; 
+    println!("{}, world!", s1); // 错误！s1 已经失效
 }
 ```
 
-- 在 Rust 中，“转移所有权”被称为“移动”。 换句话说，String 值的所有权已从 mascot 移动到了 ferris。
+### 向函数传递值
 
-``` rust
-let s1 = String::from("hello");
-let s2 = s1; 
-println!("{}, world!", s1); // 错误！s1 已经失效
-```
+在其他编程语言中，函数参数的传递默认是隐式复制。但在 Rust 中，此操作不会发生，所有权的转移（即移动）才是默认行为。即将值传递给函数在语义上与给变量赋值相似
 
-- 涉及函数的所有权机制：在其他编程语言中，函数参数的传递默认是隐式复制。 但在 Rust 中，此操作不会发生，所有权的转移（即移动）才是默认行为。
+案例：向函数传递字符串参数时转移所有权
 
 ``` rust
 fn main() {
-    let s = String::from("hello");
-    // s 被声明有效
+    let s = String::from("hello"); // s有效
+    take_ownership(s); // s所有权转移给函数参数
+                       // s无效，不能继续使用
+    let x = 5; // x有效
+    make_copy(x); // x绑定值按位复制后传递给函数参数
+                  // x有效，可以继续使用
+} // 作用域结束，x无效，s无效，s所有权已转移，无须特殊操作
 
-    takes_ownership(s);
-    // s 的值被当作参数传入函数
-    // 所以可以当作 s 已经被移动，从这里开始已经无效
+fn take_ownership(str: String) {
+    // str有效
+    println!("{}", str);
+} // 作用域结束，str无效，释放str占用的内存
 
-    let x = 5;
-    // x 被声明有效
-
-    makes_copy(x);
-    // x 的值被当作参数传入函数
-    // 但 x 是基本类型，依然有效
-    // 在这里依然可以使用 x 却不能使用 s
-
-} // 函数结束, x 无效, 然后是 s. 但 s 已被移动, 所以不用被释放
+fn make_copy(int: i32) {
+    // int有效
+    println!("{}", int);
+} // 作用域结束，int无效，无须特殊操作
 
 
-fn takes_ownership(some_string: String) {
-    // 一个 String 参数 some_string 传入，有效
-    println!("{}", some_string);
-} // 函数结束, 参数 some_string 在这里释放
-
-fn makes_copy(some_integer: i32) {
-    // 一个 i32 参数 some_integer 传入，有效
-    println!("{}", some_integer);
-} // 函数结束, 参数 some_integer 是基本类型, 无需释放
+hello
+5
 ```
 
-- 函数返回值的所有权机制
+案例：向HashMap的方法传递&str类型参数时不转移所有权
+
+``` rust
+use std::collections::HashMap;
+fn main() {
+    let key = "Favorite color"; // key是&str类型，程序可以正常运行
+    let value = "Red";
+    let mut map = HashMap::new();
+    map.insert(key, value);
+    println!("{}", map[key]);
+}
+
+Red
+```
+
+案例：向HashMap的方法传递String类型参数时转移所有权。
+
+``` rust
+use std::collections::HashMap;
+
+fn main() {
+    let key = String::from("Favorite color"); // key是String类型，程序会发生错误。
+    let value = String::from("Red");
+
+    let mut map = HashMap::new();
+    // String类型的key作为实参传递给insert方法，其所有权会被转移给map，因此不能再继续使用key。
+    map.insert(key, value);
+    println!("{}", map[key]);
+}
+
+```
+
+案例：向HashMap的方法传递String类型参数的引用时不转移所有权
+
+``` rust
+use std::collections::HashMap;
+
+fn main() {
+    let key = String::from("Favorite color");
+    let value = String::from("Red");
+
+    let mut map = HashMap::new();
+    // 如果需要继续使用key，可以将&key作为实参传递给insert方法，这样key的所有权就不会转移给map。
+    map.insert(&key, &value); // 将&key和&value作为实参传递给insert方法
+    println!("{}", map[&key]);
+}
+
+Red
+```
+
+### 从函数返回值
+
+函数的形参所获得的所有权会在函数执行完成时失效，失效之后就再也不能被访问。为了解决这个问题，我们可以通过函数返回值将所有权转移给调用者。
 
 ``` rust
 fn main() {
@@ -5048,7 +5158,9 @@ fn takes_and_gives_back(a_string: String) -> String { 
 }
 ```
 
-## Copy特征
+## Copy与Clone
+
+浅复制Copy是指复制栈上数据，深复制Clone是指复制栈上和堆上数据。
 
 - 实现了Copy特征的值会被复制而不是移动，即所有权不能被转移。大多数简单类型都具有Copy特征。有如下：
   - 所有整数类型，例如 i32 、 u32 、 i64 等。
@@ -5056,24 +5168,81 @@ fn takes_and_gives_back(a_string: String) -> String { 
   - 所有浮点类型，f32 和 f64。
   - 字符类型 char。
   - 仅包含以上类型数据的元组（Tuples）。
+- 结构体和枚举有些特殊，即使所有字段的类型都实现了Copy trait，也不支持浅复制。
 - 复制数字的成本低，因此复制这些值是有意义的。复制字符串、向量或其他复杂类型的成本可能高昂，因此它们没有实现Copy特征，而是被移动。（需要分配内存或某种资源的类型都不会是Copy的）
 - 如果⼀种类型本⾝或这种类型的任意成员实现了Drop这种trait，那么Rust就不允许其实现Copy这种trait。尝试给某个需要在离开作⽤域时执⾏特殊指令的类型实现Copy这种trait会导致编译时错误。
 
-下面的代码是安全的
+案例，字段都实现Copy trait的结构体不支持浅复制
 
 ``` rust
-fn process(input: u32) {}
+#[derive(Debug)]
+struct Foo {
+    x: i32,
+    y: bool,
+}
 
-fn caller() {
-    let n = 1u32;
-    process(n); // Ownership of the number in `n` copied into `process`
-    process(n); // `n` can be used again because it wasn't moved, it was copied.
+编译代码会失败，下一段代码会改正
+
+fn main() {
+    let foo = Foo { x: 8, y: true };
+    let other = foo;
+    println!("foo: {:?}, other: {:?}", foo, other);
+}
+
+```
+
+在Foo定义上标记#[derive(Copy, Clone)]，让Foo实现Copy trait。
+
+``` rust
+#[derive(Debug, Copy, Clone)] 
+struct Foo {
+    x: i32,
+    y: bool,
+}
+
+fn main() {
+    let foo = Foo { x: 8, y: true };
+    let other = foo; 
+    println!("foo: {:?}, other: {:?}", foo, other);
+}
+
+foo: Foo { x: 8, y: true }, other: Foo { x: 8, y: true }
+```
+
+需要注意的是，如果结构体包含引用语义类型的字段，那么即使添加了上述属性也不支持浅复制。
+
+``` rust
+#[derive(Debug, Copy, Clone)]
+struct Foo {
+    x: i32,
+    y: String,
+}
+
+编译代码会失败，下一段代码会改正
+
+fn main() {
+    let foo = Foo {
+        x: 8,
+        y: String::from("hello"),
+    };
+    let other = foo; // 字段是String类型的结构体不支持浅复制
+    println!("foo: {:?}, other: {:?}", foo, other);
 }
 ```
 
-## Clone方法
+如果确实需要深复制堆上数据，而不仅仅是栈上数据，对String使用clone方法深复制。
 
-- 为了复制没有Copy特性的数据，可调用clone方法，会复制内存并生成一个新值。新值用于移动语义，旧值仍可使用。
+这种方法可能有用，但会导致代码运行速度变慢，因为每次调用 clone 都是对数据的一次完整复制。 此方法通常包括内存分配或其他成本高昂的操作。 我们可使用引用来“借用”值，从而避免这些成本。
+
+``` rust
+fn main() {
+    let s1 = String::from("hello");
+    let s2 = s1.clone(); // s2不仅复制了s1栈上数据，还复制了堆上数据。在离开作用域前，s1和s2都保持有效
+    println!("s1 = {}, s2 = {}", s1, s2);
+}
+```
+ 
+另一个clone案例：为了复制没有Copy特性的数据，可调用clone方法，会复制内存并生成一个新值。新值用于移动语义，旧值仍可使用。
 
 ``` rust
 fn process(s: String) {}
@@ -5085,45 +5254,16 @@ fn main() {
 }
 ```
 
-这种方法可能有用，但会导致代码运行速度变慢，因为每次调用 clone 都是对数据的一次完整复制。 此方法通常包括内存分配或其他成本高昂的操作。 我们可使用引用来“借用”值，从而避免这些成本。
+# 引用和借用
 
-# 引用
+引用（Reference）是一种语法（本质上是Rust提供的一种指针语义），而借用（Borrowing）是对引用行为的描述。引用分为不可变引用和可变引用，对应着不可变借用和可变借用。使用&操作符执行不可变引用，使用&mut执行可变引用。&x也可称为对x的借用。通过&操作符完成对所有权的借用，不会造成所有权的转移。
 
-通过引用（借用），我们可以“借用”一些值，而无需拥有它们。
+## 引用
 
-- 引用不会获得值的所有权。
-- 引用只能租借（Borrow）值的所有权。
-- &代表的就是引⽤ 语义，它允许在不获取所有权的前提下使⽤值。
-- 引用本身也是一个类型并具有一个值，这个值记录的是别的值所在的位置，但引用不具有所指值的所有权。所以当引⽤离开当前作⽤域时，它指向的值也不会被丢弃。
-- 这种通过引⽤传递参数给函数的⽅法也被称为借⽤（borrowing）。
-下面两个案例无需完全拥有某个值即可使用它。但只能读不能写。
+- 引用：变量的案例
 
 ``` rust
-let greeting = String::from("hello");
-let greeting_reference = &greeting; // We borrow `greeting` but the string data is still owned by `greeting`
-println!("Greeting: {}", greeting); // We can still use `greeting`
-
-greeting 是使用引用符号 (&) 借用的。
-变量 greeting_reference 的类型为字符串引用 (&String)。
-由于我们只借用了 greeting，并没有移动所有权，
-因此，在我们创建greeting_reference 之后仍然可以使用 greeting。
-```
-
-``` rust
-fn print_greeting(message: &String) {
-  println!("Greeting: {}", message);
-}
-
-fn main() {
-  let greeting = String::from("Hello");
-  print_greeting(&greeting); // `print_greeting` takes a `&String` not an owned `String` so we borrow `greeting` with `&`
-  print_greeting(&greeting); // Since `greeting` didn't move into `print_greeting` we can use it again
-}
-```
-
-下面演示了一个错误：
-
-``` rust
+错误的方式
 fn main() {
     let s1 = String::from("hello");
     let s2 = &s1;
@@ -5134,9 +5274,8 @@ fn main() {
     // 如下面一段代码
     println!("{}", s2); 
 }
-```
 
-``` rust
+正确的方式
 fn main() {
     let s1 = String::from("hello");
     let mut s2 = &s1;
@@ -5146,89 +5285,148 @@ fn main() {
 }
 ```
 
-## 改变借用的值
+- 引用：函数参数的案例
 
-通过&mut借用（称为“可变借用”），可以读取和更改数据。
-
-下面演示了通过引用修改数据
+两个动态数组类型变量vec1和vec2作为实参传递给sum_vec函数，在函数内对两个动态数组中所有元素计算总和，最后打印出vec1、vec2和sum_vec函数返回值。
 
 ``` rust
-fn main() {
-    let mut s1 = String::from("run");
-    // s1 是可变的
+错误的方式：当把变量vec1传递给sum_vec函数时发生所有权转移，vec1绑定的动态数组的所有权转移给了sum_vec函数的参数v1，那么打印时再次调用vec1就会发生错误。
 
-    let s2 = &mut s1;
-    // s2 是可变的引用
+fn main() {
+    let vec1 = vec![1, 2, 3];
+    let vec2 = vec![4, 5, 6];
 
-    s2.push_str("oob");
-    println!("{}", s2);
+    let answer = sum_vec(vec1, vec2);
+    println!("v1: {:?}, v2: {:?}, sum: {}", vec1, vec2, answer);
 }
+
+fn sum_vec(v1: Vec<i32>, v2: Vec<i32>) -> i32 {
+    let sum1: i32 = v1.iter().sum();
+    let sum2: i32 = v2.iter().sum();
+    sum1 + sum2
+}
+
+
+正确的方式：以引用作为函数参数不获取值的所有权。Rust支持所有权的借用，通过引用给函数传递实参，就是把所有权借用给函数的参数，当函数的参数离开作用域时会自动归还所有权。这个过程需要将函数的参数通过&操作符定义为引用，同时传递实参时也应该传递变量的引用。
+
+fn main() {
+    let vec1 = vec![1, 2, 3];
+    let vec2 = vec![4, 5, 6];
+    let answer = sum_vec(&vec1, &vec2); // 传递&Vec<i32>类型的实参来调用函数
+    println!("v1: {:?}, v2: {:?}, sum: {}", vec1, vec2, answer);
+}
+
+fn sum_vec(v1: &Vec<i32>, v2: &Vec<i32>) -> i32 { // 定义了带有&Vec<i32>类型参数的函数
+    let sum1: i32 = v1.iter().sum();
+    let sum2: i32 = v2.iter().sum();
+    sum1 + sum2
+}
+
+v1: [1, 2, 3], v2: [4, 5, 6], sum: 21
 ```
 
-函数参数的案例
+## 可变引用
+
+引用默认是只读的，要想修改引用的值，应该使用可变引用&mut。在定义与调用带有可变引用参数的函数时，必须同时满足以下3个要求，缺一不可，否则会导致程序错误。
+
+- 变量本身必须是可变的，因为可变引用只能操作可变变量，不能获取不可变变量的可变引用。变量声明中必须使用mut。
+- 函数的参数必须是可变的，函数的参数定义中必须使用&mut。
+- 调用函数时传递的实参必须是可变的，传递给函数的实参必须使用&mut。
+
+案例：以可变引用修改动态数组的值
 
 ``` rust
 fn main() {
-    let mut greeting = String::from("hello");
-    change(&mut greeting);
-    print!("{}", greeting);
+    let mut vec = Vec::new(); // 声明变量vec时必须使用mut
+    push_vec(&mut vec, 1); // 传递&mut Vec<i32>类型的实参来调用函数
+    push_vec(&mut vec, 2);
+    push_vec(&mut vec, 2);
+    push_vec(&mut vec, 5);
+
+    println!("vec: {:?}", vec);
 }
 
-fn change(text: &mut String) {
-    text.push_str(", world");
+// push_vec函数实现以单调递增的方式向动态数组中添加元素
+fn push_vec(v: &mut Vec<i32>, value: i32) { // 定义了带有&mut Vec<i32>类型参数的函数
+    if v.is_empty() || v.get(v.len() - 1).unwrap() < &value {
+        v.push(value);
+    }
 }
+
+vec: [1, 2, 5]
 ```
 
-## 引用的限制
-
-- 允许在一个作用域中有且仅有一个可变引⽤，或是无可变引用但却有任意数量的不可变引⽤
-
-- 不能同时多个可变引用指向同一个变量
-
-``` rust
-错误的案例
-
-fn main() {
-    let mut value = String::from("hello");
-
-    let ref1 = &mut value;
-    let ref2 = &mut value;
-
-    println!("{}, {}", ref1, ref2);
-}
-```
-
-- 不能同时存在可变引用与不可变引用指向同一个变量
-
-``` rust
-错误的案例
-
-fn main() {
-    let mut value = String::from("hello");
-
-    let ref1 = &value;
-    let ref2 = &mut value;
-
-    println!("{}, {}", ref1, ref2);
-}
-```
-
-## 垂悬引用
-
-即引用了一个已经离开作用域的变量（也就是被引用的变量已经销毁了）
-
-伴随着 dangle 函数的结束，其局部变量的值本身没有被当作返回值，被释放了。但它的引用却被返回，这个引用所指向的值已经不能确定的存在，故不允许其出现
+案例：以可变引用修改变量的值
 
 ``` rust
 fn main() {
-    let reference_to_nothing = dangle();
+    let mut x = 6;
+    let y = &mut x; // 变量y是变量x的可变引用
+    *y += 1; // 可以使用解引用操作符“*”来追踪引用的值，*y表示y所引用的值，即x的值。
+    println!("x: {}", x);
 }
 
-fn dangle() -> &String {
-    let s = String::from("hello");
+x: 7
+```
 
-    &s
+## 借用规则
+
+为了保证内存安全，借用必须遵循以下规则：
+
+- 对于同一个资源的借用，在同一个作用域只能有一个可变引用（&mut T），或有n个不可变引用（&T），但不能同时存在可变引用和不可变引用。
+- 在可变引用释放前不能访问资源所有者。
+- 任何引用的作用域都必须小于资源所有者的作用域，并在离开作用域后自动释放。
+
+借用规则类似于读写锁，即同一时刻只能拥有一个写锁，或者多个读锁，不允许写锁和读锁同时出现。这是为了避免数据竞争，保障数据一致性。Rust在编译时完成借用规则的检查，这样可以有效地避免运行时出现死锁等问题。
+
+错误的案例：在可变借用的同时进行不可变借用
+
+``` rust
+在同一个作用域，有一个可变引用y，又有一个不可变引用z，这显然违反了借用规则的第一条：不能在可变借用的同时进行不可变借用。
+
+fn main() {
+    let mut x = 6;
+    let y = &mut x;
+    *y += 1;
+    let z = &x;
+    println!("y: {}, z: {}", *y, *z);
 }
+```
+
+错误的案例：在可变引用释放前访问资源所有者
+
+``` rust
+在变量x的可变引用y未释放前再次访问变量x，这违反了借用规则的第二条：在可变引用释放前不能访问资源所有者。
+
+fn main() {
+    let mut x = 6;
+    let y = &mut x;
+    *y += 1;
+    let z = x;
+    println!("y: {}, z: {}", *y, z);
+}
+
+借用规则的第三条的案例见下面的悬垂引用
+```
+
+## 悬垂引用
+
+生命周期的作用是避免代码中出现悬垂引用。悬垂引用是指引用了无效的数据，也就是内存中的数据释放后再次被使用。
+
+案例：使用离开作用域的值的引用
+
+``` rust
+外部作用域声明了一个没有初始值的变量r，而内部作用域声明了一个初始值为7的变量i，并将r的值设置为i的引用。在内部作用域结束后，在外部作用域尝试打印r的值。
+
+fn main() { // 外部作用域
+    let r;
+    { // 内部作用域
+        let i = 7;
+        r = &i;
+    } // 变量i就离开了作用域，而变量r因为是在外部作用域声明的，此时仍是有效的。
+    println!("r: {}", r); // 尝试使用变量r的值，导致变量r将会引用变量i离开作用域时被释放的内存，这显然违反了借用规则的第三条：任何对变量r的操作都应该被禁止。
+}
+
 ```
 
 ## 解引用
@@ -6597,8 +6795,7 @@ fn main() {
 
 # 生命周期
 
-- ⽣命周期保证了结构体实例中引⽤数据的有效期不短于实例本⾝。
-- 使用引用会出现问题。 引用所引用的项不跟踪其所有引用。 此行为可能会导致一个问题：当删除该项并释放其资源时，我们如何确保没有引用指向现已释放且无效的内存？Rust 给出的回答是通过生命周期实现。 它们使 Rust 能够在不产生垃圾收集性能开销的情况下确保内存安全。
+Rust的每一个引用以及包含引用的数据结构，都有一个其保持有效的作用域。生命周期可以视为这个作用域的名字。通常，生命周期是隐式的且可以推断的，但是也可能出现多个引用的生命周期以某种方式相关联的情况。这就需要使用生命周期注解来描述多个生命周期间的关系，以确保运行时实际使用的引用都是有效的。
 
 ## 为何需要声明周期
 
@@ -6642,37 +6839,84 @@ fn longest_word<'a>(x: &'a String, y: &'a String) -> &'a String {
 }
 ```
 
-## 函数签名中的⽣命周期标注
+## 生命周期语法
 
-- 生命周期注解用单引号开头，跟着一个小写字母单词。单个⽣命周期的标注本⾝并没有太多意义，标注之所以存在是为了向Rust描述多个泛型⽣命周期参数之间的关系。
+生命周期注解的语法是以'开头再加上小写字母，如'a是生命周期的标识符，也是默认使用的名称，'a读作“生命周期a”。这里的a也可以用b、c、d、…，甚至可以用this_is_a_long_name等。当然，实际编程中并不建议使用冗长的标识符，这会严重降低程序的可读性。生命周期注解位于引用的&操作符之后，并用一个空格将生命周期注解与引用类型分隔开，比如&'a i32、&'a mut i32、&'a str。需要注意的是，生命周期注解并不改变任何引用的生命周期的大小，只用于描述多个生命周期间的关系。
+
+### 隐式生命周期
+
+参数或者返回值为引用类型的函数，通常编译器会自动推导出来，这里要求返回值的生命周期必须大于或等于参数x的生命周期。
 
 ``` rust
-&i32        // 常规引用
-&'a i32     // 带有显式生命周期的引用
-&'a mut i32 // 带有显式生命周期的可变引用
+fn foo(x: &str) -> &str {
+    x
+}
+
+// 上面的写法会自动推导成这样
+fn foo<'a>(x: &'a str) -> &'a str {
+    x
+}
 ```
 
-- 需要用泛型声明来规范生命周期的名称，且使用相同的生存期名称
-- 返回值和所有参数引用必须具有相同的生存期。
+### 显式生命周期
+
+除非编译器无法自动推导出生命周期，否则不建议显式指定生命周期，因为这会降低程序的可读性
 
 ``` rust
-fn longer<'a>(s1: &'a str, s2: &'a str) -> &'a str {
-    if s2.len() > s1.len() {
-        s2
+fn long_str(x: &str, y: &str) -> &str {
+    if x.len() > y.len() {
+        x
     } else {
-        s1
+        y
+    }
+}
+
+上面的代码编译会失败，编译器在检查函数的所有输入参数和返回值时，并不知道传递给函数的具体值，也就不知道是if会被执行，还是else会被执行，因此无法推导出要返回的引用是指向x还是y。同时，借用检查器无法确定x和y的生命周期是如何与返回值的生命周期相关联的，也就不能通过观察作用域来确定返回的引用是否总是有效。为了避免这个错误，我们应该显式指定生命周期来定义引用间的关系，以便借用检查器进行分析，代码如下所示
+
+fn long_str<'a>(x: &'a str, y: &'a str) -> &'a str {
+    if x.len() > y.len() {
+        x
+    } else {
+        y
+    }
+}
+```
+
+### 静态生命周期
+
+Rust预定义了一种特殊的生命周期注解'static，它具有和整个程序运行时相同的生命周期。字符串字面量是直接硬编码到最终的可执行文件中的，因此拥有'static生命周期，其声明方式如下。
+
+``` rust
+let s: &'static str = "I have a static lifetime.";
+```
+
+## 生命周期与函数
+
+在函数签名中指定生命周期，并不会改变任何传入值或返回值的生命周期，而是指出了任何不满足这个约束条件的值都将被借用检查器拒绝。
+
+案例:传递不同生命周期的实参来调用函数
+
+``` rust
+fn long_str<'a>(x: &'a str, y: &'a str) -> &'a str {
+    if x.len() > y.len() {
+        x
+    } else {
+        y
     }
 }
 
 fn main() {
-    let r;
+    let str1 = String::from("abcd");
+    let result;
     {
-        let s1 = "rust";
-        let s2 = "ecmascript";
-        r = longer(&s1, &s2);
-        println!("{} is longer", r);
+        let str2 = "xyz"; // 生命周期为'static，确保在离开内部作用域后仍然是有效的，也就可以正常使用result了。
+        result = long_str(str1.as_str(), str2);
     }
+
+    println!("longer string: {}", result);
 }
+
+longer string: abcd
 
 ```
 
@@ -6703,54 +6947,77 @@ fn main() {
 
 ```
 
-## 结构体定义中的⽣命周期标注
+案例：函数中生命周期结合泛型类型、trait约束使用。返回两个字符串切⽚中较⻓者的longest函数。
 
-每当一个结构或枚举在它的字段之一中包含引用时，我们必须用它所携带的每个引用的生存期来批注该类型定义。
-
-案例：
-- 有一个 text 字符串（它拥有自己的内容）和一个 Highlight 元组结构。 此结构有一个字段，该字段包含一个字符串切片。 切片是来自程序的另一部分的借用值。
-- 将通用生存期参数的名称放在结构名称后面的尖括号内。 这样，就可以在结构定义的主体中使用该生存期参数。 由于声明的原因，此 Highlight 实例的生存期不能超过其字段中的引用。
-- 使用名为 'document 的生存期对我们的结构进行了批注。 此批注是一个提醒，它提醒 Highlight 结构的生存期不能超过它借用的 &str 的源（一个假定的文档）的生存期。
+- 多了⼀个额外的ann参数，这个参数的类型为泛型T。根据where从句中的约束，该参数的类型可以被替换为任何实现了Display trait的类型。
+- 这个额外的参数会在函数⽐较字符串切⽚⻓度之前被打印出来，所以我们需要Display来作为trait约束。
+- 因为⽣命周期也是泛型的⼀种，所以⽣命周期参数'a和泛型参数T都被放置到了函数名后的尖括号列表中。
 
 ``` rust
-#[derive(Debug)]
-struct Highlight<'document>(&'document str);
-
-fn main() {
-    let text = String::from("The quick brown fox jumps over the lazy dog.");
-    let fox = Highlight(&text[4..19]);
-    let dog = Highlight(&text[35..43]);
-    println!("{:?}", fox);
-    println!("{:?}", dog);
+use std::fmt::Display;
+fn longest_with_an_announcement<'a, T>(x: &'a str, y: &'a str, ann: T) -> &'a str
+    where T: Display
+{
+    println!("Announcement! {}", ann);
+    if x.len() > y.len() {
+        x
+    } else {
+        y
+    }
 }
-
-输出
-Highlight("quick brown fox")
-Highlight("lazy dog")
 ```
 
-另一个案例
+## 生命周期与结构体
+
+在结构体定义中使用生命周期注解，类似于声明泛型类型——将生命周期声明在结构体名称后面的尖括号中。如果需要为不同的字段指定不同的生命周期，这些生命周期需都放在尖括号中并以逗号分隔。要为带有生命周期的结构体实现方法，需要在impl关键字后面的尖括号中声明生命周期。一般不需要在方法签名中使用生命周期注解，除非结构体字段、方法参数以及返回值的生命周期相关联。
+
+案例：对结构体使用生命周期注解
 
 ``` rust
-struct ImportantExcerpt<'a> {
-    part: &'a str,
+struct Foo<'a, 'b> { // 为字段x和y指定不同的生命周期，因此将'a和'b都放在尖括号中并以逗号分隔
+    x: &'a i32,
+    y: &'b i32,
+}
+
+impl<'a, 'b> Foo<'a, 'b> {
+    fn get_x(&self) -> &i32 {
+        self.x
+    }
+
+    fn get_y(&self) -> &i32 {
+        self.y
+    }
+
+    fn max_x(&'a self, f: &'a Foo) -> &'a i32 {
+        if self.x > f.x {
+            self.x
+        } else {
+            f.x
+        }
+    }
 }
 
 fn main() {
-    let novel = String::from("Call me Ishmael. Some years ago...");
-    let first_sentence = novel.split('.').next().expect("Could not find a '.'");
-    let i = ImportantExcerpt {
-        part: first_sentence,
-    };
+    let f1 = Foo { x: &3, y: &5 };
+    let f2 = Foo { x: &7, y: &9 };
+
+    println!("x: {}, y: {}", f1.get_x(), f1.get_y());
+    println!("max_x: {}", f1.max_x(&f2));
 }
+
+x: 3, y: 5
+max_x: 7
 ```
 
 ## 生命周期省略规则
 
-- 函数或方法的参数的生命周期被称为 输入生命周期（input lifetimes），而返回值的生命周期被称为 输出生命周期（output lifetimes）。
-- 第一条规则是每一个是引用的参数都有它自己的生命周期参数。
-- 第二条规则是如果只有一个输入生命周期参数，那么它被赋予所有输出生命周期参数
-- 第三条规则是如果方法有多个输入生命周期参数并且其中一个参数是 &self 或 &mut self，说明是个对象的方法(method)，那么所有输出生命周期参数被赋予 self 的生命周期。
+每一个引用都有一个生命周期，以及需要为使用了引用的函数或结构体指定生命周期。Rust有3条默认的、称为生命周期省略规则的引用分析模式，这些规则适用于函数或方法定义。函数或方法参数的生命周期称为输入生命周期，返回值的生命周期称为输出生命周期。
+
+- 第1条规则是每一个被省略生命周期注解的参数，都具有各不相同的生命周期。
+- 第2条规则是如果只有一个输入生命周期（无论是否省略），这个生命周期会赋给所有被省略的输出生命周期。
+- 第3条规则是方法中self的生命周期会赋给所有被省略的输出生命周期。
+
+第1条规则适用于输入生命周期，第2条规则适用于输出生命周期，第3条规则只适用于方法签名，这也是通常不需要在方法签名中进行生命周期注解的原因。这些规则由编译器根据代码自动判断，如果符合规则那就可以省略生命周期注解。如果编译器检查完这3条规则后仍然不能计算出生命周期，则会停止编译并抛出错误，将问题交由开发者去显式指定生命周期。
 
 ## 方法定义中的生命周期注解
 
@@ -6771,37 +7038,6 @@ impl<'a> ImportantExcerpt<'a> {
 }
 ```
 
-## 静态生命周期
-
-- Rust中还存在⼀种特殊的⽣命周期'static，它表⽰整个程序的执⾏期。所有的字符串字⾯量都拥有'static⽣命周期，可以像下⾯⼀样显式地把它们标注出来：
-
-``` rust
-let s: &'static str = "I have a static lifetime.";
-```
-
-- 字符串的⽂本被直接存储在⼆进制程序中，并总是可⽤的。因此，所有字符串字⾯量的⽣命周期都是'static
-
-## 同时使⽤泛型参数、trait约束与⽣命周期
-
-案例：返回两个字符串切⽚中较⻓者的longest函数。
-
-- 多了⼀个额外的ann参数，这个参数的类型为泛型T。根据where从句中的约束，该参数的类型可以被替换为任何实现了Display trait的类型。
-- 这个额外的参数会在函数⽐较字符串切⽚⻓度之前被打印出来，所以我们需要Display来作为trait约束。
-- 因为⽣命周期也是泛型的⼀种，所以⽣命周期参数'a和泛型参数T都被放置到了函数名后的尖括号列表中。
-
-``` rust
-use std::fmt::Display;
-fn longest_with_an_announcement<'a, T>(x: &'a str, y: &'a str, ann: T) -> &'a str
-    where T: Display
-{
-    println!("Announcement! {}", ann);
-    if x.len() > y.len() {
-        x
-    } else {
-        y
-    }
-}
-```
 
 # 闭包
 
