@@ -4,7 +4,7 @@
 https://learn.microsoft.com/zh-cn/training/paths/rust-first-steps/      完毕
 
 【弃】Rust入门秘笈                        Rust所有权
-Rust编程：入门、实战与进阶          第7章 智能指针
+Rust编程：入门、实战与进阶          第9章 错误处理
 通过例子学Rust
 深入浅出Rust                        2.3.1
 
@@ -8548,58 +8548,210 @@ error: test failed, to rerun pass `--bin tut`
 
 # 智能指针
 
-## Box
+指针是一个包含内存地址的变量，引用就是一种最常见的指针，使用&操作符和&mut操作符来创建，形如&T和&mut T。智能指针实际上是一种结构体。它的行为类似指针，是对指针的一层封装，可以拥有元数据，并提供了额外的功能，比如自动释放堆内存。
 
-- 在堆上分配数据，并在栈中保留⼀个指向堆数据的指针。
-- Box属于智能指针的⼀种，因为它实现了Deref trait，并允许我们将Box的值当作引⽤来对待。
-- 当⼀个Box值离开作⽤域时，因为它实现了Drop trait，所以Box指向的堆数据会⾃动地被清理释放掉。
+智能指针和引用的主要区别是，引用是一类只借用数据的指针，而智能指针在大部分情况下拥有指向的数据的所有权。Rust标准库中有多种不同类型的智能指针，它们提供了除引用之外的额外功能。比如，支持引用计数的智能指针Rc<T>允许数据有多个所有者，并在没有任何所有者时负责清理数据。
 
-常常被⽤于下⾯的场景中:
+智能指针区别于普通结构体的特性在于，它实现了Deref trait和Drop trait，使自身拥有了类似指针的行为。Deref trait提供了解引用的功能，使智能指针可以当作引用处理。使用引用的代码适用于智能指针。Drop trait提供了自动析构的功能。当智能指针离开作用域时，Drop trait允许自定义处理逻辑。
 
-- 当你拥有⼀个⽆法在编译时确定⼤⼩的类型，但⼜想要在⼀个要求固定尺⼨的上下⽂环境中使⽤这个类型的值时。
-- 当你需要传递⼤量数据的所有权，但⼜不希望产⽣⼤量数据的复制⾏为时。
-- 当你希望拥有⼀个实现了指定trait的类型值，但⼜不关⼼具体的类型时。
+## 独占所有权的Box<T>
+
+Box<T>是指向类型为T的堆内存分配值的智能指针，可以通过解引用操作符来获取Box<T>中的T。当Box<T>超出作用域范围时，Rust会自动调用其析构函数，销毁内部对象，并释放所占的堆内存。
+
+### Box<T>在堆上存储数据
+
+Box<T>是独占所有权的智能指针，使用Box::new函数可以在堆上存储一个值，并把指向堆上数据的指针存放在栈上。
 
 ``` rust
 fn main() {
-    let x = 5;
-    let y = Box::new(x);
-    assert_eq!(5, x);
-    使⽤解引⽤运算符来跟踪装箱指针
-    assert_eq!(5, *y);
+    let x: Box<i32> = Box::new(5); // 变量x是一个指向分配在堆上的i32类型的值的指针
+    // let y: Box<i32> = x; 错误的使用方式：将变量x赋值给变量y，产生所有权转移。再次调用变量x时，由于x已被释放，会抛出“borrow of moved value: `x`”的错误提示。
+    let y:i32 = *x; // 正确的方式：通过解引用操作符获取变量x所指向的i32类型的值，将该值按位复制后赋值给变量y，再次调用x就不会报错了。
+    println!("x: {}", x);
+    println!("y: {}", y);
 }
+x: 5
+y: 5
 ```
 
-## 使用Deref解引用
+### Deref解引用
 
-- 自定义的类型默认是不能使用*完成解引⽤操作的，只能对&形式的常规引⽤执⾏解引⽤操作。
-- 实现Deref trait就能使⽤了，所有权系统决定了deref⽅法需要返回⼀个引⽤，再使用*即解引⽤了
-- deref返回的是引⽤，如果是值则会被移出self。其实在⼤多数使⽤解引⽤的时候，并不希望获得智能指针内部值的所有权
-  
+使用引用操作符“*”。通过解引用操作符可以把实现了Deref trait的智能指针当作引用来对待。
+
+- 解引用指针
+
 ``` rust
-use std::ops::Deref;
+fn main() {
+    let x: i32 = 5; // 变量x存放了一个i32类型的值5
+    let y: &i32 = &x; // 变量y是变量x的引用，其类型是&i32
+    assert_eq!(5, *y); // 断言，使用*y来访问变量y所指向的i32类型的值，这里必须使用*y来追踪引用的值，这个过程叫作解引用。如果将代码*y修改为y，会抛出“can't compare `i32`with `&i32`”的错误提示。Rust不允许将i32类型的值与&i32类型的值进行比较，因为它们是不同的类型。
+    println!("pointer: {:p}", y); // 打印y的指针地址
+}
+pointer: 0x7ffe93fad6a4
+```
 
-struct MyBox<T>(T);
-impl<T> MyBox<T> {
-    fn new(x: T) -> MyBox<T> {
-        MyBox(x)
-    }
+- 解引用Box<T>
+
+``` rust
+fn main() {
+    let x: i32 = 5;
+    let y: Box<i32> = Box::new(x); // 变量y是一个指向堆上值为5的智能指针
+    assert_eq!(5, *y); // 断言中使用解引用操作符来追踪Box<i32>所指向的值
+    println!("pointer: {:p}", y);
+}
+pointer: 0x55c70a6baba0
+```
+
+### Drop清理资源
+
+当值离开作用域时，Drop trait自动执行一些重要的清理工作。对于智能指针来说，Drop trait尤其重要，可以在智能指针被销毁时自动执行如释放堆内存、文件资源或网络连接等操作。Drop trait要求编译器会自动调用drop方法，这就避免了重复编写某种类型实例结束时清理资源的代码。
+所有权系统确保了引用总是有效的，也确保了drop方法只会在值不再使用时被调用一次。通过Drop trait和所有权系统，我们无须担心意外清理掉仍在使用的值。
+
+``` rust
+struct Custom {
+    data: String,
 }
 
-impl<T> Deref for MyBox<T> {
-    type Target = T; // 定义了Deref trait的⼀个关联类型
-    fn deref(&self) -> &T {
-        &self.0 // deref会返回⼀个指向值的引⽤，进⽽允许调⽤者通过*运算符访问值
+impl Drop for Custom { // 结构体Custom要实现Drop trait，就必须实现drop方法。
+    fn drop(&mut self) {
+        println!("Dropping Custom with data: {}", self.data);
     }
 }
 
 fn main() {
-    let x = 5;
-    let y = MyBox::new(x);
-    assert_eq!(5, x);
-    assert_eq!(5, *y);  // 这里其实是*(y.deref())的语法糖
+    let str1 = Custom {
+        data: String::from(
+            "hello world!",
+        ),
+    };
+    let str2 = Custom {
+        data: String::from("hello rust!"),
+    };
+
+    println!("Custom created");
+    println!("str1: {}", str1.data);
+    println!("str2: {}", str2.data);
+    // 在main函数结尾处，Custom实例离开作用域，此时Rust会自动调用drop方法
+    // 无须显式调用drop方法，变量会以与创建时相反的顺序自动销毁
+}
+
+Custom created
+str1: hello world!
+str2: hello rust!
+Dropping Custom with data: hello rust!
+Dropping Custom with data: hello world!
+```
+
+## 引用计数智能指针Rc<T>
+
+- 共享所有权
+- Rust提供了Rc<T>智能指针来引用计数。Rc<T>允许一个值有多个所有者，引用计数确保了只要还存在所有者，该值就保持有效。每当值共享一个所有权时，计数就会增加一次。只有当计数为零，也就是当所有共享变量离开作用域时，该变量才会被析构。
+- 引用计数智能指针Rc<T>可以共享所有权，用于希望堆上分配的数据可以供程序的多个部分读取，并且无法在编译时确定哪个部分是最后使用者的场景。
+- Rc<T>是单线程引用计数指针，不是线程安全的类型，不允许将引用计数传递或共享给别的线程。
+
+``` rust
+use std::rc::Rc; // use语句将Rc<T>引入作用域
+
+fn main() {
+    let x = Rc::new(5); // Rc<i32>类型的值并与变量x绑定
+    println!("{:p}, count after constructing x: {}", x, Rc::strong_count(&x)); // 调用Rc::strong_count函数来获取当前的引用计数
+    // 以clone方法和Rc::clone函数两种方式克隆了x，并分别与变量y和z绑定。x.clone()与Rc::clone(&x)是等价的，一般习惯使用Rc::clone函数。这里只是简单地对共享所有权进行计数，并非对数据进行深复制。
+    let y = x.clone(); // 变量x的初始引用计数为1，每次调用clone方法后计数会加1。
+    println!("{:p}, count after constructing y: {}",y,Rc::strong_count(&x));
+    {
+        let z = Rc::clone(&x); // 变量z定义在内部作用域，当z离开作用域时计数会自动减1。
+        println!("{:p}, count after constructing z: {}",z,Rc::strong_count(&x));
+        // 因为Rc<T>实现了Drop trait，当值离开作用域时会自动减少引用计数。
+    }
+
+    println!("count after destructing z: {}", Rc::strong_count(&x));
+}
+
+0x55a1618b1bb0, count after constructing x: 1
+0x55a1618b1bb0, count after constructing y: 2
+0x55a1618b1bb0, count after constructing z: 3
+count after destructing z: 2
+```
+
+## 内部可变的RefCell<T>
+
+- RefCell用于改变非mut引用的对象内的元素值
+- 具备内部可变性的RefCell<T>可以对不可变的结构体字段进行修改，以满足实际应用中的特定需求
+- RefCell<T>只适用于单线程场景。
+
+``` rust
+use std::cell::RefCell;
+
+fn main() {
+    let v: RefCell<Vec<i32>> = RefCell::new(vec![1, 2, 3]);
+    // RefCell<T>提供的borrow方法返回Ref类型的智能指针,borrow_mut方法返回RefMut类型的智能指针。这两个类型的智能指针都实现了Deref，可以当作引用来对待
+    println!("{:?}", v.borrow()); 
+    v.borrow_mut().push(5);
+    println!("{:?}", v.borrow());
+}
+
+[1, 2, 3]
+[1, 2, 3, 5]
+```
+
+- RefCell<T>会记录当前有效的Ref<T>和RefMut<T>智能指针的数量。在任何时候，同一作用域中只允许有多个Ref<T>或一个RefMut<T>。需要注意的是，这里是“或”的关系，不是“与”的关系。下面的3个案例用于演示此结论
+
+案例：RefCell<T>通过borrow方法创建两个Ref<T>。RefCell<Vec<i32>>通过borrow方法创建了两个Ref<Vec<i32>>，程序可以正常执行
+
+``` rust
+use std::cell::Ref;
+use std::cell::RefCell;
+
+fn main() {
+    let v: RefCell<Vec<i32>> = RefCell::new(vec![1, 2, 3]);
+    let v_borrow_1: Ref<Vec<i32>> = v.borrow();
+    println!("{:?}", v_borrow_1);
+    let v_borrow_2: Ref<Vec<i32>> = v.borrow();
+    println!("{:?}", v_borrow_2);
+}
+
+[1, 2, 3]
+[1, 2, 3]
+```
+
+案例：RefCell<T>通过borrow_mut方法创建两个RefMut<T>。RefCell<Vec<i32>>通过borrow_mut方法创建两个RefMut<Vec<i32>>，程序运行时会抛出already borrowed: BorrowMutError的错误提示。
+
+``` rust
+use std::cell::RefCell;
+use std::cell::RefMut;
+
+fn main() {
+    let v: RefCell<Vec<i32>> = RefCell::new(vec![1, 2, 3]);
+    let mut v_borrow_mut_1: RefMut<Vec<i32>> = v.borrow_mut();
+    v_borrow_mut_1.push(5);
+    println!("{:?}", v_borrow_mut_1);
+    let mut v_borrow_mut_2: RefMut<Vec<i32>> = v.borrow_mut();
+    v_borrow_mut_2.push(6);
+    println!("{:?}", v_borrow_mut_2);
 }
 ```
+
+案例：RefCell<T>创建一个Ref<T>和一个RefMut<T>。RefCell<Vec<i32>>通过borrow方法创建一个Ref<Vec<i32>>，通过borrow_mut方法创建一个RefMut<Vec<i32>>，程序运行时会抛出already borrowed: BorrowMutError的错误提示。
+
+``` rust
+use std::cell::Ref;
+use std::cell::RefCell;
+use std::cell::RefMut;
+
+fn main() {
+    let v: RefCell<Vec<i32>> = RefCell::new(vec![1, 2, 3]);
+
+    let v_borrow: Ref<Vec<i32>> = v.borrow();
+    println!("{:?}", v_borrow);
+
+    let mut v_borrow_mut: RefMut<Vec<i32>> = v.borrow_mut();
+    v_borrow_mut.push(5);
+    println!("{:?}", v_borrow_mut);
+}
+
+```
+
+- RefCell<T>常配合Rc<T>来使用。Rc<T>允许数据有多个所有者，但只能提供数据的不可变访问。如果两者结合使用，Rc<RefCell<T>>表面上是不可变的，但利用RefCell<T>的内部可变性可以在需要时修改数据。
 
 # 并发
 
@@ -8625,22 +8777,76 @@ fn main() {
 - 屏障可以让一系列线程在某个指定的点进行同步。通过让参与指定屏障区域的线程等待，直到所有参与线程都到达指定的点。
 - 条件变量用来自动阻塞一个线程，直到出现指定的条件，通常和互斥锁配合使用。
 
-## 线程
+## 多线程
 
-### thread::spawn
+### 创建新线程
 
 - spawn生成的线程，默认没有名称，并且其栈大小默认为2MB
 - thread::spawn的返回值类型是⼀个⾃持有所有权的JoinHandle，调⽤它的join⽅法可以阻塞当前线程直到对应的新线程运⾏结束。
 - 在线程句柄上调⽤join函数会阻塞当前线程，直到句柄代表的线程结束
-- move闭包常常被⽤来与thread::spawn函数配合使⽤，它允许你在某个线程中使⽤来⾃另⼀个线程的数据。
+
+案例：使用spawn函数创建子线程
+
+``` rust
+use std::thread; // 导入线程模块
+use std::time::Duration; // 导入时间模块
+
+fn main() {
+    // 创建第一个子线程，返回值类型是thread::JoinHandle，并将返回值与变量thread_1绑定
+    let thread_1 = thread::spawn(|| {
+        for i in 1..=5 {
+            println!("number {} from the spawned_1 thread!", i);
+            thread::sleep(Duration::from_secs(2));
+        }
+    });
+
+    // 创建第二个子线程
+    let thread_2 = thread::spawn(|| {
+        for i in 1..=5 {
+            println!("number {} from the spawned_2 thread!",i);
+            thread::sleep(Duration::from_secs(4));
+        }
+    });
+
+    // 主线程执行的代码
+    for i in 1..=5 {
+        println!("number {} from the main thread!", i);
+        thread::sleep(Duration::from_secs(8));
+    }
+
+    // 阻塞主线程直到子线程执行至结束
+    thread_1.join().unwrap(); // join方法会阻塞主线程以阻止主线程退出，直到子线程thread_1中所有代码执行结束。
+    thread_2.join().unwrap();
+}
+
+```
+
+### 线程与move闭包
+
+如果需要在子线程中使用主线程的数据，可以通过闭包来获取需要的值
+
+案例：子线程使用主线程数据
+
+``` rust
+use std::thread;
+
+fn main() {
+    let v = vec![1, 2, 3, 4, 5];
+
+    let handle = thread::spawn(move || {
+        println!("{:?}", v);
+    });
+
+    handle.join().unwrap();
+}
+```
 
 ``` rust
 use std::thread;
 fn main() {
     let mut v = vec![];
     for id in 0..5 {
-        // 使用spawn函数创建子线程，接收一个闭包作为参数
-        // move关键字来强行将捕获变量id的所有权转移到闭包中
+        // 使用spawn函数创建子线程，接收一个闭包作为参数, move关键字来强行将捕获变量id的所有权转移到闭包中
         let child = thread::spawn(move || {
             println!("in child:{}", id);
         });
@@ -8654,24 +8860,34 @@ fn main() {
 }
 ```
 
-另一个案例
+### 线程池
+
+要使用threadpool，需要先在Cargo.toml中引入threadpool。
 
 ``` rust
-use std::thread;
-use std::time::Duration;
+use threadpool::ThreadPool;
 
 fn main() {
-    thread::spawn(|| {
-        for i in 1..10 {
-            println!("hi number {} from the spawned thread!", i);
-            thread::sleep(Duration::from_millis(1));
-        }
-    });
+    let pool = ThreadPool::new(3); // 通过ThreadPool::new创建了线程池，它有一个可配置初始线程数的参数
 
-    for i in 1..5 {
-        println!("hi number {} from the main thread!", i);
-        thread::sleep(Duration::from_millis(1));
+    for i in 1..=5 {
+        // execute方法与thread::spawn类似，可以接收闭包。闭包会在当前线程中执行
+        pool.execute(move || {
+            println!("number {} from the spawned_1 thread!",i);
+        });
     }
+
+    for i in 1..=5 {
+        pool.execute(move || {
+            println!("number {} from the spawned_2 thread!",i);
+        });
+    }
+
+    for i in 1..=5 {
+        println!("number {} from the main thread!", i);
+    }
+
+    pool.join(); // join方法阻塞主线程，等待线程池中的任务执行完毕
 }
 ```
 
@@ -8741,6 +8957,65 @@ fn main() {
 
 ### tls
 
+## 异步并发
+
+异步并发允许在单个线程中并发执行多个任务，相比多线程并发执行多个任务，可以减少线程切换和线程共享数据时产生的系统开销，以及空跑线程会占用的系统资源。
+
+### async和.await
+
+async和.await是Rust内置语法，可以使异步代码像普通代码那样易于编写。async和.await是两个可以分开理解的术语。
+
+- async：通常与fn函数定义一起使用，用于创建异步函数，返回值的类型实现了Future trait，而这个返回值需要由执行器来运行。比如，执行器block_on会阻塞当前线程来执行future，直到有结果返回。
+- .await：不阻塞当前线程，异步等待future完成。在当前future无法执行时，.await将调度当前future让出线程控制权，由其他future继续执行。这个语法只有future对象才能调用，且必须在async函数内使用
+
+### async-std库
+
+- async-std是一个旨在简化异步编程的第三方库。它提供了诸如文件系统、网络、计时器等常用功能的异步版本，并支持async/.await语法。async-std库提供了task模块。多个task可共享同一个执行线程，在线程上可切换执行任务。
+- 要使用async-std，需要先在Cargo.toml中引入async-std。
+
+案例：使用async-std异步并发执行任务。从运行结果可以看到，不需要创建多个线程，就可在单线程中实现类似多线程并发执行多个任务的效果。
+
+``` rust
+use async_std::task;
+use std::time::Duration;
+
+fn main() {
+    // task::spawn函数生成异步任务，并返回task::JoinHandle类型的返回值。JoinHandle实现了Future trait，它在task运行结束后结束。
+    let async_1 = task::spawn(async { 
+        for i in 1..=5 {
+            print_async_1(i).await;
+        }
+    });
+
+    let async_2 = task::spawn(async {
+        for i in 1..=5 {
+            print_async_2(i).await;
+        }
+    });
+
+    for i in 1..=5 {
+        println!("number {} from the main!", i);
+        task::block_on(async {
+            // task::sleep函数通过非阻塞的方式让任务等待一段时间再执行
+            task::sleep(Duration::from_secs(8)).await;
+        });
+    }
+
+    task::block_on(async_1); // task::block_on函数用于阻塞当前线程直到任务执行结束，以达到让future运行完毕的目的
+    task::block_on(async_2);
+}
+
+async fn print_async_1(i: i32) {
+    println!("number {} from the async_1!", i);
+    task::sleep(Duration::from_secs(2)).await;
+}
+
+async fn print_async_2(i: i32) {
+    println!("number {} from the async_2!", i);
+    task::sleep(Duration::from_secs(4)).await;
+}
+
+```
 
 ## channel
 
