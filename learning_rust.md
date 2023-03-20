@@ -3,9 +3,9 @@
 
 https://learn.microsoft.com/zh-cn/training/paths/rust-first-steps/      完毕
 
-【弃】Rust入门秘笈                        Rust所有权
-Rust编程：入门、实战与进阶          第9章 错误处理
-通过例子学Rust
+【弃】Rust入门秘笈
+Rust编程：入门、实战与进阶          完毕
+【弃】通过例子学Rust
 深入浅出Rust                        2.3.1
 
 Rust编程语言入门教程视频            69
@@ -4615,10 +4615,18 @@ fn main(){
 
 # 错误处理
 
+Rust将错误分为两个主要类别：可恢复错误和不可恢复错误。可恢复错误是指可以被捕捉的且能够合理解决的问题，比如读取不存在文件、权限被拒绝、字符串解析出错等情况。一旦捕捉到可恢复错误，Rust可以通过不断尝试之前失败的操作或者选择一个备用的操作来矫正错误让程序继续运行。不可恢复错误是指会导致程序崩溃的错误，可视为程序的漏洞，比如数组的越界访问。一旦发生不可恢复错误，程序就会立即停止。Rust提供了分层式错误处理方案。
+
+- Option<T>：用于处理有值和无值的情况。
+- Result<T, E>：用于处理可恢复错误的情况。
+- Panic：用于处理不可恢复错误的情况。
+- Abort：用于处理会发生灾难性后果的情况。
+
+Option<T>解决的是有值和无值的问题，在一定程度上消灭了空指针，保证了内存安全。Abort用于在一些特殊场景下终止进程，退出整个程序。在实际项目开发中，建议使用Result<T, E>和Panic来分别处理可恢复错误和不可恢复错误。
+
 ## 严重错误panic!
 
-panic! 宏表⽰程序正处于⼀个⽆法处理的状态下，你需要终⽌进
-程运⾏，⽽不是基于⽆效或⾮法的值继续执⾏命令。
+检测到某些bug或无法合理处理的情况会导致程序崩溃，比如可能由于内存不足，使用thread::spawn无法创建新线程。对于这种情况，程序会自动调用panic打印错误信息并清理栈数据后退出。
 
 - 可以手动触发，如 panic!("crash and burn");
 - 也可逻辑触发，如数组越界
@@ -4635,14 +4643,13 @@ panic! 宏表⽰程序正处于⼀个⽆法处理的状态下，你需要终⽌�
 panic = 'abort'
 ```
 
-## 使用Result类型来处理错误
+panic!的使用准则：
 
-Result枚举可以借助Rust的类型系统表明某个操作有失败的可能，并且代码能够从这种失败中恢复过来。你也可以使⽤Result来强制代码的调⽤者对可能的成功或失败情形都做出处理。合理地搭配使⽤panic! 和Result可以让我们的代码在⾯对⽆法避免的错误时显得更加可靠。
+- 在定义⼀个可能失败的函数时优先考虑使⽤Result⽅案。但对于某些不太常⻅的场景，直接触发panic要⽐返回Result更为合适⼀些。
+- 在⽰例、原型和测试中使⽤unwrap与expect⽅法会⾮常⽅便，因为测试的失败状态正是通过panic来进⾏标记的
+- 假如你可以通过⼈⼯检查确保代码永远不会出现Err变体，那就放⼼⼤胆地使⽤unwrap吧。
 
-- 在Rust中通过 Result<T, E> 枚举类作返回值来进行异常表达，是可恢复的错误
-- Result则包含了Ok与Err两个变体，T代表了Ok变体中包含的值类型，该变体中的值会在执⾏成功时返回；⽽E则代表了Err变体中包含的错误类型，该变体中的值会在执⾏失败时返回。
-- 正是因为Result拥有这些泛型参数，我们才得以将Result类型及标准库中为它编写的函数应⽤于众多场景中，这些场景往往会需要返回不同的成功值与错误值。
-- 基于泛型的描述见[带有类型参数的枚举](#带有类型参数的枚举)
+## Result<T, E>
 
 ``` rust
 enum Result<T, E> {
@@ -4651,16 +4658,24 @@ enum Result<T, E> {
 }
 ```
 
-- 在 Rust 标准库中可能产生异常的函数的返回值都是 Result 类型的，简单演示如下：
+- 标准库提供的Result<T, E>可用于处理可恢复错误，它使用枚举来封装正常返回的值和错误信息。Result<T, E>枚举包含两个值——Ok和Err，当Result的值为Ok时，泛型类型T作为调用成功返回的值的数据类型。当Result的值为Err时，泛型类型E作为调用失败返回的错误类型。
+- 这个定义使得Result能很方便地表达任何可能成功（返回T类型的值）、也可能失败（返回E类型的值）的操作，只要一个变量就能接收正常值和错误信息。
+
+### 高效处理Result<T, E>
+
+案例：match模式匹配对返回值进行相应的处理
 
 ``` rust
 use std::fs::File;
 
 fn main() {
-    let f = File::open("hello.txt");
-    let f = match f {
-        Ok(file) => file,
-        Err(error) => panic!("Problem opening the file: {:?}", error),
+    // File::open函数的返回值类型是Result<T, E>。这里T的类型是std::fs::File，它是一个可以进行读写操作的文件句柄。E的类型是std::io::Error，表示可能因为文件不存在或者没有权限而访问失败。通过Result<T, E>可以告诉调用者调用是成功还是失败，并提供文件句柄或错误信息。
+    let f = File::open("hello1.txt"); 
+    let file = match f {
+        Ok(file) => file, // 如果File::open执行成功，f的值是一个包含文件句柄的Ok实例，返回这个文件句柄并赋值给变量file。
+        Err(error) => { // 如果File::open执行失败，f的值是一个包含错误信息的Err实例，调用panic!中止程序并输出错误信息。
+            panic!("Failed to open hello.txt: {:?}", error)
+        }
     };
 
     /* 上面的match可以替换if let
@@ -4671,9 +4686,42 @@ fn main() {
     }
     */
 }
+
 ```
 
-- 匹配不同的错误，此案例比较繁琐，使用闭包可以化繁为简
+match模式匹配虽然能够对返回值进行相应的处理，但是代码看上去有些冗长。Result<T, E>类型提供的unwrap和expect方法可以实现与match模式匹配相似的功能。
+
+案例：unwrap方法处理Result
+
+``` rust
+use std::fs::File;
+
+fn main() {
+    // 如果Result的值是Ok，unwrap方法会返回Ok中的值。如果Result的值是Err，unwrap方法会自动做Panic处理并输出默认的错误消息。
+    let file = File::open("hello.txt").unwrap();
+}
+
+```
+
+案例：expect方法处理返回值结果
+
+``` rust
+use std::fs::File;
+
+fn main() {
+    // expect方法不仅具备unwrap方法的功能，还允许自定义错误信息，这样更易于追踪导致程序错误的原因。
+    let f = File::open("hello.txt").expect("Failed to open hello.txt");
+}
+
+```
+
+### 处理不同类型的错误
+
+下例中error的类型是io::Error，它是标准库提供的结构体类型，调用其kind方法可以获得一个io::ErrorKind类型的值。io::ErrorKind是标准库提供的枚举类型，它的值对应I/O操作中各种可能的错误类型。这里要用到的是ErrorKind::NotFound，它代表要打开的文件不存在时的错误。
+
+对于ErrorKind::NotFound错误类型，尝试使用File::create创建文件，但是可能因为磁盘容量不足等执行失败，所以还需要增加一个内部的match模式匹配语句，在新文件创建失败时做Panic处理。对于其他所有非ErrorKind::NotFound错误类型，统一做Panic处理。这样就实现了当文件打开失败时，根据不同的错误类型使用不同的处理方式。
+
+案例：match模式匹配处理不同类型的错误
 
 ``` rust
 use std::fs::File;
@@ -4695,8 +4743,13 @@ fn main() {
         },
     };
 }
+```
 
--------------------------------- 闭包的方案
+大量嵌套match模式匹配的代码总是有些冗长，Result的unwrap_or_else方法可以消除这种match模式匹配的嵌套。如果Result的值是Ok，unwrap_or_else会返回Ok中的值。如果Result的值是Err，unwrap_or_else可以执行一个闭包。
+
+案例：unwrap_or_else方法处理不同类型的错误
+
+``` rust
 use std::fs::File;
 use std::io::ErrorKind;
 
@@ -4713,7 +4766,7 @@ fn main() {
 }
 ```
 
-- 下面演示了当⽆法匹配Ok(num)模式⽽跳过match表达式的第⼀个分⽀，并匹配上第⼆个分⽀中的Err(_)模式。这⾥的下画线_是⼀个通配符，它可以在本例中匹配所有可能的Err值，⽽不管其中究竟有何种错误信息。
+下面演示了当⽆法匹配Ok(num)模式⽽跳过match表达式的第⼀个分⽀，并匹配上第⼆个分⽀中的Err(_)模式。这⾥的下画线_是⼀个通配符，它可以在本例中匹配所有可能的Err值，⽽不管其中究竟有何种错误信息。
 
 ``` rust
 let guess: u32 = match guess.trim().parse() {
@@ -4722,107 +4775,11 @@ let guess: u32 = match guess.trim().parse() {
 };
 ```
 
-## 失败时触发panic的快捷⽅式
+### 传播错误的?运算符
 
-虽然使⽤match运⾏得很不错，但使⽤它所编写出来的代码可能会
-显得有些冗⻓，且⽆法较好地表明其意图。类型Result<T, E>本⾝也定义了许多辅助⽅法来应对各式各样的任务
+当编写的函数中包含可能会失败的操作时，除了在这个函数中处理错误外，还可以把处理错误的选择权交给该函数的调用者，因为调用者可能拥有更多的信息或逻辑来决定应该如何处理错误，这被称为传播错误。
 
-### unwrap
-
-- 如果 Result 值是成员 Ok，unwrap 会返回 Ok 中的值。
-- 如果 Result 是成员 Err，unwrap 会调用 panic!
-
-``` rust
-use std::fs::File;
-
-fn main() {
-    let f1 = File::open("hello.txt").unwrap();
-    // let f2 = File::open("hello.txt").expect("Failed to open.");
-}
-```
-
-### expect
-
-允许在unwrap的基础上指定panic! 所附带的错误提⽰信息。使⽤expect并附带上⼀段清晰的错误提⽰信息可以阐明你的意图，并使你更容易追踪到panic的起源。
-
-``` rust
-use std::fs::File;
-
-fn main() {
-    let f = File::open("hello.txt").expect("Failed to open hello.txt");
-}
-```
-
-## ?运算符（传递错误）
-
-目标是选择在哪一层进行错误的处理，先看下面的案例
-
-``` rust
-pub fn add_task(journal_path: PathBuf, task: Task) -> Result<()> {
-    // Open the file.
-    let mut file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open(journal_path)?;
-
-    // Consume the file's contents as a vector of tasks.
-    let mut tasks: Vec<Task> = match serde_json::from_reader(&file) {
-        Ok(tasks) => tasks,
-        Err(e) if e.is_eof() => Vec::new(),
-        Err(e) => Err(e)?,
-    };
-
-    // Rewind the file after reading from it.
-    file.seek(SeekFrom::Start(0))?;
-
-    // Write the modified task list back into the file.
-    tasks.push(task);
-    serde_json::to_writer(file, &tasks)?;
-
-    Ok(())
-}
-```
-
-上面语句后面的问号 (?) 用于传播错误，而无需编写太多样板代码。 如果返回的错误与其所在函数的返回类型匹配，那么它是用于提前返回错误的语法糖。 所以下面两个代码片段是等效的：
-
-``` rust
-fn function_1() -> Result(Success, Failure) {
-    match operation_that_might_fail() {
-        Ok(success) => success,
-        Err(failure) => return Err(failure),
-    }
-}
-
-fn function_2() -> Result(Success, Failure) {
-    operation_that_might_fail()?
-}
-```
-
-另一个简单的案例
-
-``` rust
-fn f(i: i32) -> Result<i32, bool> {
-    if i >= 0 { Ok(i) }
-    else { Err(false) }
-}
-
-fn g(i: i32) -> Result<i32, bool> {
-    let t = f(i)?;
-    Ok(t) // 因为确定 t 不是 Err, t 在这里已经是 i32 类型
-}
-
-fn main() {
-    let r = g(10000);
-    if let Ok(v) = r {
-        println!("Ok: g(10000) = {}", v);
-    } else {
-        println!("Err");
-    }
-}
-```
-
-另一个复杂的案例：读取文件内容。如果文件不存在或不能读取，这个函数会将这些错误返回给调用它的代码
+先看下面的案例：读取文件内容。如果文件不存在或不能读取，这个函数会将这些错误返回给调用它的代码
 
 - 版本1
 
@@ -4882,17 +4839,41 @@ fn read_username_from_file() -> Result<String, io::Error> {
 }
 
 
--------------------
+------------------- 其实有std封装好的可以直接用
 fn read_username_from_file() -> Result<String, io::Error> {
     fs::read_to_string("hello.txt")
 }
 ```
 
-## 要不要使⽤panic!
+### 失败时触发panic的快捷⽅式
 
-- 我们会在定义⼀个可能失败的函数时优先考虑使⽤Result⽅案。但对于某些不太常⻅的场景，直接触发panic要⽐返回Result更为合适⼀些。
-- 在⽰例、原型和测试中使⽤unwrap与expect⽅法会⾮常⽅便，因为测试的失败状态正是通过panic来进⾏标记的
-- 假如你可以通过⼈⼯检查确保代码永远不会出现Err变体，那就放⼼⼤胆地使⽤unwrap吧。
+虽然使⽤match运⾏得很不错，但使⽤它所编写出来的代码可能会显得有些冗⻓，且⽆法较好地表明其意图。类型Result<T, E>本⾝也定义了许多辅助⽅法来应对各式各样的任务
+
+#### unwrap
+
+- 如果 Result 值是成员 Ok，unwrap 会返回 Ok 中的值。
+- 如果 Result 是成员 Err，unwrap 会调用 panic!
+
+``` rust
+use std::fs::File;
+
+fn main() {
+    let f1 = File::open("hello.txt").unwrap();
+    // let f2 = File::open("hello.txt").expect("Failed to open.");
+}
+```
+
+#### expect
+
+允许在unwrap的基础上指定panic! 所附带的错误提⽰信息。使⽤expect并附带上⼀段清晰的错误提⽰信息可以阐明你的意图，并使你更容易追踪到panic的起源。
+
+``` rust
+use std::fs::File;
+
+fn main() {
+    let f = File::open("hello.txt").expect("Failed to open hello.txt");
+}
+```
 
 ## 创建⾃定义类型来进⾏有效性验证
 
@@ -7361,7 +7342,7 @@ fn main() {
 ```
 
 
-## 私有与共有
+## 私有与公有
 
 - Rust 中有两种简单的访问权：公共（public）和私有（private）。
 - 默认情况下，如果不加修饰符，模块中的成员访问权将是私有的。
