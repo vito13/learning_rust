@@ -6,7 +6,7 @@ https://learn.microsoft.com/zh-cn/training/paths/rust-first-steps/      完毕
 【弃】Rust入门秘笈
 Rust编程：入门、实战与进阶          完毕
 【弃】通过例子学Rust
-深入浅出Rust                        2.3.1
+深入浅出Rust                        完毕，部分内容较深入未仔细阅读
 
 Rust编程语言入门教程视频            69
 Rust程序设计                        3.3
@@ -602,12 +602,23 @@ structopt = "0.3.21"                  # Parse command-line argument by defining 
 ## 添加依赖项
 
 - 通过将以下条目添加到 Cargo.toml 文件的 [dependencies] 部分，将其添加为我们项目的依赖项
-- 关于版本号规则参考：https://course.rs/cargo/reference/specify-deps.html
 
 ```rust
 [dependencies]
 structopt = "0.3"
 ```
+
+## 版本号规则
+
+指定版本号的时候，可以使用模糊匹配的方式:
+
+- ^符号，如^1.2.3代表1.2.3<=version<2.0.0；
+- ~符号，如~1.2.3代表1.2.3<=version<1.3.0；
+- *符号，如1.*代表1.0.0<=version<2.0.0；
+- 比较符号，比如>=1.2.3、>1.2.3、<2.0.0、=1.2.3含义基本上一目了然，还可以把多个限制条件合起来用逗号分开，比如version=">1.2，<1.9"。
+- 直接写一个数字的话，等同于^符号的意思。所以lazy_static="1.0"等同于lazy_static="^1.0"，含义是1.0.0<=version<2.0.0。
+
+cargo会到网上找到当前符合这个约束条件的最新的版本下载下来。
 
 ## 更新依赖
 
@@ -619,6 +630,33 @@ $ cargo update -p regex   # 只更新 “regex”
 ```
 
 以上命令将使用新的版本信息重新生成 Cargo.lock ，需要注意的是 cargo update -p regex 传递的参数实际上是一个 Package ID， regex 只是一个简写形式。
+
+## build.rs
+
+cargo工具还允许用户在正式编译开始前执行一些自定义的逻辑。方法是在Cargo.toml中配置一个build的属性
+
+``` rust
+[package]
+# ...
+build = "build.rs"
+```
+
+自定义逻辑就写在build.rs文件里面。在执行cargo build的时候，cargo会先把这个build.rs编译成一个可执行程序，然后运行这个程序，做完后再开始编译真正的crate。build.rs一般用于下面这些情况：
+
+- 提前调用外部编译工具，比如调用gcc编译一个C库；
+- 在操作系统中查找C库的位置；
+- 根据某些配置，自动生成源码；
+- 执行某些平台相关的配置。
+
+build.rs里面甚至可以再依赖其他的库。可以在build-dependencies里面指定：
+
+``` rust
+[build-dependencies]
+anyhow = { version = "1.0", features = ["backtrace"] }
+bindgen = "0.61"
+```
+
+案例详见“深入浅出RUST” 32.2.3章
 
 ## 发布模块
 
@@ -1381,6 +1419,8 @@ Postgres v15 is stopped
 # 基本概念
 
 - rust是静态编译语言
+- Rust不支持++、--运算符，请使用+=1、-=1替代。
+- Rust没有三元运算符（？：）
 
 ## 语句和表达式
 
@@ -4613,6 +4653,82 @@ fn main(){
 }
 ```
 
+# 断言
+
+## assert!
+
+- 在运行时断言布尔表达式是true，为false则测试失败会调用panic!。
+- 断言总是在调试和发布版本中检查，并且不能被禁用。
+- 可以第二个参数附带自定义错误信息
+
+``` rust
+fn main() {
+    // the panic message for these assertions is the stringified value of the
+    // expression given.
+    assert!(true);
+
+    fn some_computation() -> bool { true } // a very simple function
+
+    assert!(some_computation());
+
+    // assert with a custom message
+    let x = true;
+    assert!(x, "x wasn't true!");
+
+    let a = 3; let b = 27;
+    assert!(a + b == 30, "a = {}, b = {}", a, b);
+}
+```
+
+## assert_eq!
+
+- 断言两个表达式彼此相等。panic时，此宏将打印表达式的值及其调试表示。
+- 像 assert! 一样，这个宏有第二种形式，可以提供自定义的panic消息。
+
+这个案例可以通过测试
+
+``` rust
+fn add(a: i32, b: i32) -> i32 {
+    a + b
+}
+
+#[test]
+fn add_works() {
+    assert_eq!(add(1, 2), 3);
+    assert_eq!(add(10, 12), 22);
+    assert_eq!(add(5, -2), 3);
+}
+
+```
+
+``` rust
+fn main() {
+    let a = 3;
+    let b = 1 + 2;
+    assert_eq!(a, b);
+    assert_eq!(a, b, "we are testing addition with {} and {}", a, b);
+}
+```
+
+## assert_ne!
+
+- 断言两个表达式不相等。Panics时，此宏将打印表达式的值及其调试表示。
+- 像 assert! 一样，这个宏有第二种形式，可以提供自定义的Panics消息。
+
+``` rust
+fn main() {
+    let a = 3;
+    let b = 2;
+    assert_ne!(a, b);
+    assert_ne!(a, b, "we are testing that the values are not equal");
+}
+```
+
+## debug 断言
+
+这类似于 assert!。debug 断言宏也可以用在除测试代码之外的代码中。在其他代码中，这主要用于代码运行时，对应该保存的任何契约或不变性进行断言的情况。这些断言仅在调试版本中有效，并且有助于在调试模式下运行代码时捕获断言异常。当代码以优化模式编译时，这些宏调用将被忽略，并被优化为无操作。它还有类似的变体，例如 debug_assert_eq!和 debug_assert_ne!，它们的工作方式类似 assert!宏。
+
+
 # 错误处理
 
 Rust将错误分为两个主要类别：可恢复错误和不可恢复错误。可恢复错误是指可以被捕捉的且能够合理解决的问题，比如读取不存在文件、权限被拒绝、字符串解析出错等情况。一旦捕捉到可恢复错误，Rust可以通过不断尝试之前失败的操作或者选择一个备用的操作来矫正错误让程序继续运行。不可恢复错误是指会导致程序崩溃的错误，可视为程序的漏洞，比如数组的越界访问。一旦发生不可恢复错误，程序就会立即停止。Rust提供了分层式错误处理方案。
@@ -4713,6 +4829,35 @@ fn main() {
     let f = File::open("hello.txt").expect("Failed to open hello.txt");
 }
 
+```
+
+### 组合错误类型
+
+利用代数类型系统做错误处理的另外一大好处是可组合性（composability）。比如Result类型有这样的一系列成员方法：
+
+``` rust
+fn map<U, F>(self, op: F) -> Result<U, E> where F: FnOnce(T) -> U
+fn map_err<F, O>(self, op: O) -> Result<T, F> where O: FnOnce(E) -> F
+fn and<U>(self, res: Result<U, E>) -> Result<U, E>
+fn and_then<U, F>(self, op: F) -> Result<U, E> where F: FnOnce(T) -> Result<U, E>
+fn or<F>(self, res: Result<T, F>) -> Result<T, F>
+fn or_else<F, O>(self, op: O) -> Result<T, F> where O: FnOnce(E) -> Result<T, F>
+```
+
+``` rust
+use std::env;
+fn double_arg(mut argv: env::Args) -> Result<i32, String> {
+    argv.nth(1)
+        .ok_or("Please give at least one argument".to_owned())
+        .and_then(|arg| arg.parse::<i32>().map_err(|err| err.to_string()))
+        .map(|n| 2 * n)
+}
+fn main() {
+    match double_arg(env::args()) {
+        Ok(n) => println!("{}", n),
+        Err(err) => println!("Error: {}", err),
+    }
+}
 ```
 
 ### 处理不同类型的错误
@@ -4896,81 +5041,6 @@ impl Guess {
     }
 }
 ```
-
-# 断言
-
-## assert!
-
-- 在运行时断言布尔表达式是true，为false则测试失败会调用panic!。
-- 断言总是在调试和发布版本中检查，并且不能被禁用。
-- 可以第二个参数附带自定义错误信息
-
-``` rust
-fn main() {
-    // the panic message for these assertions is the stringified value of the
-    // expression given.
-    assert!(true);
-
-    fn some_computation() -> bool { true } // a very simple function
-
-    assert!(some_computation());
-
-    // assert with a custom message
-    let x = true;
-    assert!(x, "x wasn't true!");
-
-    let a = 3; let b = 27;
-    assert!(a + b == 30, "a = {}, b = {}", a, b);
-}
-```
-
-## assert_eq!
-
-- 断言两个表达式彼此相等。panic时，此宏将打印表达式的值及其调试表示。
-- 像 assert! 一样，这个宏有第二种形式，可以提供自定义的panic消息。
-
-这个案例可以通过测试
-
-``` rust
-fn add(a: i32, b: i32) -> i32 {
-    a + b
-}
-
-#[test]
-fn add_works() {
-    assert_eq!(add(1, 2), 3);
-    assert_eq!(add(10, 12), 22);
-    assert_eq!(add(5, -2), 3);
-}
-
-```
-
-``` rust
-fn main() {
-    let a = 3;
-    let b = 1 + 2;
-    assert_eq!(a, b);
-    assert_eq!(a, b, "we are testing addition with {} and {}", a, b);
-}
-```
-
-## assert_ne!
-
-- 断言两个表达式不相等。Panics时，此宏将打印表达式的值及其调试表示。
-- 像 assert! 一样，这个宏有第二种形式，可以提供自定义的Panics消息。
-
-``` rust
-fn main() {
-    let a = 3;
-    let b = 2;
-    assert_ne!(a, b);
-    assert_ne!(a, b, "we are testing that the values are not equal");
-}
-```
-
-## debug 断言
-
-这类似于 assert!。debug 断言宏也可以用在除测试代码之外的代码中。在其他代码中，这主要用于代码运行时，对应该保存的任何契约或不变性进行断言的情况。这些断言仅在调试版本中有效，并且有助于在调试模式下运行代码时捕获断言异常。当代码以优化模式编译时，这些宏调用将被忽略，并被优化为无操作。它还有类似的变体，例如 debug_assert_eq!和 debug_assert_ne!，它们的工作方式类似 assert!宏。
 
 # 所有权
 
@@ -6069,13 +6139,30 @@ pub trait From<T> {
 
 ## 关联类型特征
 
-看着很像c++泛型里的类型定义
+trait中不仅可以包含方法（包括静态方法）、常量，还可以包含“类型”。关联类型是trait的“泛型参数”。只有指定了所有的泛型参数和关联类型，这个trait才能真正地具体化。
 
 ``` rust
-trait Foo {
-    type Out;
-    fn get_value(self) -> Self::Out;
+use std::fmt::Debug;
+use std::iter::Iterator;
+fn use_iter<ITEM, ITER>(mut iter: ITER)
+where
+    ITER: Iterator<Item = ITEM>,
+    ITEM: Debug,
+{
+    while let Some(i) = iter.next() {
+        println!("{:?}", i);
+    }
 }
+fn main() {
+    let v: Vec<i32> = vec![1, 2, 3, 4, 5];
+    use_iter(v.iter());
+}
+
+1
+2
+3
+4
+5
 ```
 
 ## Trait作为参数
@@ -7018,6 +7105,15 @@ impl<'a> ImportantExcerpt<'a> {
     }   
 }
 ```
+
+# unsafe
+
+Rust的unsafe关键字有以下几种用法：
+
+- 用于修饰函数fn
+- 用于修饰代码块
+- 用于修饰trait
+- 用于修饰impl
 
 
 # 闭包
@@ -8583,7 +8679,7 @@ fn main() {
 pointer: 0x55c70a6baba0
 ```
 
-### Drop清理资源
+### 析构函数 Drop
 
 当值离开作用域时，Drop trait自动执行一些重要的清理工作。对于智能指针来说，Drop trait尤其重要，可以在智能指针被销毁时自动执行如释放堆内存、文件资源或网络连接等操作。Drop trait要求编译器会自动调用drop方法，这就避免了重复编写某种类型实例结束时清理资源的代码。
 所有权系统确保了引用总是有效的，也确保了drop方法只会在值不再使用时被调用一次。通过Drop trait和所有权系统，我们无须担心意外清理掉仍在使用的值。
@@ -8652,6 +8748,25 @@ fn main() {
 0x55a1618b1bb0, count after constructing y: 2
 0x55a1618b1bb0, count after constructing z: 3
 count after destructing z: 2
+```
+
+## cell
+
+- 只适用于单线程场景。
+
+``` rust
+use std::cell::Cell;
+fn main() {
+    let data: Cell<i32> = Cell::new(100);
+    let p = &data;
+    data.set(10);
+    println!("{}", p.get());
+    p.set(20);
+    println!("{:?}", data);
+}
+
+10
+Cell { value: 20 }
 ```
 
 ## 内部可变的RefCell<T>
@@ -8760,7 +8875,7 @@ fn main() {
 
 ## 多线程
 
-### 创建新线程
+### 启动线程
 
 - spawn生成的线程，默认没有名称，并且其栈大小默认为2MB
 - thread::spawn的返回值类型是⼀个⾃持有所有权的JoinHandle，调⽤它的join⽅法可以阻塞当前线程直到对应的新线程运⾏结束。
@@ -8802,11 +8917,41 @@ fn main() {
 
 ```
 
-### 线程与move闭包
+如果想为线程指定名称或者修改默认栈大小，则可以使用thread：：Builder 结构体来创建可配置的线程
+
+案例：使用Builder创建子线程
+
+``` rust
+use std::thread::{Builder, current};
+use std::panic;
+
+fn main() {
+    let mut v = vec![];
+    for id in 0..5 {
+        let thread_name = format!("child-{}", id);
+        let size: usize = 3 * 1024;
+        let builder = Builder::new().name(thread_name).stack_size(size);
+        let child = builder.spawn(move || {
+            println!("in child:{}", current().name().unwrap());
+            if id == 3{
+                panic::catch_unwind(||{
+                    panic!("oh no");
+                });
+                println!("in {} do sm", current().name().unwrap());
+            }
+        }).unwrap();
+        v.push(child);
+    }
+
+    for child in v {
+        child.join().unwrap_or_default();
+    }
+}
+```
 
 如果需要在子线程中使用主线程的数据，可以通过闭包来获取需要的值
 
-案例：子线程使用主线程数据
+案例：move闭包
 
 ``` rust
 use std::thread;
@@ -8841,9 +8986,34 @@ fn main() {
 }
 ```
 
+``` rust
+use std::thread;
+use std::time::Duration;
+fn main() {
+    let t = thread::Builder::new()
+        .name("child1".to_string())
+        .spawn(move || {
+            println!("enter child thread.");
+            thread::park(); // 暂停当前线程，进入等待状态。当thread：：Thread：：unpark（&self）方法被调用的时候，这个线程可以被恢复执行。
+            println!("resume child thread");
+        })
+        .unwrap();
+    println!("spawn a thread");
+    thread::sleep(Duration::new(5, 0)); // 使得当前线程等待一段时间继续执行。在等待的时间内，线程调度器会调度其他的线程来执行。
+    t.thread().unpark(); // 恢复一个线程的执行。
+    t.join();
+    println!("child thread finished");
+}
+
+spawn a thread
+enter child thread.
+resume child thread
+child thread finished
+```
+
 ### 线程池
 
-要使用threadpool，需要先在Cargo.toml中引入threadpool。
+要使用threadpool，需要先在Cargo.toml中引入threadpool。ThreadPool：：execute与std：：thread：：spawn的区别就是，它需要先创建一个对象，然后调用：execute方法，其他都差不多。
 
 ``` rust
 use threadpool::ThreadPool;
@@ -8872,39 +9042,52 @@ fn main() {
 }
 ```
 
-### thread::Builder
-
-如果想为线程指定名称或者修改默认栈大小，则可以使用thread：：Builder 结构体来创建可配置的线程
-
 ``` rust
-use std::thread::{Builder, current};
-use std::panic;
-
+use std::sync::mpsc::channel;
+use threadpool::ThreadPool;
 fn main() {
-    let mut v = vec![];
-    for id in 0..5 {
-        let thread_name = format!("child-{}", id);
-        let size: usize = 3 * 1024;
-        let builder = Builder::new().name(thread_name).stack_size(size);
-        let child = builder.spawn(move || {
-            println!("in child:{}", current().name().unwrap());
-            if id == 3{
-                panic::catch_unwind(||{
-                    panic!("oh no");
-                });
-                println!("in {} do sm", current().name().unwrap());
-            }
-        }).unwrap();
-        v.push(child);
+    let n_workers = 4;
+    let n_jobs = 8;
+    let pool = ThreadPool::new(n_workers);
+    let (tx, rx) = channel();
+    for _ in 0..n_jobs {
+        let tx = tx.clone();
+        pool.execute(move || {
+            tx.send(1)
+                .expect("channel will be there waiting for the pool");
+        });
     }
-
-    for child in v {
-        child.join().unwrap_or_default();
-    }
+    assert_eq!(rx.iter().take(n_jobs).fold(0, |a, b| a + b), 8);
 }
 ```
 
-### Mutex
+### 原子引用计数 Arc
+
+Arc是Rc的线程安全版本。它的全称是“Atomic reference counter”。注意第一个单词代表的是atomic而不是automatic。它强调的是“原子性”。它跟Rc最大的区别在于，引用计数用的是原子整数类型。
+
+``` rust
+use std::sync::Arc;
+use std::thread;
+fn main() {
+    let numbers: Vec<_> = (0..100u32).collect();
+    // 引用计数指针,指向一个 Vec
+    let shared_numbers = Arc::new(numbers);
+    // 循环创建 10 个线程
+    for _ in 0..10 {
+        // 复制引用计数指针,所有的 Arc 都指向同一个 Vec
+        let child_numbers = shared_numbers.clone();
+        // move修饰闭包,上面这个 Arc 指针被 move 进入了新线程中
+        thread::spawn(move || {
+            // 我们可以在新线程中使用 Arc,读取共享的那个 Vec
+            let local_numbers = &child_numbers[..];
+            // 继续使用 Vec 中的数据
+        });
+    }
+}
+
+```
+
+### 互斥体 Mutex
 
 互斥体（mutex）是英⽂mutual exclusion的缩写。也就是说，⼀个互斥体在任意时刻只允许⼀个线程访问数据。为了访问互斥体中的数据，线程必须⾸先发出信号来获取互斥体的锁（lock）。锁是互斥体的⼀部分，这种数据结构被⽤来记录当前谁拥有数据的唯⼀访问权。通过锁机制，互斥体守护（guarding）了它所持有的数据。
 
@@ -8936,7 +9119,218 @@ fn main() {
 }
 ```
 
-### tls
+另一个案例：使用两个线程修改同一个整数：一个线程对它进行多次加1，另一个线程对它进行多次减1。这次，我们使用Arc来实现多线程之间的共享，使用Mutex来提供内部可变性。每次需要修改的时候，我们需要调用lock（）方法（或者try_lock）获得锁，然后才能对内部的数据进行读/写操作。因为锁的存在，我们就可以保证整个“读/写”是一个完整的transaction。
+
+因为闭包用了move关键字修饰，为了避免把global这个引用计数指针move进入闭包，所以在外面先提前复制一份，然后将复制出来的这个指针传入闭包中。这样两个线程就都拥有了指向同一个变量的Arc指针。
+
+``` rust
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::thread;
+const COUNT: u32 = 1000000;
+fn main() {
+    let global = Arc::new(Mutex::new(0));
+    let clone1 = global.clone();
+    let thread1 = thread::spawn(move || {
+        for _ in 0..COUNT {
+            let mut value = clone1.lock().unwrap();
+            *value += 1;
+        }
+    });
+    let clone2 = global.clone();
+    let thread2 = thread::spawn(move || {
+        for _ in 0..COUNT {
+            let mut value = clone2.lock().unwrap();
+            *value -= 1;
+        }
+    });
+    thread1.join().ok();
+    thread2.join().ok();
+    println!("final value: {:?}", global);
+}
+
+final value: Mutex { data: 0, poisoned: false, .. }
+```
+
+### 读写锁 RwLock
+
+RwLock就是“读写锁”。它跟Mutex很像，主要区别是对外暴露的API不一样。对Mutex内部的数据读写，RwLock都是调用同样的lock方法；而对RwLock内部的数据读写，它分别提供了一个成员方法read/write来做这个事情。其他方面基本和Mutex一致。
+
+``` rust
+use std::sync::Arc;
+use std::sync::RwLock;
+use std::thread;
+const COUNT: u32 = 1000000;
+fn main() {
+    let global = Arc::new(RwLock::new(0));
+    let clone1 = global.clone();
+    let thread1 = thread::spawn(move || {
+        for _ in 0..COUNT {
+            let mut value = clone1.write().unwrap();
+            *value += 1;
+        }
+    });
+    let clone2 = global.clone();
+    let thread2 = thread::spawn(move || {
+        for _ in 0..COUNT {
+            let mut value = clone2.write().unwrap();
+            *value -= 1;
+        }
+    });
+    thread1.join().ok();
+    thread2.join().ok();
+    println!("final value: {:?}", global);
+}
+
+final value: RwLock { data: 0, poisoned: false, .. }
+```
+
+### 原子操作 Atomic
+
+Rust标准库还为我们提供了一系列的“原子操作”数据类型，它们在std：：sync：：atomic模块里面。它们都是符合Sync的，可以在多线程之间共享。
+
+案例：两个线程修改同一个整数，一个线程对它进行多次加1，另外一个线程对它多次减1。这次我们发现，使用了Atomic类型后，我们可以保证最后的执行结果一定会回到0。
+
+``` rust
+use std::sync::atomic::{AtomicIsize, Ordering};
+use std::sync::Arc;
+use std::thread;
+const COUNT: u32 = 1000000;
+fn main() {
+    // Atomic 系列类型同样提供了线程安全版本的内部可变性
+    let global = Arc::new(AtomicIsize::new(0));
+    let clone1 = global.clone();
+    let thread1 = thread::spawn(move || {
+        for _ in 0..COUNT {
+            clone1.fetch_add(1, Ordering::SeqCst);
+        }
+    });
+    let clone2 = global.clone();
+    let thread2 = thread::spawn(move || {
+        for _ in 0..COUNT {
+            clone2.fetch_sub(1, Ordering::SeqCst);
+        }
+    });
+    thread1.join().ok();
+    thread2.join().ok();
+    println!("final value: {:?}", global);
+}
+
+final value: 0
+```
+
+### 栅栏 Barrier
+
+除了“锁”之外，Rust标准库还提供了一些其他线程之间的通信方式，比如Barrier等。Barrier是这样的一个类型，它使用一个整数做初始化，可以使得多个线程在某个点上一起等待，然后再继续执行。
+
+案例：创建了一个多个线程之间共享的Barrier，它的初始值是10。我们创建了10个子线程，每个子线程都有一个Arc指针指向了这个Barrier，并在子线程中调用了Barrier：：wait方法。这些子线程执行到wait方法的时候，就开始进入等待状态，一直到wait方法被调用了10次，10个子线程都进入等待状态，此时Barrier就通知这些线程可以继续了。
+
+所以最终的执行结果是：先打印出10条before wait，再打印出10条after wait，绝不会错乱。
+
+``` rust
+use std::sync::{Arc, Barrier};
+use std::thread;
+fn main() {
+    let barrier = Arc::new(Barrier::new(10));
+    let mut handlers = vec![];
+    for _ in 0..10 {
+        let c = barrier.clone();
+        // The same messages will be printed together.
+        // You will NOT see any interleaving.
+        let t = thread::spawn(move || {
+            println!("before wait");
+            c.wait();
+            println!("after wait");
+        });
+        handlers.push(t);
+    }
+    for h in handlers {
+        h.join().ok();
+    }
+}
+
+```
+
+### 条件变量 Condvar
+
+Condvar是条件变量，它可以用于等待某个事件的发生。在等待的时候，这个线程处于阻塞状态，并不消耗CPU资源。在常见的操作系统上，Condvar的内部实现是调用的操作系统提供的条件变量。它调用wait方法的时候需要一个MutexGuard类型的参数，因此Condvar总是与Mutex配合使用的。而且我们一定要注意，一个Condvar应该总是对应一个Mutex，不可混用，否则会导致执行阶段的panic。
+
+Condvar的一个常见使用模式是和一个Mutex<bool>类型结合使用。我们可以用Mutex中的bool变量存储一个旧的状态，在条件发生改变的时候修改它的状态。通过这个状态值，我们可以决定是否需要执行等待事件的操作。
+
+案例：两个线程之间的共享变量，包括一个Condvar和一个Mutex封装起来的bool类型。我们用Arc类型把它们包起来。在子线程中，我们做完了某件工作之后，就将共享的bool类型变量设置为true，并使用Condvar：：notify_one通知事件发生。在主线程中，我们首先判定这个bool变量是否为true：如果已经是true，那就没必要进入等待状态了；否则，就进入阻塞状态，等待子线程完成任务。
+
+``` rust
+use std::sync::{Arc, Condvar, Mutex};
+use std::thread;
+use std::time::Duration;
+fn main() {
+    let pair = Arc::new((Mutex::new(false), Condvar::new()));
+    let pair2 = pair.clone();
+    thread::spawn(move || {
+        thread::sleep(Duration::from_secs(1));
+        let &(ref lock, ref cvar) = &*pair2;
+        let mut started = lock.lock().unwrap();
+        *started = true;
+        cvar.notify_one();
+        println!("child thread {}", *started);
+    });
+    // wait for the thread to start up
+    let &(ref lock, ref cvar) = &*pair;
+    let mut started = lock.lock().unwrap();
+    println!("before wait {}", *started);
+    while !*started {
+        started = cvar.wait(started).unwrap();
+    }
+    println!("after wait {}", *started);
+}
+
+before wait false
+child thread true
+after wait true
+```
+
+### 线程局部存储 tls
+
+线程局部（Thread Local）的意思是，声明的这个变量看起来是一个变量，但它实际上在每一个线程中分别有自己独立的存储地址，是不同的变量，互不干扰。在不同线程中，只能看到与当前线程相关联的那个副本，因此对它的读写无须考虑线程安全问题。在Rust中，线程独立存储有两种使用方式。
+
+- 可以使用#[thread_local]attribute来实现。这个功能目前在稳定版中还不支持，只能在nightly版本中开启#！[feature（thread_local）]功能才能使用。
+- 可以使用thread_local！宏来实现。这个功能已经在稳定版中获得支持。
+
+用thread_local！声明的变量，使用的时候要用with（）方法加闭包来完成。
+
+``` rust
+use std::cell::RefCell;
+use std::thread;
+fn main() {
+    thread_local! {
+    static FOO: RefCell<u32> = RefCell::new(1)
+    };
+    FOO.with(|f| {
+        println!("main thread value1 {:?}", *f.borrow());
+        *f.borrow_mut() = 2;
+        println!("main thread value2 {:?}", *f.borrow());
+    });
+    let t = thread::spawn(move || {
+        FOO.with(|f| {
+            println!("child thread value1 {:?}", *f.borrow());
+            *f.borrow_mut() = 3;
+            println!("child thread value2 {:?}", *f.borrow());
+        });
+    });
+    t.join().ok();
+    FOO.with(|f| {
+        println!("main thread value3 {:?}", *f.borrow());
+    });
+}
+
+main thread value1 1
+main thread value2 2
+child thread value1 1
+child thread value2 3
+main thread value3 2
+```
+
+在主线程中将FOO的值修改为2，但是进入子线程后，它看到的初始值依然是1。在子线程将FOO的值修改为3之后回到主线程，主线程看到的值还是2。这说明，在子线程中和主线程中看到的FOO其实是两个完全独立的变量，互不影响。
 
 ## 异步并发
 
@@ -8998,7 +9392,7 @@ async fn print_async_2(i: i32) {
 
 ```
 
-## channel
+## 管道 channel
 
 - Rust在标准库中实现了⼀个名为通道（channel）的编程概念来实现消息传递（message passing）
 - 编程中的通道由发送者（transmitter）和接收者（receiver）两个部分组成。
@@ -9009,88 +9403,81 @@ async fn print_async_2(i: i32) {
 - 只有实现了Sync trait的类型才可以安全地被多个线程引⽤，也就是说，可以跨线程共享。与Send类似，所有原⽣类型都满⾜Sync约束。
 - 当某个类型完全由实现了Send与Sync的类型组成时，它就会⾃动实现Send与Sync。
 
-send函数会获取参数的所有权，并在参数传递时将所有权转移给接收者。下面的打印会编译失败
+下面介绍的两种管道都是单向通信，一个发送一个接收，不能反过来。Rust没有在标准库中实现管道双向通信。双向管道也不是不可能的，在第三方库中已经有了实现。
+
+### 异步管道
+
+异步管道是最常用的一种管道类型。它的特点是：发送端和接收端之间存在一个缓冲区，发送端发送数据的时候，是先将这个数据扔到缓冲区，再由接收端自己去取。因此，每次发送，立马就返回了，发送端不用管数据什么时候被接收端处理。
+
+异步管道内部有一个不限长度的缓冲区，可以一直往里面填充数据，直至内存资源耗尽。异步管道的发送端调用send方法不会发生阻塞，只要把消息加入到缓冲区，它就马上返回。
 
 ``` rust
-use std::sync::mpsc;
+use std::sync::mpsc::channel;
 use std::thread;
 fn main() {
-    let (tx, rx) = mpsc::channel();
+    // 返回了一个tuple，里面包括一个发送者（Sender）和一个接收者（Receiver）。
+    let (tx, rx) = channel();
+    // 创建一个子线程，然后将这个发送者move进入了子线程中。子线程中的发送者不断循环调用send方法，发送数据。在主线程中，我们使用接收者不断调用recv方法接收数据。
     thread::spawn(move || {
-        let val = String::from("hi");
-        tx.send(val).unwrap();
-        // println!("val is {}", val);
-    });
-    let received = rx.recv().unwrap();
-    println!("Got: {}", received);
-}
-
-```
-
-主线程在等待接收新线程中传递过来的值
-
-``` rust
-use std::sync::mpsc;
-use std::thread;
-use std::time::Duration;
-fn main() {
-    let (tx, rx) = mpsc::channel();
-    thread::spawn(move || {
-        let vals = vec![
-            String::from("hi"),
-            String::from("from"),
-            String::from("the"),
-            String::from("thread"),
-        ];
-        for val in vals {
-            tx.send(val).unwrap();
-            thread::sleep(Duration::from_secs(1));
+        for i in 0..10 {
+            tx.send(i).unwrap();
         }
     });
-    for received in rx {
-        println!("Got: {}", received);
+    // 在管道的接收端，如果调用recv方法的时候还没有数据，它会进入等待状态阻塞当前线程，直到接收到数据才继续往下执行
+    while let Ok(r) = rx.recv() {
+        println!("received {}", r);
     }
 }
+
 ```
 
-通过克隆通道的发送端来创建出多个能够发送值到同⼀个接收端的线程
+管道还可以是多发送端单接收端。做法很简单，只需将发送端Sender复制多份即可。复制方式是调用Sender类型的clone（）方法。这个库不支持多接收端的设计，因此Receiver类型没有clone（）方法。
 
 ``` rust
-use std::sync::mpsc;
+use std::sync::mpsc::channel;
 use std::thread;
-use std::time::Duration;
 fn main() {
-    let (tx, rx) = mpsc::channel();
-    let tx1 = mpsc::Sender::clone(&tx);
-    thread::spawn(move || {
-        let vals = vec![
-            String::from("hi"),
-            String::from("from"),
-            String::from("the"),
-            String::from("thread"),
-        ];
+    let (tx, rx) = channel();
+    for i in 0..10 {
+        let tx = tx.clone(); // 复制一个新的 tx,将这个复制的变量 move 进入子线程
         thread::spawn(move || {
-            let vals = vec![
-                String::from("more"),
-                String::from("messages"),
-                String::from("for"),
-                String::from("you"),
-            ];
-            for val in vals {
-                tx.send(val).unwrap();
-                thread::sleep(Duration::from_secs(1));
-            }
+            tx.send(i).unwrap();
         });
-        for val in vals {
-            tx1.send(val).unwrap();
-            thread::sleep(Duration::from_secs(1));
-        }
-    });
-    for received in rx {
-        println!("Got: {}", received);
+    }
+    drop(tx);
+    while let Ok(r) = rx.recv() {
+        println!("received {}", r);
     }
 }
+
 ```
+
+### 同步管道
+
+同步管道的特点是：其内部有一个固定大小的缓冲区，用来缓存消息。如果缓冲区被填满了，继续调用send方法的时候会发生阻塞，等待接收端把缓冲区内的消息拿走才能继续发送。缓冲区的长度可以在建立管道的时候设置，而且0是有效数值。如果缓冲区的长度设置为0，那就意味着每次的发送操作都会进入等待状态，直到这个消息被接收端取走才能返回。
+
+``` rust
+use std::sync::mpsc::sync_channel;
+use std::thread;
+fn main() {
+    let (tx, rx) = sync_channel(1);
+    tx.send(1).unwrap();
+    println!("send first");
+    thread::spawn(move || {
+        tx.send(2).unwrap();
+        println!("send second");
+    });
+    println!("receive first {}", rx.recv().unwrap());
+    println!("receive second {}", rx.recv().unwrap());
+}
+
+send first
+receive first 1
+send second
+receive second 2
+```
+
+程序执行结果永远是：发送一个并接收一个之后，才会出现发送第二个接收第二个。
 
 # 文件读写
 
