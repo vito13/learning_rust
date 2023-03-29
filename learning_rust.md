@@ -4844,20 +4844,70 @@ fn or<F>(self, res: Result<T, F>) -> Result<T, F>
 fn or_else<F, O>(self, op: O) -> Result<T, F> where O: FnOnce(E) -> Result<T, F>
 ```
 
+#### map
+
 ``` rust
-use std::env;
-fn double_arg(mut argv: env::Args) -> Result<i32, String> {
-    argv.nth(1)
-        .ok_or("Please give at least one argument".to_owned())
-        .and_then(|arg| arg.parse::<i32>().map_err(|err| err.to_string()))
-        .map(|n| 2 * n)
+fn find(haystack: &str, needle: char) -> Option<usize> {
+    for (offset, c) in haystack.char_indices() {
+        if c == needle {
+            return Some(offset);
+        }
+    }
+    None
 }
+
 fn main() {
-    match double_arg(env::args()) {
-        Ok(n) => println!("{}", n),
-        Err(err) => println!("Error: {}", err),
+    match extension("foo.rs") {
+        None => println!("no extension"),
+        Some(ext) => assert_eq!(ext, "rs"),
     }
 }
+
+// 使用map去掉match
+fn extension(file_name: &str) -> Option<&str> {
+    // 如果find返回的不是none（即Some(T)）则将结果作为参数i调用闭包进行计算后再返回，反之直接返回None。
+    find(file_name, '.').map(|i| &file_name[i + 1..])
+}
+
+```
+
+#### unwrap_or
+
+``` rust
+fn find(haystack: &str, needle: char) -> Option<usize> {
+    for (offset, c) in haystack.char_indices() {
+        if c == needle {
+            return Some(offset);
+        }
+    }
+    None
+}
+
+fn main() {
+    // unwrap_or提供了一个默认值default，当值为None时返回default：
+    // 下面第2个没有找到则使用了默认值rs，第一次找到了所以默认值随便写也不怕
+    assert_eq!(extension("foo.rs").unwrap_or("111rs"), "rs");
+    assert_eq!(extension("foo").unwrap_or("rs"), "rs");
+}
+
+// 使用map去掉match
+fn extension(file_name: &str) -> Option<&str> {
+    find(file_name, '.').map(|i| &file_name[i + 1..])
+}
+
+```
+
+#### and_then
+
+
+
+``` rust
+fn main() {
+    let name = Some("JiangBo");
+    println!("{:?}", name.and_then(|e| Some(e.len())));
+}
+
+Some(7)
 ```
 
 ### 处理不同类型的错误
@@ -5307,9 +5357,10 @@ fn main() {
 
 # 引用和借用
 
-引用（Reference）是一种语法（本质上是Rust提供的一种指针语义），而借用（Borrowing）是对引用行为的描述。引用分为不可变引用和可变引用，对应着不可变借用和可变借用。使用&操作符执行不可变引用，使用&mut执行可变引用。&x也可称为对x的借用。通过&操作符完成对所有权的借用，不会造成所有权的转移。
+- 引用是使用引用操作符（＆）创建出来的，而执行解引用则需要使用解引用操作符（＊）这些操作符都是单目操作符，意味着它们只接收—个操作数。
+- 引用（Reference）是一种语法（本质上是Rust提供的一种指针语义），而借用（Borrowing）是对引用行为的描述。引用分为不可变引用和可变引用，对应着不可变借用和可变借用。使用&操作符执行不可变引用，使用&mut执行可变引用。&x也可称为对x的借用。通过&操作符完成对所有权的借用，不会造成所有权的转移。
 
-## 引用
+## 引用与解引用
 
 - 引用：变量的案例
 
@@ -5333,6 +5384,33 @@ fn main() {
     let s3 = s1;
     s2 = &s3; // 重新从 s3 租借所有权
     println!("{}", s2);
+}
+```
+
+- 解引用并非取得所有权
+
+当要断⾔变量y中的值时，由于数值和引⽤是两种不同的类型，所以不能直接⽐较这两者。必须使⽤解引⽤运算符来跳转到引⽤指向的值。即使⽤*y来跟踪引⽤并跳转到它指向的值。
+
+``` rust
+fn main() {
+    let x = 5;
+    let y = &x;
+    assert_eq!(5, x);
+    assert_eq!(5, *y);
+}
+```
+
+``` rust
+fn main() {
+  let needle = 42;
+  let haystack = [1, 1, 2, 5, 14, 42, 132, 429, 1430, 4862]; // <1>
+    
+  for reference in haystack.iter() { // <2>
+    let item = *reference; // <3>
+    if item == needle {
+      println!("{}", item);
+    }
+  }
 }
 ```
 
@@ -5482,18 +5560,7 @@ fn main() { // 外部作用域
 
 ## 解引用
 
-- 解引用并非取得所有权
 
-当要断⾔变量y中的值时，由于数值和引⽤是两种不同的类型，所以不能直接⽐较这两者。必须使⽤解引⽤运算符来跳转到引⽤指向的值。即使⽤*y来跟踪引⽤并跳转到它指向的值。
-
-``` rust
-fn main() {
-    let x = 5;
-    let y = &x;
-    assert_eq!(5, x);
-    assert_eq!(5, *y);
-}
-```
 
 # 泛型
 
@@ -7962,6 +8029,34 @@ fn main() {
 }
 ```
 
+### 运行指定的bin
+
+在src里有3个可执行程序
+
+``` shell
+huaw@huaw:~/playground/rust/tut$ tree ./src/
+./src/
+└── bin
+    ├── client.rs
+    ├── main.rs
+    └── server.rs
+
+1 directory, 3 files
+```
+
+由于不再使用 main.rs 作为程序入口，我们需要使用以下命令来运行指定的 bin 文件:
+
+``` shell
+cargo run --bin server
+```
+
+此时，服务器已经成功运行起来。 同样的，可以用
+
+``` shell
+cargo run --bin client
+```
+
+这种方式运行即将实现的客户端。
 
 # 自动化测试
 
@@ -9392,7 +9487,7 @@ async fn print_async_2(i: i32) {
 
 ```
 
-## 管道 channel
+## 消息通道 channel
 
 - Rust在标准库中实现了⼀个名为通道（channel）的编程概念来实现消息传递（message passing）
 - 编程中的通道由发送者（transmitter）和接收者（receiver）两个部分组成。
@@ -9405,7 +9500,7 @@ async fn print_async_2(i: i32) {
 
 下面介绍的两种管道都是单向通信，一个发送一个接收，不能反过来。Rust没有在标准库中实现管道双向通信。双向管道也不是不可能的，在第三方库中已经有了实现。
 
-### 异步管道
+### 异步通道
 
 异步管道是最常用的一种管道类型。它的特点是：发送端和接收端之间存在一个缓冲区，发送端发送数据的时候，是先将这个数据扔到缓冲区，再由接收端自己去取。因此，每次发送，立马就返回了，发送端不用管数据什么时候被接收端处理。
 
@@ -9452,7 +9547,7 @@ fn main() {
 
 ```
 
-### 同步管道
+### 同步通道
 
 同步管道的特点是：其内部有一个固定大小的缓冲区，用来缓存消息。如果缓冲区被填满了，继续调用send方法的时候会发生阻塞，等待接收端把缓冲区内的消息拿走才能继续发送。缓冲区的长度可以在建立管道的时候设置，而且0是有效数值。如果缓冲区的长度设置为0，那就意味着每次的发送操作都会进入等待状态，直到这个消息被接收端取走才能返回。
 
@@ -9478,6 +9573,1501 @@ receive second 2
 ```
 
 程序执行结果永远是：发送一个并接收一个之后，才会出现发送第二个接收第二个。
+
+# tokio
+
+- Tokio 是 Rust 的一个异步运行时库，提供了标准库的异步版本，Rust 的异步生态很多都是基于 Tokio 的。
+- Tokio 有两种线程。一种给异步任务的核心线程，一种是运行同步任务的阻塞线程。核心线程池的数量和 CPU 核数相同，阻塞线程只有在需要的时候新建。
+
+## 异步运行时 runtime
+
+### 使用Runtime::new创建
+
+Runtime::new() 创建的运行时，会有一个主线程和 CPU 逻辑核数相等工作线程。
+
+``` rust
+[dependencies]
+tokio = { version ="1.26.0", features = ["full"] }
+```
+
+``` rust
+use std::{io, time::Duration};
+use tokio::runtime::Runtime;
+
+fn main() -> io::Result<()> {
+    let runtime = Runtime::new()?;
+    runtime.block_on(async {
+        println!("hello tokio");
+    });
+    runtime.shutdown_timeout(Duration::from_secs(4));
+    Ok(())
+}
+```
+
+### 创建单线程运行时
+
+单线程运行时，除了可以使用线程池运行时，还可以直接在当前线程运行任务，使用单线程。
+
+案例：新建了一个单线程的异步运行时。
+
+``` rust
+use std::{io, thread, time::Duration};
+
+use tokio::runtime::Builder;
+
+fn main() -> io::Result<()> {
+    let runtime = Builder::new_current_thread().build()?;
+
+    runtime.block_on(async {
+        println!("hello tokio");
+        println!("{}", thread::current().name().unwrap());
+    });
+
+    println!("{}", thread::current().name().unwrap());
+    runtime.shutdown_timeout(Duration::from_secs(4));
+    Ok(())
+}
+```
+
+### 使用Builder创建
+
+除了使用 new 直接创建的方式，还可以使用 Builder 来构建运行时，并且提供了更多的配置。
+
+案例：Builder 可以用来创建一个异步运行时，推荐使用构造器模式而不是直接新建。
+
+``` rust
+use std::{io, thread, time::Duration};
+
+use tokio::runtime::Builder;
+
+fn main() -> io::Result<()> {
+    // 和 let runtime = Runtime::new()?; 具有一样的功能。
+    let runtime = Builder::new_multi_thread().build()?;
+
+    runtime.spawn(async {
+        println!("hello tokio");
+        println!("{}", thread::current().name().unwrap());
+    });
+
+    println!("{}", thread::current().name().unwrap());
+    runtime.shutdown_timeout(Duration::from_secs(4));
+    Ok(())
+}
+
+```
+### 使用宏创建运行时
+
+除了使用明确编写代码来新建运行时，也可以使用宏来创建。
+
+- 普通 #[tokio::main]
+- 多线程 #[tokio::main(flavor = "multi_thread")]
+- 当前线程 #[tokio::main(flavor = "current_thread")]
+- 工作线程数 #[tokio::main(flavor = "multi_thread", worker_threads = 4)]
+
+``` rust
+use std::{io, thread};
+
+#[tokio::main]
+async fn main() -> io::Result<()> {
+    tokio::spawn(async {
+        println!("hello tokio");
+        println!("{}", thread::current().name().unwrap());
+    });
+
+    println!("{}", thread::current().name().unwrap());
+    Ok(())
+}
+
+```
+
+### 最大空闲时间
+
+对于阻塞任务，Tokio 会新启动一个线程来运行，这个也是在一个线程池中，任务完成后，不会立即销毁。经过空余时间后，还是没有任务，就会进行销毁，默认 10 秒。使用 thread_keep_alive 方法来定义阻塞线程的最大空闲时间。
+
+``` rust
+use std::{io, thread, time::Duration};
+
+use tokio::runtime::Builder;
+
+fn main() -> io::Result<()> {
+    let runtime = Builder::new_multi_thread()
+        .thread_keep_alive(Duration::from_secs(14))
+        .build()?;
+
+    runtime.spawn_blocking(|| {
+        println!("hello tokio");
+        thread::sleep(Duration::from_secs(4));
+    });
+
+    thread::sleep(Duration::from_secs(44));
+    println!("{}", thread::current().name().unwrap());
+    runtime.shutdown_timeout(Duration::from_secs(4));
+    Ok(())
+}
+```
+
+### 进入
+
+- enter 方法可以进入异步运行时的上下文。
+
+输出了2次
+
+``` rust
+use std::{io, time::Duration};
+
+use tokio::runtime::Runtime;
+
+fn main() -> io::Result<()> {
+    let runtime = Runtime::new()?;
+
+    runtime.spawn(hello());
+    // 删除它将导致异常
+    let _guard = runtime.enter();
+    // 如果没有前面的进入异步运行时的上下文，将会失败
+    tokio::spawn(hello());
+    runtime.shutdown_timeout(Duration::from_secs(4));
+    Ok(())
+}
+
+async fn hello() {
+    println!("hello tokio");
+}
+
+```
+
+### 句柄
+
+没细致研究
+
+``` rust
+use std::{io, time::Duration};
+use tokio::runtime::Runtime;
+
+fn main() -> io::Result<()> {
+    let runtime = Runtime::new()?;
+    let handle = runtime.handle();
+    runtime.spawn(async {
+        println!("hello runtime");
+    });
+    handle.spawn(async {
+        println!("hello handle");
+    });
+    runtime.shutdown_timeout(Duration::from_secs(4));
+    Ok(())
+}
+```
+
+### 关闭
+
+- shutdown_timeout 方法关闭运行时会阻塞，等待任务完成。参数可以提供最大等待时间，超时将被强制结束。
+
+运行时关闭的时候，是等待任务完成后才进行关闭的，所以能看到全部的输出。
+
+``` rust
+use std::{io, thread, time::Duration};
+use tokio::runtime::Runtime;
+
+fn main() -> io::Result<()> {
+    let runtime = Runtime::new()?;
+
+    runtime.spawn(async {
+        println!("hello tokio");
+        thread::sleep(Duration::from_secs(2));
+        println!("{}", thread::current().name().unwrap());
+    });
+
+    println!("{}", thread::current().name().unwrap());
+    runtime.shutdown_timeout(Duration::from_secs(4));
+    Ok(())
+}
+
+```
+
+- shutdown_background 方法可以立即关闭运行时，不会产生阻塞。通常在另一个运行时中调用，避免阻塞。
+
+由于 shutdown_background 不等待任务结束，可能会产生资源泄露。shutdown_background 会立即结束运行时，避免阻塞，一般在其他的运行时中调用。
+
+``` rust
+use std::{io, thread, time::Duration};
+use tokio::runtime::Runtime;
+
+fn main() -> io::Result<()> {
+    let runtime = Runtime::new()?;
+
+    runtime.spawn(async {
+        println!("hello tokio");
+        thread::sleep(Duration::from_secs(2));
+        println!("{}", thread::current().name().unwrap());
+    });
+
+    println!("{}", thread::current().name().unwrap());
+    runtime.shutdown_background();
+    Ok(())
+}
+
+```
+
+## 工作线程 task
+
+- 一个 Tokio 任务是一个异步的绿色线程，它们通过 tokio::spawn 进行创建，该函数会返回一个 JoinHandle 类型的句柄，调用者可以使用该句柄跟创建的任务进行交互。
+- spawn 函数的参数是一个 async 语句块，该语句块甚至可以返回一个值，然后调用者可以通过 JoinHandle 句柄获取该值
+- 任务是调度器管理的执行单元。spawn生成的任务会首先提交给调度器，然后由它负责调度执行。需要注意的是，执行任务的线程未必是创建任务的线程，任务完全有可能运行在另一个不同的线程上，而且任务在生成后，它还可能会在线程间被移动。
+- 创建一个任务仅仅需要一次64字节大小的内存分配。
+
+### 异步运行任务 spawn
+
+- spawn 方法可以接收一个异步任务，在工作线程中运行，并不产生阻塞
+- Tokio 执行异步任务后，可以有返回值，其中也有可能是出现了错误。
+
+案例：一个是主线程，一个是工作线程。因为存在两个线程，所以输出的顺序不固定。main 可能在最前，也可能在最后。
+
+``` rust
+use std::{io, thread, time::Duration};
+use tokio::runtime::Runtime;
+fn main() -> io::Result<()> {
+    let runtime = Runtime::new()?;
+    runtime.spawn(async {
+        println!("hello tokio");
+        println!("in spawn: {}", thread::current().name().unwrap());
+    });
+    println!("in main: {}", thread::current().name().unwrap());
+    runtime.shutdown_timeout(Duration::from_secs(4));
+    Ok(())
+}
+
+```
+
+带返回值的案例
+
+``` rust
+use std::{io, thread};
+
+#[tokio::main]
+async fn main() -> io::Result<()> {
+    let result = tokio::spawn(async {
+        println!("hello tokio");
+        println!("{}", thread::current().name().unwrap());
+        44
+    });
+
+    println!("result: {}", result.await?);
+    Ok(())
+}
+```
+
+产生错误的案例
+
+``` rust
+use std::io;
+
+#[tokio::main]
+async fn main() -> io::Result<()> {
+    let result = tokio::spawn(async { panic!("panic") });
+
+    println!("result {}", result.await.is_err());
+    Ok(())
+}
+```
+
+### 当前线程任务 block_on
+
+- 提交给 block_on 的任务，会在主线程中运行，并且会一直阻塞，直到任务完成才往下执行。
+
+案例：运行后永远是按顺序输出123
+
+``` rust
+use std::{io, thread, time::Duration};
+use tokio::runtime::Runtime;
+
+fn main() -> io::Result<()> {
+    let runtime = Runtime::new()?;
+    // block_on 方法可以接收一个异步任务，在当前线程中运行并阻塞直到完成。
+    runtime.block_on(async {
+        println!("1 hello tokio");
+        println!("2 block_on： {}", thread::current().name().unwrap());
+    });
+
+    println!("3 main: {}", thread::current().name().unwrap());
+    runtime.shutdown_timeout(Duration::from_secs(4));
+    Ok(())
+}
+```
+
+- 带返回值的block_on任务
+
+``` rust
+use std::{io, thread, time::Duration};
+use tokio::runtime::Runtime;
+
+fn main() -> io::Result<()> {
+    let runtime = Runtime::new()?;
+
+    let result = runtime.block_on(async {
+        println!("hello tokio");
+        println!("{}", thread::current().name().unwrap());
+        44
+    });
+
+    println!("{}", result);
+    println!("{}", thread::current().name().unwrap());
+    runtime.shutdown_timeout(Duration::from_secs(4));
+    Ok(())
+}
+```
+
+### 阻塞线程任务 spawn_blocking
+
+- spawn_blocking 方法可以接收一个闭包，用来提交阻塞任务。
+
+案例运行永远输出312
+
+``` rust
+use std::{io, thread, time::Duration};
+
+use tokio::runtime::Runtime;
+
+fn main() -> io::Result<()> {
+    let runtime = Runtime::new()?;
+
+    runtime.spawn_blocking(|| {
+        println!("1 hello tokio");
+        println!("2 {}", thread::current().name().unwrap());
+    });
+
+    println!("3 {}", thread::current().name().unwrap());
+    runtime.shutdown_timeout(Duration::from_secs(4));
+    Ok(())
+}
+```
+
+### 线程本地运行 block_in_place
+
+运行阻塞任务可以有两种选择，spawn_blocking 和 block_in_place。前面说了 spawn_blocking 是通过新建一个线程来执行，而 block_in_place 是让任务直接在本地线程运行，避免上下文切换。并且会将当前工作线程上的任务移动到其它工作线程去执行。
+
+``` rust
+use std::{io, thread};
+
+#[tokio::main]
+async fn main() -> io::Result<()> {
+    tokio::spawn(async {
+        tokio::task::block_in_place(|| {
+            println!("hello tokio");
+            println!("{}", thread::current().name().unwrap());
+        });
+    }).await?;
+
+    Ok(())
+}
+
+```
+
+### 线程启动和结束回调
+
+在线程启动和结束时，可以定义一个回调。貌似只能靠Builder设置，也就是回调都是同一个。。。
+
+``` rust
+use std::{io, thread, time::Duration};
+
+use tokio::runtime::Builder;
+
+fn main() -> io::Result<()> {
+    let runtime = Builder::new_multi_thread()
+    .thread_keep_alive(Duration::from_secs(14))
+    .on_thread_start(|| {
+        println!("thread started");
+    })
+    .on_thread_stop(|| {
+        println!("thread stopping");
+    })
+    .build()?;
+
+    runtime.spawn(async {
+        println!("hello tokio");
+    });
+
+    println!("{}", thread::current().name().unwrap());
+    runtime.shutdown_timeout(Duration::from_secs(4));
+    Ok(())
+}
+
+```
+
+### 放弃执行时间片
+
+yield_now 可以放弃当前的执行时间片。
+
+``` rust
+use std::{io, thread};
+
+#[tokio::main]
+async fn main() -> io::Result<()> {
+    tokio::spawn(async {
+        println!("hello tokio");
+        println!("{}", thread::current().name().unwrap());
+    })
+    .await?;
+
+    tokio::task::yield_now().await;
+    Ok(())
+}
+
+```
+
+### 设置工作线程数
+
+默认情况下，Tokio 启动的工作线程数和 CPU 核数相等，也可以自定义。使用 Builder 来定义异步运行时的工作线程数。
+
+``` rust
+use std::{io, thread, time::Duration};
+
+use tokio::runtime::Builder;
+
+fn main() -> io::Result<()> {
+    let runtime = Builder::new_multi_thread().worker_threads(4).build()?;
+
+    runtime.spawn(async {
+        println!("hello tokio");
+        println!("{}", thread::current().name().unwrap());
+    });
+
+    println!("{}", thread::current().name().unwrap());
+    thread::sleep(Duration::from_secs(4444));
+    runtime.shutdown_timeout(Duration::from_secs(4));
+    Ok(())
+}
+```
+
+### 最大阻塞线程数
+
+对于阻塞任务，Tokio 会新启动一个线程来运行，可以设置启动的最大线程数，默认是 512。使用 max_blocking_threads 方法来定义最大的阻塞任务线程数。
+
+``` rust
+use std::{io, thread, time::Duration};
+
+use tokio::runtime::Builder;
+
+fn main() -> io::Result<()> {
+    let runtime = Builder::new_multi_thread()
+        .max_blocking_threads(4)
+        .build()?;
+
+    (0..14).for_each(|index| {
+        runtime.spawn_blocking(move || {
+            println!("hello tokio {}", index);
+            thread::sleep(Duration::from_secs(4));
+        });
+    });
+
+    // 不立即关闭运行时，不然所有的线程都会运行任务，包括工作线程
+    thread::sleep(Duration::from_secs(44));
+    println!("{}", thread::current().name().unwrap());
+    runtime.shutdown_timeout(Duration::from_secs(44));
+    Ok(())
+}
+
+```
+
+### 空闲和运行回调
+
+在线程空闲和运行时，可以定义一个回调。
+
+``` rust
+use std::{io, thread, time::Duration};
+
+use tokio::runtime::Builder;
+
+fn main() -> io::Result<()> {
+    let runtime = Builder::new_multi_thread()
+        .on_thread_park(|| println!("thread park"))
+        .on_thread_unpark(|| println!("thread unpark"))
+        .build()?;
+
+    runtime.spawn(async {
+        println!("hello tokio");
+    });
+
+    println!("{}", thread::current().name().unwrap());
+    runtime.shutdown_timeout(Duration::from_secs(4));
+    Ok(())
+}
+
+```
+
+### 自定义线程名称
+
+通过 thread_name 和 thread_name_fn 可以对线程的名称进行设置。
+
+案例：硬编码名称
+
+``` rust
+use std::{io, thread, time::Duration};
+
+use tokio::runtime::Builder;
+
+fn main() -> io::Result<()> {
+    let runtime = Builder::new_multi_thread()
+        .thread_name("jiangbo-worker")
+        .build()?;
+
+    runtime.spawn(async {
+        println!("hello tokio");
+        println!("{}", thread::current().name().unwrap());
+    });
+
+    println!("{}", thread::current().name().unwrap());
+    runtime.shutdown_timeout(Duration::from_secs(4));
+    Ok(())
+}
+
+```
+
+案例：计算出名称
+
+``` rust
+use std::{
+    io,
+    sync::atomic::{AtomicUsize, Ordering},
+    thread,
+    time::Duration,
+};
+
+use tokio::runtime::Builder;
+
+fn main() -> io::Result<()> {
+    let runtime = Builder::new_multi_thread()
+        .thread_name_fn(|| {
+            static ATOMIC_ID: AtomicUsize = AtomicUsize::new(0);
+            let id = ATOMIC_ID.fetch_add(1, Ordering::SeqCst);
+            format!("jiangbo-{}", id)
+        })
+        .build()?;
+
+    (0..4).for_each(|_| {
+        runtime.spawn(async {
+            println!("hello tokio");
+            println!("{}", thread::current().name().unwrap());
+        });
+    });
+
+    println!("{}", thread::current().name().unwrap());
+    runtime.shutdown_timeout(Duration::from_secs(4));
+    Ok(())
+}
+
+```
+
+## feature
+
+async 会返回一个 Future，因此我们还需要配合使用 .await 来让该 Future 运行起来，最终获得返回值。
+
+``` rust
+async fn say_to_world() -> String {
+    String::from("world")
+}
+
+#[tokio::main]
+async fn main() {
+    // 此处的函数调用是惰性的，并不会执行 `say_to_world()` 函数体中的代码
+    let op = say_to_world();
+
+    // 首先打印出 "hello"
+    println!("hello");
+
+    // 使用 `.await` 让 `say_to_world` 开始运行起来
+    println!("{}", op.await);
+}
+
+hello
+world
+```
+
+## 共享状态
+
+在多个任务甚至多个线程间共享要使用 <Arc<Mutext<T>>> 的方式对其进行包裹。类似如下：
+
+``` rust
+use bytes::Bytes;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+type Db = Arc<Mutex<HashMap<String, Bytes>>>;
+```
+
+服务端：在 main 函数中对 HashMap 进行初始化，然后使用 Arc 克隆一份它的所有权并将其传入到生成的异步任务中。事实上在 Tokio 中，这里的 Arc 被称为 handle，或者更宽泛的说，handle 在 Tokio 中可以用来访问某个共享状态。
+
+``` rust
+use tokio::net::TcpStream;
+use tokio::net::TcpListener;
+use mini_redis::{Connection, Frame};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use bytes::Bytes;
+type Db = Arc<Mutex<HashMap<String, Bytes>>>;
+
+#[tokio::main]
+async fn main() {
+    let listener = TcpListener::bind("127.0.0.1:6379").await.unwrap();
+
+    println!("Listening");
+
+    let db = Arc::new(Mutex::new(HashMap::new()));
+
+    loop {
+        let (socket, _) = listener.accept().await.unwrap();
+        // 将 handle 克隆一份
+        let db = db.clone();
+
+        println!("Accepted");
+        tokio::spawn(async move {
+            process(socket, db).await;
+        });
+    }
+}
+
+async fn process(socket: TcpStream, db: Db) {
+    use mini_redis::Command::{self, Get, Set};
+
+    let mut connection = Connection::new(socket);
+
+    while let Some(frame) = connection.read_frame().await.unwrap() {
+        let response = match Command::from_frame(frame).unwrap() {
+            Set(cmd) => {
+                let mut db = db.lock().unwrap();
+                db.insert(cmd.key().to_string(), cmd.value().clone());
+                Frame::Simple("OK".to_string())
+            }           
+            Get(cmd) => {
+                let db = db.lock().unwrap();
+                if let Some(value) = db.get(cmd.key()) {
+                    Frame::Bulk(value.clone())
+                } else {
+                    Frame::Null
+                }
+            }
+            cmd => panic!("unimplemented {:?}", cmd),
+        };
+
+        connection.write_frame(&response).await.unwrap();
+    }
+}
+```
+
+客户端：可以修改下面的set与get的参数，来测试多个连接是否可以互相get数据
+
+``` rust
+use mini_redis::{client, Result};
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // 建立与mini-redis服务器的连接
+    let mut client = client::connect("127.0.0.1:6379").await?;
+    // 设置 key: "hello" 和 值: "world"
+    client.set("hello", "world".into()).await?;
+    // 获取"key=hello"的值
+    let result = client.get("hello").await?;
+    println!("从服务器端获取到结果={:?}", result);
+    Ok(())
+}
+```
+
+## 消息通道 channel
+
+Tokio 提供了4种消息通道适用于 async 编程，对于其它场景，你可以使用在多线程章节中提到过的std::sync::mpsc 和 crossbeam::channel， 这些通道在等待消息时会阻塞当前的线程，因此不适用于 async 编程
+
+### 单生产者单消费者
+
+oneshot 用来实现一次单对单的通信，可以跨线程。不过只能通信一次。
+
+案例：一次跨线程的通信。
+
+``` rust
+use std::thread;
+
+use tokio::sync::oneshot;
+
+#[tokio::main]
+async fn main() {
+    let (tx, rx) = oneshot::channel();
+
+    tokio::spawn(async {
+        println!("{}", thread::current().name().unwrap());
+        if tx.send("jiangbo").is_err() {
+            println!("the receiver dropped");
+        }
+    });
+
+    match rx.await {
+        Ok(v) => println!("got = {}", v),
+        Err(_) => println!("the sender dropped"),
+    }
+    println!("{}", thread::current().name().unwrap());
+}
+```
+
+如果是任务的最终结果，除了通过消息通信，也可以直接获取。
+
+``` rust
+use std::thread;
+
+#[tokio::main]
+async fn main() {
+    let result = tokio::spawn(async {
+        println!("{}", thread::current().name().unwrap());
+        "jiangbo"
+    });
+
+    match result.await {
+        Ok(v) => println!("got = {}", v),
+        Err(_) => println!("error"),
+    }
+    println!("{}", thread::current().name().unwrap());
+}
+```
+
+如果没有发送任何消息就删除了发送者，接收者会异常。
+
+``` rust
+use std::thread;
+
+use tokio::sync::oneshot;
+
+#[tokio::main]
+async fn main() {
+    let (tx, rx) = oneshot::channel::<i32>();
+
+    tokio::spawn(async {
+        println!("{}", thread::current().name().unwrap());
+        drop(tx);
+    });
+
+    match rx.await {
+        Ok(_) => unreachable!(),
+        Err(_) => println!("the sender dropped"),
+    }
+    println!("{}", thread::current().name().unwrap());
+}
+
+```
+
+### 多生产者单消费者
+
+mpsc(Multi-producer, single-consumer) 可以实现多个生产者，一个消费者的通道，可以对通道设置上限，发送通道满的时候，会被阻塞。
+
+``` rust
+use std::time::Duration;
+
+use tokio::sync::mpsc;
+use tokio::time;
+
+#[tokio::main]
+async fn main() {
+    let (tx, mut rx) = mpsc::channel(4);
+
+    for index in 0..10 {
+        let tx = tx.clone();
+        tokio::spawn(async move {
+            tx.send(format!("index {}", index)).await.unwrap();
+            println!("send index: {}", index);
+        });
+    }
+
+    drop(tx); // 让发送者被回收，不然接收者会一直等待
+    while let Some(res) = rx.recv().await {
+        println!("got = {}", res);
+        time::sleep(Duration::from_secs(1)).await;
+    }
+}
+```
+
+### 单生产者多消费者
+
+watch，只保存一条最新的消息，因此接收者只能看到最近的一条消息，例如，这种模式适用于配置文件变化的监听
+
+这个案例貌似只有一消费者。。。
+
+``` rust
+use std::time::Duration;
+
+use tokio::{sync::watch, time};
+
+#[tokio::main]
+async fn main() {
+    let (tx, mut rx) = watch::channel("hello");
+
+    tokio::spawn(async move {
+        while rx.changed().await.is_ok() {
+            println!("received = {:?}", *rx.borrow());
+        }
+    });
+
+    tx.send("world").unwrap();
+    time::sleep(Duration::from_secs(1)).await;
+}
+```
+
+### 多生产者多消费者
+
+- broadcast，其中每一条发送的消息都可以被所有接收者收到，因此是广播。消息只有在所有的接收者受到后才删除。
+- async-channel包（非Tokio提供）：多生产者、多消费者，且每一条消息只能被其中一个消费者接收
+
+``` rust
+use std::time::Duration;
+
+use tokio::{sync::broadcast, time};
+
+#[tokio::main]
+async fn main() {
+    let (tx, mut rx1) = broadcast::channel(16);
+    let mut rx2 = tx.subscribe();
+
+    tokio::spawn(async move {
+        println!("rx1: {}", rx1.recv().await.unwrap());
+        println!("rx1: {}", rx1.recv().await.unwrap());
+    });
+
+    tokio::spawn(async move {
+        println!("rx2: {}", rx2.recv().await.unwrap());
+        println!("rx2: {}", rx2.recv().await.unwrap());
+    });
+
+    tx.send(10).unwrap();
+    tx.send(20).unwrap();
+    time::sleep(Duration::from_secs(1)).await;
+}
+```
+
+### 综合案例1 异步请求响应
+
+使用 mpsc 和 oneshot 实现异步的请求和响应。
+
+``` rust
+use tokio::sync::{mpsc, oneshot};
+
+#[tokio::main]
+async fn main() {
+    let (tx, mut rx) = mpsc::unbounded_channel::<(String, oneshot::Sender<String>)>();
+
+    tokio::spawn(async move {
+        while let Some((name, sender)) = rx.recv().await {
+            sender.send(format!("hi, {}", name)).unwrap();
+        }
+    });
+
+    let mut handles = vec![];
+
+    for index in 0..10 {
+        let tx = tx.clone();
+        handles.push(tokio::spawn(async move {
+            let (sender, receiver) = oneshot::channel();
+            tx.send((format!("jiangbo-{}", index), sender)).unwrap();
+            println!("received: {}", receiver.await.unwrap());
+        }));
+    }
+
+    for join_handle in handles.drain(..) {
+        join_handle.await.unwrap();
+    }
+}
+
+```
+
+### 综合案例2
+
+案例：使用 mpsc 和 oneshot演示client同时2个连接进行操作
+
+服务器
+
+``` rust
+use tokio::net::TcpStream;
+use tokio::net::TcpListener;
+use mini_redis::{Connection, Frame};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use bytes::Bytes;
+type Db = Arc<Mutex<HashMap<String, Bytes>>>;
+
+#[tokio::main]
+async fn main() {
+    let listener = TcpListener::bind("127.0.0.1:6379").await.unwrap();
+
+    println!("Listening");
+
+    let db = Arc::new(Mutex::new(HashMap::new()));
+
+    loop {
+        let (socket, _) = listener.accept().await.unwrap();
+        // 将 handle 克隆一份
+        let db = db.clone();
+
+        println!("Accepted");
+        tokio::spawn(async move {
+            process(socket, db).await;
+        });
+    }
+}
+
+async fn process(socket: TcpStream, db: Db) {
+    use mini_redis::Command::{self, Get, Set};
+
+    let mut connection = Connection::new(socket);
+
+    while let Some(frame) = connection.read_frame().await.unwrap() {
+        let response = match Command::from_frame(frame).unwrap() {
+            Set(cmd) => {
+                let mut db = db.lock().unwrap();
+                db.insert(cmd.key().to_string(), cmd.value().clone());
+                Frame::Simple("OK".to_string())
+            }           
+            Get(cmd) => {
+                let db = db.lock().unwrap();
+                if let Some(value) = db.get(cmd.key()) {
+                    Frame::Bulk(value.clone())
+                } else {
+                    Frame::Null
+                }
+            }
+            cmd => panic!("unimplemented {:?}", cmd),
+        };
+
+        connection.write_frame(&response).await.unwrap();
+    }
+}
+```
+
+客户端
+
+``` rust
+use bytes::Bytes;
+use mini_redis::client;
+use tokio::sync::{mpsc, oneshot};
+
+/// Command 枚举用于代表命令
+/// 为了让管理任务将结果准确的返回到发送者手中，这个管道的发送端必须要随着命令一起发送, 然后发出命令的任务保留管道的发送端。
+/// 一个比较好的实现就是将管道的发送端放入 Command 的数据结构中，同时使用一个别名来代表该发送端:
+#[derive(Debug)]
+enum Command {
+    Get {
+        key: String,
+        resp: Responder<Option<Bytes>>,
+    },
+    Set {
+        key: String,
+        val: Bytes,
+        resp: Responder<()>,
+    },
+}
+/// 管理任务可以使用该发送端将命令执行的结果传回给发出命令的任务
+type Responder<T> = oneshot::Sender<mini_redis::Result<T>>;
+
+
+
+#[tokio::main]
+async fn main() {
+    // 创建一个新通道，的缓冲队列长度是 32，意味着如果消息发送的比接收的快，这些消息将被存储在缓冲队列中，一旦存满了 32 条消息，使用send(...).await的发送者会进入睡眠，直到缓冲队列可以放入新的消息(被接收者消费了)。
+    // 由于通道支持多个生产者，因此多个任务可以同时发送命令。创建该通道会返回一个发送和接收句柄，这两个句柄可以分别被使用，例如它们可以被移动到不同的任务中。
+    let (tx, mut rx) = mpsc::channel(32);
+    // 由于有两个任务，因此我们需要两个发送者
+    // 使用 clone 方法克隆多个发送者，但是接收者无法被克隆，因为我们的通道是 mpsc 类型。
+    let tx2 = tx.clone();
+
+    // 将消息通道接收者 rx 的所有权转移到管理任务中
+    let manager = tokio::spawn(async move {
+        let mut client = client::connect("127.0.0.1:6379").await.unwrap();
+        // 开始接收消息
+        // 当从消息通道接收到一个命令时，该管理任务会将此命令通过 redis 连接发送到服务器。
+        while let Some(cmd) = rx.recv().await {
+            match cmd {
+                Command::Get { key, resp } => {
+                    let res = client.get(&key).await;
+                    // Ignore errors
+                    // 往 oneshot 中发送消息时，并没有使用 .await，原因是该发送操作要么直接成功、要么失败，并不需要等待。
+                    // 当 oneshot 的接受端被 drop 后，继续发送消息会直接返回 Err 错误，它表示接收者已经不感兴趣了。
+                    // 对于我们的场景，接收者不感兴趣是非常合理的操作，并不是一种错误，因此可以直接忽略。
+                    let _ = resp.send(res);
+                }
+                Command::Set { key, val, resp } => {
+                    let res = client.set(&key, val).await;
+                    // Ignore errors
+                    let _ = resp.send(res);
+                }
+            }
+        }
+    });
+
+    // 生成两个任务，一个用于获取 key，一个用于设置 key。
+    let t1 = tokio::spawn(async move {
+        // oneshot 消息通道针对一发一收的使用类型做过特别优化，且特别适用于此时的场景：接收一条从管理任务发送的结果消息。
+        // 使用方式跟 mpsc 很像，但是它并没有缓存长度，因为只能发送一条，接收一条，还有一点不同：你无法对返回的两个句柄进行 clone。
+        let (resp_tx, resp_rx) = oneshot::channel();
+        let cmd = Command::Get {
+            key: "foo".to_string(),
+            resp: resp_tx,
+        };
+
+        // 发送命令GET到消息通道
+        if tx.send(cmd).await.is_err() {
+            eprintln!("connection task shutdown");
+            return;
+        }
+
+        // 等待回复
+        let res = resp_rx.await;
+        println!("GOT (Get) = {:?}", res);
+    });
+
+    let t2 = tokio::spawn(async move {
+        let (resp_tx, resp_rx) = oneshot::channel();
+        let cmd = Command::Set {
+            key: "foo".to_string(),
+            val: "bar".into(),
+            resp: resp_tx,
+        };
+
+        // 发送命令SET到消息通道
+        if tx2.send(cmd).await.is_err() {
+            eprintln!("connection task shutdown");
+            return;
+        }
+
+        // 等待回复
+        let res = resp_rx.await;
+        println!("GOT (Set) = {:?}", res);
+    });
+
+    // 函数的末尾让3个任务按照需要的顺序开始运行
+    t1.await.unwrap();
+    t2.await.unwrap();
+    manager.await.unwrap();
+}
+
+```
+
+## 接收系统信号 signal
+
+Tokio 可以异步接收系统传递的信号。
+
+按下 ctrl-c 时，程序结束。
+
+``` rust
+use std::{io, thread};
+
+use tokio::signal;
+
+#[tokio::main]
+async fn main() -> io::Result<()> {
+    tokio::spawn(async {
+        println!("hello tokio");
+        println!("{}", thread::current().name().unwrap());
+    });
+
+    signal::ctrl_c().await?;
+    println!("ctrl-c received");
+    Ok(())
+}
+```
+
+## io
+
+Tokio 中的 I/O 操作和 std 在使用方式上几无区别，最大的区别就是前者是异步的，例如 Tokio 的读写特征分别是 AsyncRead 和 AsyncWrite:
+
+- 有部分类型按照自己的所需实现了它们: TcpStream，File，Stdout
+- 还有数据结构也实现了它们：Vec<u8>、&[u8]，这样就可以直接使用这些数据结构作为读写器( reader / writer)
+
+### 异步写文件、追加
+
+- AsyncWriteExt::write 异步方法会尝试将缓冲区的内容写入到写入器( writer )中，同时返回写入的字节数
+- AsyncWriteExt::write_all 将缓冲区的内容全部写入到写入器中
+
+``` rust
+use tokio::{fs::File, io::AsyncWriteExt};
+
+#[tokio::main]
+async fn main() {
+    let mut file = File::create("test.txt").await.unwrap();
+    file.write_all(b"jiangbo").await.unwrap();
+    println!("写入完成");
+}
+```
+
+案例：缓存写入
+
+``` rust
+use tokio::fs::File;
+use tokio::io::{AsyncWriteExt, BufWriter};
+
+#[tokio::main]
+async fn main() {
+    let file = File::create("test.txt").await.unwrap();
+    let mut writer = BufWriter::new(file);
+    writer.write_all(b"jiangbo").await.unwrap();
+    writer.flush().await.unwrap();
+    println!("写入完成");
+}
+```
+
+案例：追加
+
+``` rust
+use tokio::fs::{File, OpenOptions};
+use tokio::io::{AsyncWriteExt, BufWriter};
+
+#[tokio::main]
+async fn main() -> std::io::Result<()> {
+    let file = File::create("test.txt").await?;
+    let mut writer = BufWriter::new(file);
+    writer.write_all(b"jiangbo").await?;
+    writer.flush().await?;
+    println!("写入完成");
+
+    let file = OpenOptions::new().append(true).open("test.txt").await?;
+    let mut writer = BufWriter::new(file);
+    writer.write_all("\n测试追加".as_bytes()).await?;
+    writer.flush().await?;
+    println!("追加完成");
+    Ok(())
+}
+
+```
+
+### 异步读文件
+
+- AsyncReadExt::read 是一个异步方法可以将数据读入缓冲区( buffer )中，然后返回读取的字节数。需要注意的是：当 read 返回 Ok(0) 时，意味着字节流( stream )已经关闭，在这之后继续调用 read 会立刻完成，依然获取到返回值 Ok(0)。 例如，字节流如果是 TcpStream 类型，那 Ok(0) 说明该连接的读取端已经被关闭(写入端关闭，会报其它的错误)。
+- AsyncReadExt::read_to_end 方法会从字节流中读取所有的字节，直到遇到 EOF ：
+
+案例：读取一行
+
+``` rust
+use tokio::fs::File;
+use tokio::io::{AsyncBufReadExt, BufReader};
+
+#[tokio::main]
+async fn main() -> std::io::Result<()> {
+    let file = File::open("test.txt").await?;
+    let mut reader = BufReader::new(file);
+
+    let mut buffer = String::new();
+    reader.read_line(&mut buffer).await?;
+
+    println!("{}", buffer);
+    Ok(())
+}
+```
+
+案例：循环读取行
+
+``` rust
+use tokio::fs::File;
+use tokio::io::{AsyncBufReadExt, BufReader};
+
+#[tokio::main]
+async fn main() -> std::io::Result<()> {
+    let file = File::open("test.txt").await?;
+    let mut lines = BufReader::new(file).lines();
+
+    while let Some(line) = lines.next_line().await? {
+        println!("{}", line);
+    }
+    Ok(())
+}
+```
+
+案例：全部读取
+
+``` rust
+use tokio::fs::read_to_string;
+
+#[tokio::main]
+async fn main() -> std::io::Result<()> {
+    let content = read_to_string("test.txt").await?;
+    println!("{}", content);
+    Ok(())
+}
+```
+
+### stdin、stdout
+
+Tokio 对于标准输入和输出，也提供了异步的方式
+
+``` rust
+use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
+
+#[tokio::main]
+async fn main() -> io::Result<()> {
+    let mut reader = BufReader::new(io::stdin());
+    let mut buf = String::new();
+    reader.read_line(&mut buf).await?;
+
+    let mut writer = BufWriter::new(io::stdout());
+    writer.write_all(buf.trim_end().as_bytes()).await?;
+    writer.flush().await?;
+    Ok(())
+}
+
+```
+
+### tokio::io::copy
+
+异步的将读取器( reader )中的内容拷贝到写入器( writer )中。
+
+``` rust
+use tokio::fs::File;
+use tokio::io;
+
+#[tokio::main]
+async fn main() -> io::Result<()> {
+    let mut reader: &[u8] = b"hello";
+    let mut file = File::create("foo.txt").await?;
+    io::copy(&mut reader, &mut file).await?;
+    Ok(())
+}
+```
+
+### io::split 分离读写器
+
+案例：echo服务器。建立的 TCP 连接的 socket 中读取到数据，然后立刻将同样的数据写回到该 socket 中。因此客户端会收到和自己发送的数据一模一样的回复。主要演示了将 socket 分离成一个读取器和写入器。
+
+服务器
+
+``` rust
+use tokio::io;
+use tokio::net::TcpListener;
+
+#[tokio::main]
+async fn main() -> io::Result<()> {
+    let listener = TcpListener::bind("127.0.0.1:6142").await?;
+
+    loop {
+        let (mut socket, _) = listener.accept().await?;
+
+        tokio::spawn(async move {
+            let (mut rd, mut wr) = socket.split();
+            // 由于 io::copy() 调用时所在的任务和 split 所在的任务是同一个，因此可以使用性能最高的 TcpStream::split:
+            if io::copy(&mut rd, &mut wr).await.is_err() {
+                eprintln!("failed to copy");
+            }
+        });
+    }
+}
+```
+
+客户端
+
+``` rust
+use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
+
+#[tokio::main]
+async fn main() -> io::Result<()> {
+    let socket = TcpStream::connect("127.0.0.1:6142").await?;
+    // 任何一个读写器( reader + writer )都可以使用 io::split 方法进行分离，最终返回一个读取器和写入器，这两者可以独自的使用，例如可以放入不同的任务中。
+    // 由于split使用了引用传参调用，它们俩必须和 split 在同一个任务中。 优点就是，这种实现没有性能开销，因为无需 Arc 和 Mutex。
+    let (mut rd, mut wr) = io::split(socket);
+
+    // 创建异步任务，在后台写入数据
+    tokio::spawn(async move {
+        wr.write_all(b"hello\r\n").await?;
+        wr.write_all(b"world\r\n").await?;
+
+        // 有时，我们需要给予 Rust 一些类型暗示，它才能正确的推导出类型
+        Ok::<_, io::Error>(())
+    });
+
+    let mut buf = vec![0; 128];
+
+    loop {
+        let n = rd.read(&mut buf).await?;
+
+        if n == 0 {
+            break;
+        }
+
+        println!("GOT {:?}", &buf[..n]);
+    }
+
+    Ok(())
+}
+```
+
+## timer
+
+### 计时器
+
+使用 Instant 来进行任务计时。
+
+``` rust
+use std::{io, time::Duration};
+
+use tokio::time::{self, Instant};
+
+#[tokio::main]
+async fn main() -> io::Result<()> {
+    let now = Instant::now();
+
+    time::sleep(Duration::from_secs(4)).await;
+    println!("elapsed: {} ms", now.elapsed().as_millis());
+
+    Ok(())
+}
+```
+
+### sleep
+
+标准库和 Tokio 都提供了线程休眠函数 sleep，标准库的休眠会挂起线程，不做任何事。而 Tokio 的可以放弃执行当前任务去执行其它任务，线程并不会被挂起。
+
+案例：标准库sleep，可以看到先打印 hello tokio，等待四秒后再次打印，中间间隔了四秒钟。
+
+``` rust
+use std::{io, thread, time::Duration};
+
+use tokio::time;
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> io::Result<()> {
+    tokio::spawn(async {
+        println!("hello tokio");
+        thread::sleep(Duration::from_secs(4));
+    });
+
+    tokio::spawn(async {
+        println!("hello tokio");
+        thread::sleep(Duration::from_secs(4));
+    });
+
+    time::sleep(Duration::from_secs(14)).await;
+    Ok(())
+}
+```
+
+案例：tokio sleep
+
+``` rust
+use std::{io, time::Duration};
+
+use tokio::time;
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> io::Result<()> {
+    tokio::spawn(async {
+        println!("hello tokio");
+        time::sleep(Duration::from_secs(4)).await;
+    });
+
+    tokio::spawn(async {
+        println!("hello tokio");
+        time::sleep(Duration::from_secs(4)).await;
+    });
+
+    time::sleep(Duration::from_secs(14)).await;
+    Ok(())
+}
+```
+
+案例：sleep_util。前面的是休眠多久，还可以设置休眠到什么时候。
+
+``` rust
+use std::{io, time::Duration};
+
+use tokio::time::{self, Instant};
+
+#[tokio::main]
+async fn main() -> io::Result<()> {
+    time::sleep_until(Instant::now() + Duration::from_secs(4)).await;
+    println!("4s have elapsed");
+    Ok(())
+}
+
+```
+
+### 异步超时任务 timeout
+
+通过 timeout 和 timeout_at 来定义异步的超时任务。
+
+timeout案例
+
+``` rust
+use std::io;
+
+use tokio::time::{self, Duration};
+
+#[tokio::main]
+async fn main() -> io::Result<()> {
+    if let Err(e) = time::timeout(Duration::from_secs(1), async {
+        time::sleep(Duration::from_secs(4)).await;
+    })
+    .await
+    {
+        println!("error: {}", e);
+    }
+
+    Ok(())
+}
+```
+
+timeout_at案例
+
+``` rust
+use tokio::time::{self, Duration, Instant};
+
+#[tokio::main]
+async fn main() {
+    let deadline = Instant::now() + Duration::from_secs(1);
+    if let Err(e) = time::timeout_at(deadline, async {
+        time::sleep(Duration::from_secs(4)).await;
+    })
+    .await
+    {
+        println!("error: {}", e);
+    }
+}
+```
+
+### 异步周期任务 interval
+
+通过 interval 和 interval_at 来定义异步的周期性任务。
+
+interval案例
+
+``` rust
+use tokio::time;
+
+async fn task_that_takes_a_second() {
+    println!("hello");
+    // time::delay_for(time::Duration::from_secs(1)).await
+}
+
+#[tokio::main]
+async fn main() {
+    let mut interval = time::interval(time::Duration::from_secs(2));
+    for _i in 0..5 {
+        interval.tick().await;
+        task_that_takes_a_second().await;
+    }
+}
+```
+
+interval_at案例
+
+``` rust
+use std::{io, thread};
+
+use tokio::time::{self, Duration, Instant};
+
+#[tokio::main]
+async fn main() -> io::Result<()> {
+    let start = Instant::now() + Duration::from_secs(4);
+    // 四秒后，每两百毫秒执行一次
+    let mut interval = time::interval_at(start, Duration::from_millis(200));
+    for _i in 0..5 {
+        interval.tick().await;
+        async {
+            println!("{}", thread::current().name().unwrap());
+        }
+        .await;
+    }
+
+    Ok(())
+}
+
+```
 
 # 文件读写
 
