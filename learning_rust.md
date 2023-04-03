@@ -25,6 +25,9 @@ Rust权威指南                继续第15章 函数和⽅法的隐式解引⽤
 
 https://zhuanlan.zhihu.com/p/457636529
 https://github.com/wasmflow/node-to-rust
+
+
+https://doc.rust-lang.org/stable/rust-by-example/std_misc.html
 ---
 
 # 准备
@@ -2208,6 +2211,60 @@ let case_sensitive = env::var("CASE_INSENSITIVE").is_err();
 CASE_INSENSITIVE=1; cargo run
 ```
 
+## 属性 dead_code
+
+如果在项目中有代码没有使用，编译器会发出警告，可以使用属性来关闭。更好地处理方式是直接删除不使用的代码。
+
+``` rust
+fn used_function() {}
+
+// 使用 `#[allow(dead_code)]` 来抑制编译器的警告
+#[allow(dead_code)]
+fn unused_function() {}
+
+fn main() {
+    used_function();
+}
+```
+
+## 属性-cfg
+
+Rust使用属性来进行条件编译。
+
+- 属性配置方式
+
+``` rust
+#[cfg(target_os = "linux")]
+fn are_you_on_linux() {
+    println!("You are running linux!");
+}
+
+// target_os 是 rust 自动传递的
+#[cfg(not(target_os = "linux"))]
+fn are_you_on_linux() {
+    println!("You are *not* running linux!");
+}
+
+fn main() {
+    are_you_on_linux();
+}
+```
+
+- 宏配置方式
+
+target_os 由 rust 自动传入。
+
+``` rust
+fn main() {
+    println!("Are you sure?");
+    if cfg!(target_os = "linux") {
+        println!("Yes. It's definitely linux!");
+    } else {
+        println!("Yes. It's definitely *not* linux!");
+    }
+}
+```
+
 # 内建复合类型
 
 ## tuple
@@ -2236,6 +2293,12 @@ huaw@test:~/playground/rust/hellocargo$ cargo run
 -10, 10
 100
 x: -10, y: 7.7, z: false
+```
+
+案例：解构结构体和元组
+
+``` rust
+let ((feet, inches), Point {x, y}) = ((3, 10), Point { x: 3, y: -10 });
 ```
 
 ## 数组
@@ -3300,6 +3363,78 @@ fn main() {
 
 ```
 
+自定义key的案例，自定义key时刻还是有要求的，细节见https://doc.rust-lang.org/stable/rust-by-example/std/hash/alt_key_types.html
+
+``` rust
+use std::collections::HashMap;
+
+// Eq requires that you derive PartialEq on the type.
+#[derive(PartialEq, Eq, Hash)]
+struct Account<'a>{
+    username: &'a str,
+    password: &'a str,
+}
+
+struct AccountInfo<'a>{
+    name: &'a str,
+    email: &'a str,
+}
+
+type Accounts<'a> = HashMap<Account<'a>, AccountInfo<'a>>;
+
+fn try_logon<'a>(accounts: &Accounts<'a>,
+        username: &'a str, password: &'a str){
+    println!("Username: {}", username);
+    println!("Password: {}", password);
+    println!("Attempting logon...");
+
+    let logon = Account {
+        username,
+        password,
+    };
+
+    match accounts.get(&logon) {
+        Some(account_info) => {
+            println!("Successful logon!");
+            println!("Name: {}", account_info.name);
+            println!("Email: {}", account_info.email);
+        },
+        _ => println!("Login failed!"),
+    }
+}
+
+fn main(){
+    let mut accounts: Accounts = HashMap::new();
+
+    let account = Account {
+        username: "j.everyman",
+        password: "password123",
+    };
+
+    let account_info = AccountInfo {
+        name: "John Everyman",
+        email: "j.everyman@email.com",
+    };
+
+    accounts.insert(account, account_info);
+
+    try_logon(&accounts, "j.everyman", "psasword123");
+
+    try_logon(&accounts, "j.everyman", "password123");
+}
+
+Username: j.everyman
+Password: psasword123
+Attempting logon...
+Login failed!
+Username: j.everyman
+Password: password123
+Attempting logon...
+Successful logon!
+Name: John Everyman
+Email: j.everyman@email.com
+```
+
 ### 有序哈希表 BTreeMap
 
 - BTreeMap＜K，V＞是有序的，Key必须是可哈希的类型，Value必须是在编译期已知大小的类型。
@@ -3313,6 +3448,58 @@ HashSet＜K＞和BTreeSet＜K＞其实就是HashMap＜K，V＞和BTreeMap＜K，
 
 ### 无序集合 HashSet
 
+Sets have 4 primary operations (all of the following calls return an iterator):
+
+- 并集 union: get all the unique elements in both sets.
+- 差集 difference: get all the elements that are in the first set but not the second.
+- 交集 intersection: get all the elements that are only in both sets.
+- 对称差 symmetric_difference: get all the elements that are in one set or the other, but not both.
+
+``` rust
+use std::collections::HashSet;
+
+fn main() {
+    let mut a: HashSet<i32> = vec![1i32, 2, 3].into_iter().collect();
+    let mut b: HashSet<i32> = vec![2i32, 3, 4].into_iter().collect();
+
+    assert!(a.insert(4));
+    assert!(a.contains(&4));
+
+    // `HashSet::insert()` returns false if
+    // there was a value already present.
+    // assert!(b.insert(4), "Value 4 is already in set B!");
+    // FIXME ^ Comment out this line
+
+    b.insert(5);
+
+    // If a collection's element type implements `Debug`,
+    // then the collection implements `Debug`.
+    // It usually prints its elements in the format `[elem1, elem2, ...]`
+    println!("A: {:?}", a);
+    println!("B: {:?}", b);
+
+    // Print [1, 2, 3, 4, 5] in arbitrary order
+    println!("Union: {:?}", a.union(&b).collect::<Vec<&i32>>());
+
+    // This should print [1]
+    println!("Difference: {:?}", a.difference(&b).collect::<Vec<&i32>>());
+
+    // Print [2, 3, 4] in arbitrary order.
+    println!("Intersection: {:?}", a.intersection(&b).collect::<Vec<&i32>>());
+
+    // Print [1, 5]
+    println!("Symmetric Difference: {:?}",
+             a.symmetric_difference(&b).collect::<Vec<&i32>>());
+}
+
+A: {3, 2, 4, 1}
+B: {2, 3, 5, 4}
+Union: [3, 2, 4, 1, 5]
+Difference: [1]
+Intersection: [3, 2, 4]
+Symmetric Difference: [1, 5]
+```
+
 ### 有序集合 BTreeSet
 
 ## 优先队列
@@ -3324,6 +3511,8 @@ HashSet＜K＞和BTreeSet＜K＞其实就是HashMap＜K，V＞和BTreeMap＜K，
 字符串是在任何编程语言中最常用的数据类型之一。在 Rust 中，它们通常以两种形式出现：&str 类型和 String 类型。Rust 字符串保证是有效的 UTF-8 编码字节序列。它们不像C 字符串那样以空值（NULL）终止，并且可以在字符串之间包含空的字节。
 
 ## String
+
+字符串被存储为一个字节的向量（Vec<u8>），但保证总是一个有效的UTF-8序列。字符串是堆分配的，可增长的，不以空值为终点。
 
 - 可变长度的字符串对象
 - String 是一个 Vec\<u8> 的封装。并通过功能性的⽅法将字节解析为⽂本。
@@ -3462,6 +3651,8 @@ fn main() {
 
 ## str
 
+&str是一个切片（&[u8]），总是指向一个有效的UTF-8序列，与String的关系就像&[T]和Vec<T>
+
 - 固定长度的字符串字面量str
 - Rust提供了原始的字符串类型str，也叫作字符串切片 。它通常以不可变借用的形式存在，即&str。
 - str字符串类型由两部分组成：指向字符串序列的指针和记录长度的值。可以通过str模块提供的as_ptr和len方法分别求得指针和长度
@@ -3482,6 +3673,28 @@ fn main(){
     };
     assert_eq!(s,Ok(truth));
 }
+```
+
+## raw string
+
+``` rust
+fn main() {
+    let raw_str = r"Escapes don't work here: \x3F \u{211D}";
+    println!("{}", raw_str);
+
+    // If you need quotes in a raw string, add a pair of #s
+    let quotes = r#"And then I said: "There is no escape!""#;
+    println!("{}", quotes);
+
+    // If you need "# in your string, just use more #s in the delimiter.
+    // You can use up to 65535 #s.
+    let longer_delimiter = r###"A string with "# in it. And even "##!"###;
+    println!("{}", longer_delimiter);
+}
+
+Escapes don't work here: \x3F \u{211D}
+And then I said: "There is no escape!"
+A string with "# in it. And even "##!
 ```
 
 # 函数
@@ -3566,6 +3779,7 @@ fn main(){
 }
 ```
 
+# 宏 macro_rules
 
 # 流程控制
 
@@ -3926,6 +4140,21 @@ fn main() {
 [2, 3, 4, 5, 6]
 ```
 
+案例：用collect()使整个操作失败。返回结果是个Result<Vec<T>, E>
+
+``` rust
+fn main() {
+    let strings = vec!["tofu", "93", "18"];
+    let numbers: Result<Vec<_>, _> = strings
+        .into_iter()
+        .map(|s| s.parse::<i32>())
+        .collect();
+    println!("Results: {:?}", numbers);
+}
+
+Results: Err(ParseIntError { kind: InvalidDigit })
+```
+
 ## 迭代器适配器
 
 适配器Iterator trait中定义了一类方法，这类方法叫作迭代器适配器。它会将当前迭代器转换成另一种类型的迭代器，并支持链式调用多个迭代器适配器。不过，由于所有的迭代器都是惰性的，必须使用一个消费器来获取迭代器适配器的调用结果。
@@ -3943,6 +4172,21 @@ fn main() {
 }
 
 [4, 5, 6]
+```
+
+案例：遇到err的情况
+
+``` rust
+fn main() {
+    let strings = vec!["tofu", "93", "18"];
+    let numbers: Vec<_> = strings
+        .into_iter()
+        .map(|s| s.parse::<i32>())
+        .collect();
+    println!("Results: {:?}", numbers);
+}
+
+Results: [Err(ParseIntError { kind: InvalidDigit }), Ok(93), Ok(18)]
 ```
 
 ### take
@@ -3981,6 +4225,44 @@ fn main() {
 [6]
 ```
 
+### filter_map
+
+过滤掉result=None的元素
+
+``` rust
+fn main() {
+    let strings = vec!["tofu", "93", "18"];
+    let numbers: Vec<_> = strings
+        .into_iter()
+        .filter_map(|s| s.parse::<i32>().ok())
+        .collect();
+    println!("Results: {:?}", numbers);
+}
+
+Results: [93, 18]
+```
+
+### map_err
+
+配合filter_map使用可以对none与非none的进行分组
+
+``` rust
+fn main() {
+    let strings = vec!["42", "tofu", "93", "999", "18"];
+    let mut errors = vec![];
+    let numbers: Vec<_> = strings
+        .into_iter()
+        .map(|s| s.parse::<u8>())
+        .filter_map(|r| r.map_err(|e| errors.push(e)).ok())
+        .collect();
+    println!("Numbers: {:?}", numbers);
+    println!("Errors: {:?}", errors);
+}
+
+Numbers: [42, 93, 18]
+Errors: [ParseIntError { kind: InvalidDigit }, ParseIntError { kind: PosOverflow }]
+```
+
 ### rev
 
 通常，迭代器从左到右进行迭代。适配器rev可以反转迭代方向，生成一个方向相反的新迭代器，即新迭代器将从右向左进行迭代
@@ -3998,6 +4280,44 @@ fn main() {
 3
 2
 1
+```
+
+### partition
+
+用于分离成功和失败到两个容器中，得到的是Result
+
+``` rust
+fn main() {
+    let strings = vec!["tofu", "93", "18"];
+    let (numbers, errors): (Vec<_>, Vec<_>) = strings
+        .into_iter()
+        .map(|s| s.parse::<i32>())
+        .partition(Result::is_ok);
+    println!("Numbers: {:?}", numbers);
+    println!("Errors: {:?}", errors);
+}
+
+Numbers: [Ok(93), Ok(18)]
+Errors: [Err(ParseIntError { kind: InvalidDigit })]
+```
+
+下面的案例可以去除Result的包裹直接得到数值
+
+``` rust
+fn main() {
+    let strings = vec!["tofu", "93", "18"];
+    let (numbers, errors): (Vec<_>, Vec<_>) = strings
+        .into_iter()
+        .map(|s| s.parse::<i32>())
+        .partition(Result::is_ok);
+    let numbers: Vec<_> = numbers.into_iter().map(Result::unwrap).collect();
+    let errors: Vec<_> = errors.into_iter().map(Result::unwrap_err).collect();
+    println!("Numbers: {:?}", numbers);
+    println!("Errors: {:?}", errors);
+}
+
+Numbers: [93, 18]
+Errors: [ParseIntError { kind: InvalidDigit }]
 ```
 
 ### zip
@@ -4118,6 +4438,363 @@ println!("{:?}", non_existent);
 Some("banana")
 Some("coconut")
 None
+```
+
+### 展开option
+
+你可以通过使用匹配语句来解包Options，但通常使用?操作符更容易。如果x是一个Option且some有值则x? 将返回基础值，否则将终止正在执行的任何函数并返回None。
+
+``` rust
+struct Person {
+    job: Option<Job>,
+}
+
+#[derive(Clone, Copy)]
+struct Job {
+    phone_number: Option<PhoneNumber>,
+}
+
+#[derive(Clone, Copy)]
+struct PhoneNumber {
+    area_code: Option<u8>,
+    number: u32,
+}
+
+impl Person {
+
+    // Gets the area code of the phone number of the person's job, if it exists.
+    fn work_phone_area_code(&self) -> Option<u8> {
+        // This would need many nested `match` statements without the `?` operator.
+        // It would take a lot more code - try writing it yourself and see which
+        // is easier.
+        self.job?.phone_number?.area_code
+    }
+}
+
+fn main() {
+    let p = Person {
+        job: Some(Job {
+            phone_number: Some(PhoneNumber {
+                area_code: Some(61),
+                number: 439222222,
+            }),
+        }),
+    };
+
+    assert_eq!(p.work_phone_area_code(), Some(61));
+}
+```
+
+### map
+
+Option 的 map 方法，可以将一个值映射（转换）成另一个值。其实作用就是对map前的值进行数据类型转换后再返回
+
+Option有一个内置的方法叫做map()，这是一个组合器，用于Some->Some和None->None的简单映射。多个map()的调用可以被串联起来，以获得更多的灵活性。在下面的例子中，process()取代了之前的所有函数，同时保持紧凑。
+
+``` rust
+#![allow(dead_code)]
+
+#[derive(Debug)] enum Food { Apple, Carrot, Potato }
+
+#[derive(Debug)] struct Peeled(Food);
+#[derive(Debug)] struct Chopped(Food);
+#[derive(Debug)] struct Cooked(Food);
+
+// Peeling food. If there isn't any, then return `None`.
+// Otherwise, return the peeled food.
+fn peel(food: Option<Food>) -> Option<Peeled> {
+    match food {
+        Some(food) => Some(Peeled(food)),
+        None       => None,
+    }
+}
+
+// Chopping food. If there isn't any, then return `None`.
+// Otherwise, return the chopped food.
+fn chop(peeled: Option<Peeled>) -> Option<Chopped> {
+    match peeled {
+        Some(Peeled(food)) => Some(Chopped(food)),
+        None               => None,
+    }
+}
+
+// Cooking food. Here, we showcase `map()` instead of `match` for case handling.
+fn cook(chopped: Option<Chopped>) -> Option<Cooked> {
+    chopped.map(|Chopped(food)| Cooked(food))
+}
+
+// A function to peel, chop, and cook food all in sequence.
+// We chain multiple uses of `map()` to simplify the code.
+fn process(food: Option<Food>) -> Option<Cooked> {
+    food.map(|f| Peeled(f))
+        .map(|Peeled(f)| Chopped(f))
+        .map(|Chopped(f)| Cooked(f))
+}
+
+// Check whether there's food or not before trying to eat it!
+fn eat(food: Option<Cooked>) {
+    match food {
+        Some(food) => println!("Mmm. I love {:?}", food),
+        None       => println!("Oh no! It wasn't edible."),
+    }
+}
+
+fn main() {
+    let apple = Some(Food::Apple);
+    let carrot = Some(Food::Carrot);
+    let potato = None;
+
+    let cooked_apple = cook(chop(peel(apple)));
+    let cooked_carrot = cook(chop(peel(carrot)));
+    // Let's try the simpler looking `process()` now.
+    let cooked_potato = process(potato);
+
+    eat(cooked_apple);
+    eat(cooked_carrot);
+    eat(cooked_potato);
+}
+
+Mmm. I love Cooked(Apple)
+Mmm. I love Cooked(Carrot)
+Oh no! It wasn't edible.
+```
+
+简单的案例
+
+``` rust
+fn find(haystack: &str, needle: char) -> Option<usize> {
+    for (offset, c) in haystack.char_indices() {
+        if c == needle {
+            return Some(offset);
+        }
+    }
+    None
+}
+
+fn main() {
+    match extension("foo.rs") {
+        None => println!("no extension"),
+        Some(ext) => assert_eq!(ext, "rs"),
+    }
+}
+
+// 使用map去掉match
+fn extension(file_name: &str) -> Option<&str> {
+    // 如果find返回的不是none（即Some(T)）则将结果作为参数i调用闭包进行计算后再返回，反之直接返回None。
+    find(file_name, '.').map(|i| &file_name[i + 1..])
+}
+
+```
+
+### and_then
+
+如果and_then之前的结果是 None 则返回 None ，否则执行and_then指定的函数再返回结果。可以理解为如初步计算结果有值则继续后面的再次计算
+
+案例：and_then代替处理多层match，函数v2与v1的作用是一样的
+
+``` rust
+#![allow(dead_code)]
+
+#[derive(Debug)] enum Food { CordonBleu, Steak, Sushi }
+#[derive(Debug)] enum Day { Monday, Tuesday, Wednesday }
+
+// We don't have the ingredients to make Sushi.
+fn have_ingredients(food: Food) -> Option<Food> {
+    match food {
+        Food::Sushi => None,
+        _           => Some(food),
+    }
+}
+
+// We have the recipe for everything except Cordon Bleu.
+fn have_recipe(food: Food) -> Option<Food> {
+    match food {
+        Food::CordonBleu => None,
+        _                => Some(food),
+    }
+}
+
+// To make a dish, we need both the recipe and the ingredients.
+// We can represent the logic with a chain of `match`es:
+// map()被描述为一种简化匹配语句的可连锁方式。然而，在一个返回Option<T>的函数上使用map()会产生嵌套的Option<Option<T>>。将多个调用串联起来就会变得很混乱。这就是另一个叫做and_then()的组合器的用武之地，
+fn cookable_v1(food: Food) -> Option<Food> {
+    match have_recipe(food) {
+        None       => None,
+        Some(food) => match have_ingredients(food) {
+            None       => None,
+            Some(food) => Some(food),
+        },
+    }
+}
+
+// This can conveniently be rewritten more compactly with `and_then()`:
+// and_then()用包装好的值调用它的函数输入并返回结果。如果选项是None，那么它将返回None。
+fn cookable_v2(food: Food) -> Option<Food> {
+    have_recipe(food).and_then(have_ingredients)
+}
+
+fn eat(food: Food, day: Day) {
+    match cookable_v2(food) {
+        Some(food) => println!("Yay! On {:?} we get to eat {:?}.", day, food),
+        None       => println!("Oh no. We don't get to eat on {:?}?", day),
+    }
+}
+
+fn main() {
+    let (cordon_bleu, steak, sushi) = (Food::CordonBleu, Food::Steak, Food::Sushi);
+
+    eat(cordon_bleu, Day::Monday);
+    eat(steak, Day::Tuesday);
+    eat(sushi, Day::Wednesday);
+}
+
+Oh no. We don't get to eat on Monday?
+Yay! On Tuesday we get to eat Steak.
+Oh no. We don't get to eat on Wednesday?
+```
+
+更为简单的使用案例
+
+``` rust
+fn main() {
+    let name = Some("JiangBo");
+    println!("{:?}", name.and_then(|e| Some(e.len())));
+}
+
+Some(7)
+```
+
+### or、or_else
+
+- 当option是none时候会使用or的参数做右值。or()是可级联调用的，参数会被move，如下面的例子所示传递给or的变量被移动走了，后面再使用就会报错了
+- 如果or的参数是函数或闭包则要使用or_else
+- or与or_else不会改变当前option的值
+
+``` rust
+#[derive(Debug)] 
+enum Fruit { Apple, Orange, Banana, Kiwi, Lemon }
+
+fn main() {
+    let apple = Some(Fruit::Apple);
+    let orange = Some(Fruit::Orange);
+    let no_fruit: Option<Fruit> = None;
+
+    // no_fruit不会改变，这是与后面的get_or_insert的区别
+    let first_available_fruit = no_fruit.or(orange).or(apple);
+    println!("first_available_fruit: {:?}", first_available_fruit);
+    // first_available_fruit: Some(Orange)
+    // println!("The variable apple has been moved, so this line cannot be compiled: {:?}", apple); // TODO: Decomment the above line to see the compiler error.
+}
+```
+
+``` rust
+#[derive(Debug)] 
+enum Fruit { Apple, Orange, Banana, Kiwi, Lemon }
+
+fn main() {
+    let apple = Some(Fruit::Apple);
+    let no_fruit: Option<Fruit> = None;
+    let get_kiwi_as_fallback = || {
+        println!("Providing kiwi as fallback");
+        Some(Fruit::Kiwi)
+    };
+    let get_lemon_as_fallback = || {
+        println!("Providing lemon as fallback");
+        Some(Fruit::Lemon)
+    };
+
+    let first_available_fruit = no_fruit
+        .or_else(get_kiwi_as_fallback)
+        .or_else(get_lemon_as_fallback);
+    println!("first_available_fruit: {:?}", first_available_fruit);
+    // Providing kiwi as fallback
+    // first_available_fruit: Some(Kiwi)
+}
+```
+
+### get_or_insert、get_or_insert_with
+
+这2个与or、or_else的区别在于会改变当前option的值。相当于如果自身是none则先给自身赋值，然后再用自己给其它变量赋值
+
+``` rust
+#[derive(Debug)]
+enum Fruit { Apple, Orange, Banana, Kiwi, Lemon }
+
+fn main() {
+    let mut my_fruit: Option<Fruit> = None;
+    let apple = Fruit::Apple;
+    let first_available_fruit = my_fruit.get_or_insert(apple);
+    println!("first_available_fruit is: {:?}", first_available_fruit);
+    println!("my_fruit is: {:?}", my_fruit);
+    // first_available_fruit is: Apple
+    // my_fruit is: Some(Apple)
+    //println!("Variable named `apple` is moved: {:?}", apple);
+    // TODO: uncomment the line above to see the compiler error
+}
+
+first_available_fruit is: Apple
+my_fruit is: Some(Apple)
+```
+
+``` rust
+#[derive(Debug)] 
+enum Fruit { Apple, Orange, Banana, Kiwi, Lemon }
+
+fn main() {
+    let mut my_fruit: Option<Fruit> = None;
+    let get_lemon_as_fallback = || {
+        println!("Providing lemon as fallback");
+        Fruit::Lemon
+    };
+    let first_available_fruit = my_fruit
+        .get_or_insert_with(get_lemon_as_fallback);
+    println!("first_available_fruit is: {:?}", first_available_fruit);
+    println!("my_fruit is: {:?}", my_fruit);
+    // Providing lemon as fallback
+    // first_available_fruit is: Lemon
+    // my_fruit is: Some(Lemon)
+
+    // If the Option has a value, it is left unchanged, and the closure is not invoked
+    let mut my_apple = Some(Fruit::Apple);
+    let should_be_apple = my_apple.get_or_insert_with(get_lemon_as_fallback);
+    println!("should_be_apple is: {:?}", should_be_apple);
+    println!("my_apple is unchanged: {:?}", my_apple);
+    // The output is a follows. Note that the closure `get_lemon_as_fallback` is not invoked
+    // should_be_apple is: Apple
+    // my_apple is unchanged: Some(Apple)
+}
+
+Providing lemon as fallback
+first_available_fruit is: Lemon
+my_fruit is: Some(Lemon)
+should_be_apple is: Apple
+my_apple is unchanged: Some(Apple)
+```
+
+### unwrap_or
+
+``` rust
+fn find(haystack: &str, needle: char) -> Option<usize> {
+    for (offset, c) in haystack.char_indices() {
+        if c == needle {
+            return Some(offset);
+        }
+    }
+    None
+}
+
+fn main() {
+    // unwrap_or提供了一个默认值default，当值为None时返回default：
+    // 下面第2个没有找到则使用了默认值rs，第一次找到了所以默认值随便写也不怕
+    assert_eq!(extension("foo.rs").unwrap_or("111rs"), "rs");
+    assert_eq!(extension("foo").unwrap_or("rs"), "rs");
+}
+
+// 使用map去掉match
+fn extension(file_name: &str) -> Option<&str> {
+    find(file_name, '.').map(|i| &file_name[i + 1..])
+}
+
 ```
 
 ## Match
@@ -4367,7 +5044,7 @@ Matched, y = 5
 at the end: x = Some(5), y = 10
 ```
 
-### 多重模式
+### 使用|（or）进行匹配
 
 可以在match表达式的分⽀匹配中使⽤|来表⽰或 （or）的意思，它可以被⽤来⼀次性地匹配多个模式。
 
@@ -4412,15 +5089,7 @@ fn main() {
 On the y axis at 7
 ```
 
-### 解构结构体和元组
-
-``` rust
-let ((feet, inches), Point {x, y}) = ((3, 10), Point { x: 3, y: -10 });
-```
-
-### 忽略模式中的值
-
-#### 使⽤_忽略整个值
+### 使⽤_忽略匹配
 
 下画线_作为通配符模式来匹配任意可能的值⽽不绑定值本⾝的内容。虽然_模式最常被⽤在match表达式的最后⼀个分⽀中，但实际上我们可以把它⽤于包括函数参数在内的⼀切模式中
 
@@ -4526,6 +5195,34 @@ fn main() {
     let six = plus_one(five);
     let none = plus_one(None);
 }
+```
+
+### 匹配Result
+
+案例：match模式匹配对返回值进行相应的处理
+
+``` rust
+use std::fs::File;
+
+fn main() {
+    // File::open函数的返回值类型是Result<T, E>。这里T的类型是std::fs::File，它是一个可以进行读写操作的文件句柄。E的类型是std::io::Error，表示可能因为文件不存在或者没有权限而访问失败。通过Result<T, E>可以告诉调用者调用是成功还是失败，并提供文件句柄或错误信息。
+    let f = File::open("hello1.txt"); 
+    let file = match f {
+        Ok(file) => file, // 如果File::open执行成功，f的值是一个包含文件句柄的Ok实例，返回这个文件句柄并赋值给变量file。
+        Err(error) => { // 如果File::open执行失败，f的值是一个包含错误信息的Err实例，调用panic!中止程序并输出错误信息。
+            panic!("Failed to open hello.txt: {:?}", error)
+        }
+    };
+
+    /* 上面的match可以替换if let
+    if let Ok(file) = f {
+        println!("File opened successfully.");
+    } else {
+        println!("Failed to open the file.");
+    }
+    */
+}
+
 ```
 
 ## if let
@@ -4767,6 +5464,8 @@ panic!的使用准则：
 
 ## Result<T, E>
 
+Result 和 Option 有点类似，不过它代表可能失败，而不是可能不存在。 Result 类型一般是在可能发生错误的时候使用。
+
 ``` rust
 enum Result<T, E> {
     Ok(T),
@@ -4774,141 +5473,371 @@ enum Result<T, E> {
 }
 ```
 
-- 标准库提供的Result<T, E>可用于处理可恢复错误，它使用枚举来封装正常返回的值和错误信息。Result<T, E>枚举包含两个值——Ok和Err，当Result的值为Ok时，泛型类型T作为调用成功返回的值的数据类型。当Result的值为Err时，泛型类型E作为调用失败返回的错误类型。
-- 这个定义使得Result能很方便地表达任何可能成功（返回T类型的值）、也可能失败（返回E类型的值）的操作，只要一个变量就能接收正常值和错误信息。
+Result<T, E>可以有两种结果之一：
 
-### 高效处理Result<T, E>
+- Ok(T)：找到了一个元素T
+- Err(E): 在元素E中发现了一个错误。
 
-案例：match模式匹配对返回值进行相应的处理
+按照惯例，预期结果是Ok，而意外结果是Err。
+
+### unwrap与expect
+
+这2个类似断言的效果，失败则直接产生恐慌。match模式匹配虽然能够对返回值进行相应的处理，但是代码看上去有些冗长。Result<T, E>类型提供的unwrap和expect方法可以实现与match模式匹配相似的功能。
+
+- unwrap()要么产生元素T，要么陷入恐慌。即：
+
+  - 如果 Result 值是成员 Ok，unwrap 会返回 Ok 中的值。
+  - 如果 Result 是成员 Err，unwrap 会调用 panic!
 
 ``` rust
 use std::fs::File;
 
 fn main() {
-    // File::open函数的返回值类型是Result<T, E>。这里T的类型是std::fs::File，它是一个可以进行读写操作的文件句柄。E的类型是std::io::Error，表示可能因为文件不存在或者没有权限而访问失败。通过Result<T, E>可以告诉调用者调用是成功还是失败，并提供文件句柄或错误信息。
-    let f = File::open("hello1.txt"); 
-    let file = match f {
-        Ok(file) => file, // 如果File::open执行成功，f的值是一个包含文件句柄的Ok实例，返回这个文件句柄并赋值给变量file。
-        Err(error) => { // 如果File::open执行失败，f的值是一个包含错误信息的Err实例，调用panic!中止程序并输出错误信息。
-            panic!("Failed to open hello.txt: {:?}", error)
-        }
-    };
-
-    /* 上面的match可以替换if let
-    if let Ok(file) = f {
-        println!("File opened successfully.");
-    } else {
-        println!("Failed to open the file.");
-    }
-    */
+    let f1 = File::open("hello.txt").unwrap();
+    // let f2 = File::open("hello.txt").expect("Failed to open.");
 }
-
 ```
 
-match模式匹配虽然能够对返回值进行相应的处理，但是代码看上去有些冗长。Result<T, E>类型提供的unwrap和expect方法可以实现与match模式匹配相似的功能。
-
-案例：unwrap方法处理Result
+下面是演示产生恐慌的案例
 
 ``` rust
-use std::fs::File;
-
-fn main() {
-    // 如果Result的值是Ok，unwrap方法会返回Ok中的值。如果Result的值是Err，unwrap方法会自动做Panic处理并输出默认的错误消息。
-    let file = File::open("hello.txt").unwrap();
+fn multiply(first_number_str: &str, second_number_str: &str) -> i32 {
+    // Let's try using `unwrap()` to get the number out. Will it bite us?
+    let first_number = first_number_str.parse::<i32>().unwrap();
+    let second_number = second_number_str.parse::<i32>().unwrap();
+    first_number * second_number
 }
 
+fn main() {
+    let twenty = multiply("10", "2");
+    println!("double is {}", twenty);
+
+    let tt = multiply("t", "2");
+    println!("double is {}", tt);
+}
 ```
 
-案例：expect方法处理返回值结果
+- 允许在unwrap的基础上指定panic! 所附带的错误提⽰信息。使⽤expect并附带上⼀段清晰的错误提⽰信息可以阐明你的意图，并使你更容易追踪到panic的起源。
 
 ``` rust
 use std::fs::File;
 
 fn main() {
-    // expect方法不仅具备unwrap方法的功能，还允许自定义错误信息，这样更易于追踪导致程序错误的原因。
     let f = File::open("hello.txt").expect("Failed to open hello.txt");
 }
-
 ```
 
-### 组合错误类型
+### map、and_then、？
 
-利用代数类型系统做错误处理的另外一大好处是可组合性（composability）。比如Result类型有这样的一系列成员方法：
+使用这3个的目的是精简代码，另外下面的案例都不会产生恐慌，因为进行了match处理。
 
-``` rust
-fn map<U, F>(self, op: F) -> Result<U, E> where F: FnOnce(T) -> U
-fn map_err<F, O>(self, op: O) -> Result<T, F> where O: FnOnce(E) -> F
-fn and<U>(self, res: Result<U, E>) -> Result<U, E>
-fn and_then<U, F>(self, op: F) -> Result<U, E> where F: FnOnce(T) -> Result<U, E>
-fn or<F>(self, res: Result<T, F>) -> Result<T, F>
-fn or_else<F, O>(self, op: O) -> Result<T, F> where O: FnOnce(E) -> Result<T, F>
-```
-
-#### map
+先看一个使用match处理Result的啰嗦的案例
 
 ``` rust
-fn find(haystack: &str, needle: char) -> Option<usize> {
-    for (offset, c) in haystack.char_indices() {
-        if c == needle {
-            return Some(offset);
-        }
-    }
-    None
-}
+use std::num::ParseIntError;
 
-fn main() {
-    match extension("foo.rs") {
-        None => println!("no extension"),
-        Some(ext) => assert_eq!(ext, "rs"),
+// With the return type rewritten, we use pattern matching without `unwrap()`.
+fn multiply(first_number_str: &str, second_number_str: &str) -> Result<i32, ParseIntError> {
+    match first_number_str.parse::<i32>() {
+        Ok(first_number)  => {
+            match second_number_str.parse::<i32>() {
+                Ok(second_number)  => {
+                    Ok(first_number * second_number)
+                },
+                Err(e) => Err(e),
+            }
+        },
+        Err(e) => Err(e),
     }
 }
 
-// 使用map去掉match
-fn extension(file_name: &str) -> Option<&str> {
-    // 如果find返回的不是none（即Some(T)）则将结果作为参数i调用闭包进行计算后再返回，反之直接返回None。
-    find(file_name, '.').map(|i| &file_name[i + 1..])
-}
-
-```
-
-#### unwrap_or
-
-``` rust
-fn find(haystack: &str, needle: char) -> Option<usize> {
-    for (offset, c) in haystack.char_indices() {
-        if c == needle {
-            return Some(offset);
-        }
+fn print(result: Result<i32, ParseIntError>) {
+    match result {
+        Ok(n)  => println!("n is {}", n),
+        Err(e) => println!("Error: {}", e),
     }
-    None
 }
 
 fn main() {
-    // unwrap_or提供了一个默认值default，当值为None时返回default：
-    // 下面第2个没有找到则使用了默认值rs，第一次找到了所以默认值随便写也不怕
-    assert_eq!(extension("foo.rs").unwrap_or("111rs"), "rs");
-    assert_eq!(extension("foo").unwrap_or("rs"), "rs");
+    // This still presents a reasonable answer.
+    let twenty = multiply("10", "2");
+    print(twenty);
+
+    // The following now provides a much more helpful error message.
+    let tt = multiply("t", "2");
+    print(tt);
 }
 
-// 使用map去掉match
-fn extension(file_name: &str) -> Option<&str> {
-    find(file_name, '.').map(|i| &file_name[i + 1..])
-}
-
+n is 20
+Error: invalid digit found in string
 ```
 
-#### and_then
-
-
+这里使用了map与and_then进行精简，结果是一样的
 
 ``` rust
-fn main() {
-    let name = Some("JiangBo");
-    println!("{:?}", name.and_then(|e| Some(e.len())));
+use std::num::ParseIntError;
+
+// As with `Option`, we can use combinators such as `map()`.
+// This function is otherwise identical to the one above and reads:
+// Modify n if the value is valid, otherwise pass on the error.
+fn multiply(first_number_str: &str, second_number_str: &str) -> Result<i32, ParseIntError> {
+    first_number_str.parse::<i32>().and_then(|first_number| {
+        second_number_str.parse::<i32>().map(|second_number| first_number * second_number)
+    })
 }
 
-Some(7)
+fn print(result: Result<i32, ParseIntError>) {
+    match result {
+        Ok(n)  => println!("n is {}", n),
+        Err(e) => println!("Error: {}", e),
+    }
+}
+
+fn main() {
+    // This still presents a reasonable answer.
+    let twenty = multiply("10", "2");
+    print(twenty);
+
+    // The following now provides a much more helpful error message.
+    let tt = multiply("t", "2");
+    print(tt);
+}
+
+n is 20
+Error: invalid digit found in string
 ```
+
+又一种简单的方式，那就是使用?。使用？遇到错误时候会停止处理
+
+``` rust
+use std::num::ParseIntError;
+
+fn multiply(first_number_str: &str, second_number_str: &str) -> Result<i32, ParseIntError> {
+    let first_number = first_number_str.parse::<i32>()?;
+    let second_number = second_number_str.parse::<i32>()?;
+
+    Ok(first_number * second_number)
+}
+
+fn print(result: Result<i32, ParseIntError>) {
+    match result {
+        Ok(n)  => println!("n is {}", n),
+        Err(e) => println!("Error: {}", e),
+    }
+}
+
+fn main() {
+    print(multiply("10", "2"));
+    print(multiply("t", "2"));
+}
+
+n is 20
+Error: invalid digit found in string
+```
+
+### Result与Option的组合
+
+- Option<Result<i32, ParseIntError>>
+
+``` rust
+use std::num::ParseIntError;
+
+fn double_first(vec: Vec<&str>) -> Option<Result<i32, ParseIntError>> {
+    vec.first().map(|first| {
+        first.parse::<i32>().map(|n| 2 * n)
+    })
+}
+
+fn main() {
+    let numbers = vec!["42", "93", "18"];
+    let empty = vec![];
+    let strings = vec!["tofu", "93", "18"];
+
+    println!("The first doubled is {:?}", double_first(numbers));
+
+    println!("The first doubled is {:?}", double_first(empty));
+    // Error 1: the input vector is empty
+
+    println!("The first doubled is {:?}", double_first(strings));
+    // Error 2: the element doesn't parse to a number
+}
+
+The first doubled is Some(Ok(84))
+The first doubled is None
+The first doubled is Some(Err(ParseIntError { kind: InvalidDigit }))
+```
+
+- Result<Option<i32>, ParseIntError>
+
+有些时候，我们想在错误时停止处理（比如？），但在选项为 None 时继续处理。
+
+``` rust
+use std::num::ParseIntError;
+
+fn double_first(vec: Vec<&str>) -> Result<Option<i32>, ParseIntError> {
+    let opt = vec.first().map(|first| {
+        first.parse::<i32>().map(|n| 2 * n)
+    });
+
+    opt.map_or(Ok(None), |r| r.map(Some))
+}
+
+fn main() {
+    let numbers = vec!["42", "93", "18"];
+    let empty = vec![];
+    let strings = vec!["tofu", "93", "18"];
+
+    println!("The first doubled is {:?}", double_first(numbers));
+    println!("The first doubled is {:?}", double_first(empty));
+    println!("The first doubled is {:?}", double_first(strings));
+}
+
+The first doubled is Ok(Some(84))
+The first doubled is Ok(None)
+The first doubled is Err(ParseIntError { kind: InvalidDigit })
+```
+
+### Result别名
+
+也可以使用type重新取别名
+
+``` rust
+use std::num::ParseIntError;
+
+// Define a generic alias for a `Result` with the error type `ParseIntError`.
+type AliasedResult<T> = Result<T, ParseIntError>;
+
+// Use the above alias to refer to our specific `Result` type.
+fn multiply(first_number_str: &str, second_number_str: &str) -> AliasedResult<i32> {
+    first_number_str.parse::<i32>().and_then(|first_number| {
+        second_number_str.parse::<i32>().map(|second_number| first_number * second_number)
+    })
+}
+
+// Here, the alias again allows us to save some space.
+fn print(result: AliasedResult<i32>) {
+    match result {
+        Ok(n)  => println!("n is {}", n),
+        Err(e) => println!("Error: {}", e),
+    }
+}
+
+fn main() {
+    print(multiply("10", "2"));
+    print(multiply("t", "2"));
+}
+```
+
+### main函数返回Result
+
+``` rust
+use std::num::ParseIntError;
+
+fn main() -> Result<(), ParseIntError> {
+    let number_str = "10";
+    let number = match number_str.parse::<i32>() {
+        Ok(number)  => number,
+        Err(e) => return Err(e),
+    };
+    println!("{}", number);
+    Ok(())
+}
+```
+
+### 提前返回
+
+Result 如果发生错误，怎么进行提前返回？直接return即可
+
+``` rust
+use std::num::ParseIntError;
+
+fn multiply(first_number_str: &str, second_number_str: &str) -> Result<i32, ParseIntError> {
+    let first_number = match first_number_str.parse::<i32>() {
+        Ok(first_number)  => first_number,
+        Err(e) => return Err(e),
+    };
+
+    let second_number = match second_number_str.parse::<i32>() {
+        Ok(second_number)  => second_number,
+        Err(e) => return Err(e),
+    };
+
+    Ok(first_number * second_number)
+}
+
+fn print(result: Result<i32, ParseIntError>) {
+    match result {
+        Ok(n)  => println!("n is {}", n),
+        Err(e) => println!("Error: {}", e),
+    }
+}
+
+fn main() {
+    print(multiply("10", "2"));
+    print(multiply("t", "2"));
+}
+```
+
+### 自定义错误类型
+
+可以定义一种新的错误类型，然后将所有不一致的类型都转为自己定义的类型。
+
+``` rust
+use std::fmt;
+
+type Result<T> = std::result::Result<T, DoubleError>;
+
+// Define our error types. These may be customized for our error handling cases.
+// Now we will be able to write our own errors, defer to an underlying error
+// implementation, or do something in between.
+#[derive(Debug, Clone)]
+struct DoubleError;
+
+// Generation of an error is completely separate from how it is displayed.
+// There's no need to be concerned about cluttering complex logic with the display style.
+//
+// Note that we don't store any extra info about the errors. This means we can't state
+// which string failed to parse without modifying our types to carry that information.
+impl fmt::Display for DoubleError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "invalid first item to double")
+    }
+}
+
+fn double_first(vec: Vec<&str>) -> Result<i32> {
+    vec.first()
+        // Change the error to our new type.
+        .ok_or(DoubleError)
+        .and_then(|s| {
+            s.parse::<i32>()
+                // Update to the new error type here also.
+                .map_err(|_| DoubleError)
+                .map(|i| 2 * i)
+        })
+}
+
+fn print(result: Result<i32>) {
+    match result {
+        Ok(n) => println!("The first doubled is {}", n),
+        Err(e) => println!("Error: {}", e),
+    }
+}
+
+fn main() {
+    let numbers = vec!["42", "93", "18"];
+    let empty = vec![];
+    let strings = vec!["tofu", "93", "18"];
+
+    print(double_first(numbers));
+    print(double_first(empty));
+    print(double_first(strings));
+}
+
+The first doubled is 84
+Error: invalid first item to double
+Error: invalid first item to double
+```
+
 
 ### 处理不同类型的错误
 
@@ -4970,7 +5899,7 @@ let guess: u32 = match guess.trim().parse() {
 };
 ```
 
-### 传播错误的?运算符
+### 传播错误
 
 当编写的函数中包含可能会失败的操作时，除了在这个函数中处理错误外，还可以把处理错误的选择权交给该函数的调用者，因为调用者可能拥有更多的信息或逻辑来决定应该如何处理错误，这被称为传播错误。
 
@@ -5040,35 +5969,8 @@ fn read_username_from_file() -> Result<String, io::Error> {
 }
 ```
 
-### 失败时触发panic的快捷⽅式
 
-虽然使⽤match运⾏得很不错，但使⽤它所编写出来的代码可能会显得有些冗⻓，且⽆法较好地表明其意图。类型Result<T, E>本⾝也定义了许多辅助⽅法来应对各式各样的任务
 
-#### unwrap
-
-- 如果 Result 值是成员 Ok，unwrap 会返回 Ok 中的值。
-- 如果 Result 是成员 Err，unwrap 会调用 panic!
-
-``` rust
-use std::fs::File;
-
-fn main() {
-    let f1 = File::open("hello.txt").unwrap();
-    // let f2 = File::open("hello.txt").expect("Failed to open.");
-}
-```
-
-#### expect
-
-允许在unwrap的基础上指定panic! 所附带的错误提⽰信息。使⽤expect并附带上⼀段清晰的错误提⽰信息可以阐明你的意图，并使你更容易追踪到panic的起源。
-
-``` rust
-use std::fs::File;
-
-fn main() {
-    let f = File::open("hello.txt").expect("Failed to open hello.txt");
-}
-```
 
 ## 创建⾃定义类型来进⾏有效性验证
 
@@ -8746,6 +9648,83 @@ x: 5
 y: 5
 ```
 
+案例：指针是8字节
+
+``` rust
+use std::mem;
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy)]
+struct Point {
+    x: f64,
+    y: f64,
+}
+
+// A Rectangle can be specified by where its top left and bottom right 
+// corners are in space
+#[allow(dead_code)]
+struct Rectangle {
+    top_left: Point,
+    bottom_right: Point,
+}
+
+fn origin() -> Point {
+    Point { x: 0.0, y: 0.0 }
+}
+
+fn boxed_origin() -> Box<Point> {
+    // Allocate this point on the heap, and return a pointer to it
+    Box::new(Point { x: 0.0, y: 0.0 })
+}
+
+fn main() {
+    // (all the type annotations are superfluous)
+    // Stack allocated variables
+    let point: Point = origin();
+    let rectangle: Rectangle = Rectangle {
+        top_left: origin(),
+        bottom_right: Point { x: 3.0, y: -4.0 }
+    };
+
+    // Heap allocated rectangle
+    let boxed_rectangle: Box<Rectangle> = Box::new(Rectangle {
+        top_left: origin(),
+        bottom_right: Point { x: 3.0, y: -4.0 },
+    });
+
+    // The output of functions can be boxed
+    let boxed_point: Box<Point> = Box::new(origin());
+
+    // Double indirection
+    let box_in_a_box: Box<Box<Point>> = Box::new(boxed_origin());
+
+    println!("Point occupies {} bytes on the stack",
+             mem::size_of_val(&point));
+    println!("Rectangle occupies {} bytes on the stack",
+             mem::size_of_val(&rectangle));
+
+    // box size == pointer size
+    println!("Boxed point occupies {} bytes on the stack",
+             mem::size_of_val(&boxed_point));
+    println!("Boxed rectangle occupies {} bytes on the stack",
+             mem::size_of_val(&boxed_rectangle));
+    println!("Boxed box occupies {} bytes on the stack",
+             mem::size_of_val(&box_in_a_box));
+
+    // Copy the data contained in `boxed_point` into `unboxed_point`
+    let unboxed_point: Point = *boxed_point;
+    println!("Unboxed point occupies {} bytes on the stack",
+             mem::size_of_val(&unboxed_point));
+}
+
+Point occupies 16 bytes on the stack
+Rectangle occupies 32 bytes on the stack
+Boxed point occupies 8 bytes on the stack
+Boxed rectangle occupies 8 bytes on the stack
+Boxed box occupies 8 bytes on the stack
+Unboxed point occupies 16 bytes on the stack
+```
+
 ### Deref解引用
 
 使用引用操作符“*”。通过解引用操作符可以把实现了Deref trait的智能指针当作引用来对待。
@@ -8816,6 +9795,12 @@ Dropping Custom with data: hello world!
 
 ## 引用计数智能指针Rc<T>
 
+当需要多个所有权时，可以使用Rc（Reference Counting）。Rc记录了引用的数量，也就是Rc里面包裹的值的所有者的数量。
+
+每当一个Rc被克隆，Rc的引用计数就会增加1，而每当一个克隆的Rc被丢弃出作用域，引用计数就会减少1。当一个Rc的引用计数为零时（这意味着没有剩余的所有者），Rc和值都被丢弃。
+
+克隆一个Rc从不执行深度拷贝。克隆只是创建另一个指向被包装的值的指针，并增加计数。
+
 - 共享所有权
 - Rust提供了Rc<T>智能指针来引用计数。Rc<T>允许一个值有多个所有者，引用计数确保了只要还存在所有者，该值就保持有效。每当值共享一个所有权时，计数就会增加一次。只有当计数为零，也就是当所有共享变量离开作用域时，该变量才会被析构。
 - 引用计数智能指针Rc<T>可以共享所有权，用于希望堆上分配的数据可以供程序的多个部分读取，并且无法在编译时确定哪个部分是最后使用者的场景。
@@ -8843,6 +9828,60 @@ fn main() {
 0x55a1618b1bb0, count after constructing y: 2
 0x55a1618b1bb0, count after constructing z: 3
 count after destructing z: 2
+```
+
+另一个案例
+
+``` rust
+use std::rc::Rc;
+
+fn main() {
+    let rc_examples = "Rc examples".to_string();
+    {
+        println!("--- rc_a is created ---");
+        
+        let rc_a: Rc<String> = Rc::new(rc_examples);
+        println!("Reference Count of rc_a: {}", Rc::strong_count(&rc_a));
+        
+        {
+            println!("--- rc_a is cloned to rc_b ---");
+            
+            let rc_b: Rc<String> = Rc::clone(&rc_a);
+            println!("Reference Count of rc_b: {}", Rc::strong_count(&rc_b));
+            println!("Reference Count of rc_a: {}", Rc::strong_count(&rc_a));
+            
+            // Two `Rc`s are equal if their inner values are equal
+            println!("rc_a and rc_b are equal: {}", rc_a.eq(&rc_b));
+            
+            // We can use methods of a value directly
+            println!("Length of the value inside rc_a: {}", rc_a.len());
+            println!("Value of rc_b: {}", rc_b);
+            
+            println!("--- rc_b is dropped out of scope ---");
+        }
+        
+        println!("Reference Count of rc_a: {}", Rc::strong_count(&rc_a));
+        
+        println!("--- rc_a is dropped out of scope ---");
+    }
+    
+    // Error! `rc_examples` already moved into `rc_a`
+    // And when `rc_a` is dropped, `rc_examples` is dropped together
+    // println!("rc_examples: {}", rc_examples);
+    // TODO ^ Try uncommenting this line
+}
+
+--- rc_a is created ---
+Reference Count of rc_a: 1
+--- rc_a is cloned to rc_b ---
+Reference Count of rc_b: 2
+Reference Count of rc_a: 2
+rc_a and rc_b are equal: true
+Length of the value inside rc_a: 11
+Value of rc_b: Rc examples
+--- rc_b is dropped out of scope ---
+Reference Count of rc_a: 1
+--- rc_a is dropped out of scope ---
 ```
 
 ## cell
@@ -8943,6 +9982,109 @@ fn main() {
 ```
 
 - RefCell<T>常配合Rc<T>来使用。Rc<T>允许数据有多个所有者，但只能提供数据的不可变访问。如果两者结合使用，Rc<RefCell<T>>表面上是不可变的，但利用RefCell<T>的内部可变性可以在需要时修改数据。
+
+# 文件读写
+
+## 文本文件一次全读到string
+
+content是string类型
+
+``` rust
+use std::fs;
+
+fn main() {
+    let text = fs::read_to_string("Cargo.toml").unwrap();
+    println!("{}", text);
+}
+
+
+这样是包装起来使用的
+fn read_file_string(filepath: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let data = fs::read_to_string(filepath)?;
+    Ok(data)
+}
+
+```
+
+## 文本文件一次读一行
+
+``` rust
+fn read_file_line_by_line(filepath: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let file = File::open(filepath)?;
+    let reader = BufReader::new(file);
+
+    for line in reader.lines() {
+        println!("{}", line?);
+    }
+
+    Ok(())
+}
+```
+
+## 二进制一次全读到Vector
+
+content是vec[u8]类型
+
+``` rust
+use std::fs;
+
+fn main() {
+    let content = fs::read("Cargo.toml").unwrap();
+    println!("{:?}", content);
+}
+
+这样是包装起来使用的
+fn read_file_vec(filepath: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let data = fs::read(filepath)?;
+    Ok(data)
+}
+```
+
+## 二进制读取指定大小
+
+``` rust
+
+use std::io::prelude::*;
+use std::fs;
+
+fn main() {
+    let mut buffer = [0u8; 5];
+    let mut file = fs::File::open("Cargo.toml").unwrap();
+    file.read(&mut buffer).unwrap();
+    println!("{:?}", buffer);
+    file.read(&mut buffer).unwrap();
+    println!("{:?}", buffer);
+}
+
+这样是包装起来使用的
+
+fn read_file_buffer(filepath: &str) -> Result<(), Box<dyn std::error::Error>> {
+    const BUFFER_LEN: usize = 512;
+    let mut buffer = [0u8; BUFFER_LEN];
+    let mut file = File::open(filepath)?;
+
+    loop {
+        let read_count = file.read(&mut buffer)?;
+        do_something(&buffer[..read_count]);
+
+        if read_count != BUFFER_LEN {
+            break;
+        }
+    }
+    Ok(())
+}
+```
+
+## 写文本文件
+
+``` rust
+use std::fs;
+
+fn main() {
+    fs::write("text.txt", "FROM RUST PROGRAM")
+        .unwrap();
+}
+```
 
 # 并发
 
@@ -9158,6 +10300,8 @@ fn main() {
 
 ### 原子引用计数 Arc
 
+当需要线程之间共享所有权时，可以使用Arc(Atomically Reference Counted)。这个结构，通过Clone实现可以为内存堆中的值的位置创建一个引用指针，同时增加引用计数器。由于它在线程之间共享所有权，当某个值的最后一个引用指针超出范围时，该变量就会被丢弃。
+
 Arc是Rc的线程安全版本。它的全称是“Atomic reference counter”。注意第一个单词代表的是atomic而不是automatic。它强调的是“原子性”。它跟Rc最大的区别在于，引用计数用的是原子整数类型。
 
 ``` rust
@@ -9180,6 +10324,32 @@ fn main() {
     }
 }
 
+```
+
+``` rust
+use std::time::Duration;
+use std::sync::Arc;
+use std::thread;
+
+fn main() {
+    // This variable declaration is where its value is specified.
+    let apple = Arc::new("the same apple");
+
+    for _ in 0..10 {
+        // Here there is no value specification as it is a pointer to a
+        // reference in the memory heap.
+        let apple = Arc::clone(&apple);
+
+        thread::spawn(move || {
+            // As Arc was used, threads can be spawned using the value allocated
+            // in the Arc variable pointer's location.
+            println!("{:?}", apple);
+        });
+    }
+
+    // Make sure all Arc instances are printed from spawned threads.
+    thread::sleep(Duration::from_secs(1));
+}
 ```
 
 ### 互斥体 Mutex
@@ -10435,7 +11605,7 @@ async fn main() {
 }
 ```
 
-### 综合案例1 异步请求响应
+### 异步请求响应案例1
 
 使用 mpsc 和 oneshot 实现异步的请求和响应。
 
@@ -10470,7 +11640,7 @@ async fn main() {
 
 ```
 
-### 综合案例2
+### 异步请求响应案例2
 
 案例：使用 mpsc 和 oneshot演示client同时2个连接进行操作
 
@@ -11067,107 +12237,4 @@ async fn main() -> io::Result<()> {
     Ok(())
 }
 
-```
-
-# 文件读写
-
-## 文本文件一次全读到string
-
-content是string类型
-
-``` rust
-use std::fs;
-
-fn main() {
-    let text = fs::read_to_string("Cargo.toml").unwrap();
-    println!("{}", text);
-}
-
-
-这样是包装起来使用的
-fn read_file_string(filepath: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let data = fs::read_to_string(filepath)?;
-    Ok(data)
-}
-
-```
-
-## 文本文件一次读一行
-
-``` rust
-fn read_file_line_by_line(filepath: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let file = File::open(filepath)?;
-    let reader = BufReader::new(file);
-
-    for line in reader.lines() {
-        println!("{}", line?);
-    }
-
-    Ok(())
-}
-```
-
-## 二进制一次全读到Vector
-
-content是vec[u8]类型
-
-``` rust
-use std::fs;
-
-fn main() {
-    let content = fs::read("Cargo.toml").unwrap();
-    println!("{:?}", content);
-}
-
-这样是包装起来使用的
-fn read_file_vec(filepath: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    let data = fs::read(filepath)?;
-    Ok(data)
-}
-```
-
-## 二进制读取指定大小
-
-``` rust
-
-use std::io::prelude::*;
-use std::fs;
-
-fn main() {
-    let mut buffer = [0u8; 5];
-    let mut file = fs::File::open("Cargo.toml").unwrap();
-    file.read(&mut buffer).unwrap();
-    println!("{:?}", buffer);
-    file.read(&mut buffer).unwrap();
-    println!("{:?}", buffer);
-}
-
-这样是包装起来使用的
-
-fn read_file_buffer(filepath: &str) -> Result<(), Box<dyn std::error::Error>> {
-    const BUFFER_LEN: usize = 512;
-    let mut buffer = [0u8; BUFFER_LEN];
-    let mut file = File::open(filepath)?;
-
-    loop {
-        let read_count = file.read(&mut buffer)?;
-        do_something(&buffer[..read_count]);
-
-        if read_count != BUFFER_LEN {
-            break;
-        }
-    }
-    Ok(())
-}
-```
-
-## 写文本文件
-
-``` rust
-use std::fs;
-
-fn main() {
-    fs::write("text.txt", "FROM RUST PROGRAM")
-        .unwrap();
-}
 ```
