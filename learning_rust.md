@@ -27,6 +27,7 @@ https://zhuanlan.zhihu.com/p/457636529
 https://github.com/wasmflow/node-to-rust
 
 
+https://doc.rust-lang.org/stable/rust-by-example/fn/closures.html
 https://doc.rust-lang.org/stable/rust-by-example/std_misc.html
 ---
 
@@ -1670,7 +1671,78 @@ fn main() {
 
 ```
 
+### From、Into
+
+- From和Into是traits，实现了from貌似就可以不用手动实现into了
+- 在标准库中有许多类型已经具备
+- 使用Into trait通常需要指定要转换的类型，因为编译器在大多数情况下无法确定这一点。
+
+下面是一个自定义的案例
+
+``` rust
+use std::convert::From;
+
+#[derive(Debug)]
+struct Number {
+    value: i32,
+}
+
+impl From<i32> for Number {
+    fn from(item: i32) -> Self {
+        Number { value: item }
+    }
+}
+
+fn main() {
+    let num = Number::from(30);
+    println!("My number is {:?}", num);
+
+    let int = 5;
+    // Try removing the type annotation
+    let num: Number = int.into();
+    println!("My number is {:?}", num);
+}
+```
+
+### TryFrom、TryInto
+
+``` rust
+use std::convert::TryFrom;
+use std::convert::TryInto;
+
+#[derive(Debug, PartialEq)]
+struct EvenNumber(i32);
+
+impl TryFrom<i32> for EvenNumber {
+    type Error = ();
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        if value % 2 == 0 {
+            Ok(EvenNumber(value))
+        } else {
+            Err(())
+        }
+    }
+}
+
+fn main() {
+    // TryFrom
+
+    assert_eq!(EvenNumber::try_from(8), Ok(EvenNumber(8)));
+    assert_eq!(EvenNumber::try_from(5), Err(()));
+
+    // TryInto
+
+    let result: Result<EvenNumber, ()> = 8i32.try_into();
+    assert_eq!(result, Ok(EvenNumber(8)));
+    let result: Result<EvenNumber, ()> = 5i32.try_into();
+    assert_eq!(result, Err(()));
+}
+```
+
 ## 打印输出
+
+### print
 
 println! 和 print! 类似，只是多 ln 的会多一个换行，会输出到标准输出流。eprint! 和 eprintln! 会将内容输出到标准错误流。
 
@@ -1809,6 +1881,117 @@ FF
     "test2",
 )
 x y y
+```
+
+### fmt::Debug
+
+- 所有类型都可以派生（自动创建）fmt::Debug实现。
+- 虽然很方便但不能自定义格式
+
+另见案例[打印结构体](##打印结构体)。
+
+``` rust
+// Derive the `fmt::Debug` implementation for `Structure`. `Structure`
+// is a structure which contains a single `i32`.
+#[derive(Debug)]
+struct Structure(i32);
+
+// Put a `Structure` inside of the structure `Deep`. Make it printable
+// also.
+#[derive(Debug)]
+struct Deep(Structure);
+
+fn main() {
+    // Printing with `{:?}` is similar to with `{}`.
+    println!("{:?} months in a year.", 12);
+    println!("{1:?} {0:?} is the {actor:?} name.",
+             "Slater",
+             "Christian",
+             actor="actor's");
+
+    // `Structure` is printable!
+    println!("Now {:?} will print!", Structure(3));
+
+    // The problem with `derive` is there is no control over how
+    // the results look. What if I want this to just show a `7`?
+    println!("Now {:?} will print!", Deep(Structure(7)));
+}
+
+12 months in a year.
+"Christian" "Slater" is the "actor's" name.
+Now Structure(3) will print!
+Now Deep(Structure(7)) will print!
+```
+
+### fmt::Display
+
+可以通过手动实现fmt::Display进行自定义的打印输出。
+
+案例对debug与display进行了对比的输出
+
+``` rust
+use std::fmt; // Import `fmt`
+
+// A structure holding two numbers. `Debug` will be derived so the results can
+// be contrasted with `Display`.
+#[derive(Debug)]
+struct MinMax(i64, i64);
+
+// Implement `Display` for `MinMax`.
+impl fmt::Display for MinMax {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // Use `self.number` to refer to each positional data point.
+        write!(f, "({}, {})", self.0, self.1)
+    }
+}
+
+// Define a structure where the fields are nameable for comparison.
+#[derive(Debug)]
+struct Point2D {
+    x: f64,
+    y: f64,
+}
+
+// Similarly, implement `Display` for `Point2D`.
+impl fmt::Display for Point2D {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // Customize so only `x` and `y` are denoted.
+        write!(f, "x: {}, y: {}", self.x, self.y)
+    }
+}
+
+fn main() {
+    let minmax = MinMax(0, 14);
+
+    println!("Compare structures:");
+    println!("Display: {}", minmax);
+    println!("Debug: {:?}", minmax);
+
+    let big_range =   MinMax(-300, 300);
+    let small_range = MinMax(-3, 3);
+
+    println!("The big range is {big} and the small is {small}",
+             small = small_range,
+             big = big_range);
+
+    let point = Point2D { x: 3.3, y: 7.2 };
+
+    println!("Compare points:");
+    println!("Display: {}", point);
+    println!("Debug: {:?}", point);
+
+    // Error. Both `Debug` and `Display` were implemented, but `{:b}`
+    // requires `fmt::Binary` to be implemented. This will not work.
+    // println!("What does Point2D look like in binary: {:b}?", point);
+}
+
+Compare structures:
+Display: (0, 14)
+Debug: MinMax(0, 14)
+The big range is (-300, 300) and the small is (-3, 3)
+Compare points:
+Display: x: 3.3, y: 7.2
+Debug: Point2D { x: 3.3, y: 7.2 }
 ```
 
 ## 变量（可变变量和不可变变量）
@@ -2301,6 +2484,74 @@ x: -10, y: 7.7, z: false
 let ((feet, inches), Point {x, y}) = ((3, 10), Point { x: 3, y: -10 });
 ```
 
+另一个案例
+
+``` rust
+// Tuples can be used as function arguments and as return values.
+fn reverse(pair: (i32, bool)) -> (bool, i32) {
+    // `let` can be used to bind the members of a tuple to variables.
+    let (int_param, bool_param) = pair;
+
+    (bool_param, int_param)
+}
+
+// The following struct is for the activity.
+#[derive(Debug)]
+struct Matrix(f32, f32, f32, f32);
+
+fn main() {
+    // A tuple with a bunch of different types.
+    let long_tuple = (1u8, 2u16, 3u32, 4u64,
+                      -1i8, -2i16, -3i32, -4i64,
+                      0.1f32, 0.2f64,
+                      'a', true);
+
+    // Values can be extracted from the tuple using tuple indexing.
+    println!("Long tuple first value: {}", long_tuple.0);
+    println!("Long tuple second value: {}", long_tuple.1);
+
+    // Tuples can be tuple members.
+    let tuple_of_tuples = ((1u8, 2u16, 2u32), (4u64, -1i8), -2i16);
+
+    // Tuples are printable.
+    println!("tuple of tuples: {:?}", tuple_of_tuples);
+
+    // But long Tuples (more than 12 elements) cannot be printed.
+    //let too_long_tuple = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13);
+    //println!("Too long tuple: {:?}", too_long_tuple);
+    // TODO ^ Uncomment the above 2 lines to see the compiler error
+
+    let pair = (1, true);
+    println!("Pair is {:?}", pair);
+
+    println!("Uhe reversed pair is {:?}", reverse(pair));
+
+    // To create one element tuples, the comma is required to tell them apart
+    // from a literal surrounded by parentheses.
+    println!("One element tuple: {:?}", (5u32,));
+    println!("Just an integer: {:?}", (5u32));
+
+    // Tuples can be destructured to create bindings.
+    let tuple = (1, "hello", 4.5, true);
+
+    let (a, b, c, d) = tuple;
+    println!("{:?}, {:?}, {:?}, {:?}", a, b, c, d);
+
+    let matrix = Matrix(1.1, 1.2, 2.1, 2.2);
+    println!("{:?}", matrix);
+}
+
+Long tuple first value: 1
+Long tuple second value: 2
+tuple of tuples: ((1, 2, 2), (4, -1), -2)
+Pair is (1, true)
+Uhe reversed pair is (true, 1)
+One element tuple: (5,)
+Just an integer: 5
+1, "hello", 4.5, true
+Matrix(1.1, 1.2, 2.1, 2.2)
+```
+
 ## 数组
 
 数组（Array）是Rust内建的原始集合类型，数组的特点为：
@@ -2408,44 +2659,10 @@ reset array [5, 4, 3, 2, 1]
 reset after : origin array [5, 4, 3, 2, 1]
 ```
 
-## range
-
-范围类型常用来生成从一个整数开始到另一个整数结束的整数序列，有左闭右开和全闭两种形式，比如（1..5）是左闭右开区间，表示生成1、2、3、4这4个数字；（1..=5）是全闭区间，表示生成1、2、3、4、5这5个数字。范围类型自带一些方法，如
-
-- rev方法可以将范围内的数字顺序反转
-- sum方法可以对范围内的数字进行求和
-
-下面案例演示了rev、sum方法
-
-``` rust
-fn main() {
-    print!("(1..5): ");
-    for i in 1..5 {
-        print!("{} ", i);
-    }
-    println!();
-
-    print!("(1..=5).rev: ");
-    for i in (1..=5).rev() {
-        print!("{} ", i);
-    }
-    println!();
-
-    let sum: i32 = (1..=5).sum();
-    println!("1 + 2 + 3 + 4 + 5 = {}", sum);
-}
-
-huaw@test:~/playground/rust/hellocargo$ cargo run
-    Finished dev [unoptimized + debuginfo] target(s) in 0.01s
-     Running `target/debug/hellocargo`
-(1..5): 1 2 3 4 
-(1..=5).rev: 5 4 3 2 1 
-1 + 2 + 3 + 4 + 5 = 15
-```
-
 ## 切片
 
-切片本身是没有所有权的，它是通过引用语法实现对集合中一段连续的元素序列的借用。切片可以和常见的能够在内存中开辟一段连续内存块的数据结构一起使用，比如数组、动态数组、字符串等。字符串切片就是指向字符串中一段连续的字符。
+- 切片本身是没有所有权的，它是通过引用语法实现对集合中一段连续的元素序列的借用。切片可以和常见的能够在内存中开辟一段连续内存块的数据结构一起使用，比如数组、动态数组、字符串等。字符串切片就是指向字符串中一段连续的字符。
+- 切片与数组类似，但它们的长度在编译时并不为人所知。相反，一个切片是一个两个字的对象；第一个字是一个指向数据的指针，第二个字是切片的长度。字的大小与usize相同，由处理器架构决定，例如x86-64的64位。片断可以用来借用一个数组的一部分，其类型签名为&[T]。
 
 ### 切片定义
 
@@ -2486,6 +2703,83 @@ fn main() {
 切片可以作为函数的参数，把数组、动态数组、字符串中一段连续的元素序列通过引用的方式传递给函数。
 
 ``` rust
+use std::mem;
+
+// This function borrows a slice.
+fn analyze_slice(slice: &[i32]) {
+    println!("First element of the slice: {}", slice[0]);
+    println!("The slice has {} elements", slice.len());
+}
+
+fn main() {
+    // Fixed-size array (type signature is superfluous).
+    let xs: [i32; 5] = [1, 2, 3, 4, 5];
+
+    // All elements can be initialized to the same value.
+    let ys: [i32; 500] = [0; 500];
+
+    // Indexing starts at 0.
+    println!("First element of the array: {}", xs[0]);
+    println!("Second element of the array: {}", xs[1]);
+
+    // `len` returns the count of elements in the array.
+    println!("Number of elements in array: {}", xs.len());
+
+    // Arrays are stack allocated.
+    println!("Array occupies {} bytes", mem::size_of_val(&xs));
+
+    // Arrays can be automatically borrowed as slices.
+    println!("Borrow the whole array as a slice.");
+    analyze_slice(&xs);
+
+    // Slices can point to a section of an array.
+    // They are of the form [starting_index..ending_index].
+    // `starting_index` is the first position in the slice.
+    // `ending_index` is one more than the last position in the slice.
+    println!("Borrow a section of the array as a slice.");
+    analyze_slice(&ys[1 .. 4]);
+
+    // Example of empty slice `&[]`:
+    let empty_array: [u32; 0] = [];
+    assert_eq!(&empty_array, &[]);
+    assert_eq!(&empty_array, &[][..]); // Same but more verbose
+
+    // Arrays can be safely accessed using `.get`, which returns an
+    // `Option`. This can be matched as shown below, or used with
+    // `.expect()` if you would like the program to exit with a nice
+    // message instead of happily continue.
+    for i in 0..xs.len() + 1 { // Oops, one element too far!
+        match xs.get(i) {
+            Some(xval) => println!("{}: {}", i, xval),
+            None => println!("Slow down! {} is too far!", i),
+        }
+    }
+
+    // Out of bound indexing causes runtime error.
+    //println!("{}", xs[5]);
+}
+
+First element of the array: 1
+Second element of the array: 2
+Number of elements in array: 5
+Array occupies 20 bytes
+Borrow the whole array as a slice.
+First element of the slice: 1
+The slice has 5 elements
+Borrow a section of the array as a slice.
+First element of the slice: 0
+The slice has 3 elements
+0: 1
+1: 2
+2: 3
+3: 4
+4: 5
+Slow down! 5 is too far!
+```
+
+另一个简单案例
+
+``` rust
 fn main() {
     let s = String::from("Hello, Rust!");
     let str = "Hello";
@@ -2522,6 +2816,41 @@ fn main() {
 }
 
 [1, 2, 3, 7, 5]
+```
+
+## range
+
+范围类型常用来生成从一个整数开始到另一个整数结束的整数序列，有左闭右开和全闭两种形式，比如（1..5）是左闭右开区间，表示生成1、2、3、4这4个数字；（1..=5）是全闭区间，表示生成1、2、3、4、5这5个数字。范围类型自带一些方法，如
+
+- rev方法可以将范围内的数字顺序反转
+- sum方法可以对范围内的数字进行求和
+
+下面案例演示了rev、sum方法
+
+``` rust
+fn main() {
+    print!("(1..5): ");
+    for i in 1..5 {
+        print!("{} ", i);
+    }
+    println!();
+
+    print!("(1..=5).rev: ");
+    for i in (1..=5).rev() {
+        print!("{} ", i);
+    }
+    println!();
+
+    let sum: i32 = (1..=5).sum();
+    println!("1 + 2 + 3 + 4 + 5 = {}", sum);
+}
+
+huaw@test:~/playground/rust/hellocargo$ cargo run
+    Finished dev [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/hellocargo`
+(1..5): 1 2 3 4 
+(1..=5).rev: 5 4 3 2 1 
+1 + 2 + 3 + 4 + 5 = 15
 ```
 
 # 结构体
@@ -2637,7 +2966,7 @@ origin = (0, 0)
 ## 3 空结构体
 
 - 单元结构体（Unit-Like Struct）
-- Rust允许我们创建没有任何字段的结构体！因为这种结构体与空元组()⼗分相似，所以它们也被称为空结构体。当你想要在某些类型上实现⼀个trait，却不需要在该类型中存储任何数据时，空结构体就可以发挥相应的作⽤。
+- Rust允许我们创建没有任何字段的结构体！因为这种结构体与空元组()⼗分相似，所以它们也被称为空结构体。当你想要在某些类型上实现⼀个trait，却不需要在该类型中存储任何数据时，空结构体就可以发挥相应的作⽤。也就是多用于泛型中使用。
 
 ## 打印结构体
 
@@ -5061,6 +5390,122 @@ fn main() {
 one or two
 ```
 
+### 匹配tuple
+
+``` rust
+fn main() {
+    let triple = (0, -2, 3);
+    // TODO ^ Try different values for `triple`
+
+    println!("Tell me about {:?}", triple);
+    // Match can be used to destructure a tuple
+    match triple {
+        // Destructure the second and third elements
+        (0, y, z) => println!("First is `0`, `y` is {:?}, and `z` is {:?}", y, z),
+        (1, ..)  => println!("First is `1` and the rest doesn't matter"),
+        (.., 2)  => println!("last is `2` and the rest doesn't matter"),
+        (3, .., 4)  => println!("First is `3`, last is `4`, and the rest doesn't matter"),
+        // `..` can be used to ignore the rest of the tuple
+        _      => println!("It doesn't matter what they are"),
+        // `_` means don't bind the value to a variable
+    }
+}
+
+Tell me about (0, -2, 3)
+First is `0`, `y` is -2, and `z` is 3
+```
+
+### 绑定 @
+
+匹配提供了@符号，用于将值与名称绑定
+
+``` rust
+// A function `age` which returns a `u32`.
+fn age() -> u32 {
+    15
+}
+
+fn main() {
+    println!("Tell me what type of person you are");
+
+    match age() {
+        0             => println!("I haven't celebrated my first birthday yet"),
+        // Could `match` 1 ..= 12 directly but then what age
+        // would the child be? Instead, bind to `n` for the
+        // sequence of 1 ..= 12. Now the age can be reported.
+        n @ 1  ..= 12 => println!("I'm a child of age {:?}", n),
+        n @ 13 ..= 19 => println!("I'm a teen of age {:?}", n),
+        // Nothing bound. Return the result.
+        n             => println!("I'm an old person of age {:?}", n),
+    }
+}
+
+Tell me what type of person you are
+I'm a teen of age 15
+```
+
+
+``` rust
+fn some_number() -> Option<u32> {
+    Some(42)
+}
+
+fn main() {
+    match some_number() {
+        // Got `Some` variant, match if its value, bound to `n`,
+        // is equal to 42.
+        Some(n @ 42) => println!("The Answer: {}!", n),
+        // Match any other number.
+        Some(n)      => println!("Not interesting... {}", n),
+        // Match anything else (`None` variant).
+        _            => (),
+    }
+}
+```
+
+### 匹配数组与切片
+
+``` rust
+fn main() {
+    // Try changing the values in the array, or make it a slice!
+    let array = [1, -2, 6];
+
+    match array {
+        // Binds the second and the third elements to the respective variables
+        [0, second, third] =>
+            println!("array[0] = 0, array[1] = {}, array[2] = {}", second, third),
+
+        // Single values can be ignored with _
+        [1, _, third] => println!(
+            "array[0] = 1, array[2] = {} and array[1] was ignored",
+            third
+        ),
+
+        // You can also bind some and ignore the rest
+        [-1, second, ..] => println!(
+            "array[0] = -1, array[1] = {} and all the other ones were ignored",
+            second
+        ),
+        // The code below would not compile
+        // [-1, second] => ...
+
+        // Or store them in another array/slice (the type depends on
+        // that of the value that is being matched against)
+        [3, second, tail @ ..] => println!(
+            "array[0] = 3, array[1] = {} and the other elements were {:?}",
+            second, tail
+        ),
+
+        // Combining these patterns, we can, for example, bind the first and
+        // last values, and store the rest of them in a single array
+        [first, middle @ .., last] => println!(
+            "array[0] = {}, middle = {:?}, array[2] = {}",
+            first, middle, last
+        ),
+    }
+}
+```
+
 ### 匹配struct
 
 ⽰例展⽰的match表达式将Point值分为了3种不同的情况：
@@ -5225,6 +5670,61 @@ fn main() {
 
 ```
 
+### 匹配指针与引用
+
+``` rust
+fn main() {
+    // Assign a reference of type `i32`. The `&` signifies there
+    // is a reference being assigned.
+    let reference = &4;
+
+    match reference {
+        // If `reference` is pattern matched against `&val`, it results
+        // in a comparison like:
+        // `&i32`
+        // `&val`
+        // ^ We see that if the matching `&`s are dropped, then the `i32`
+        // should be assigned to `val`.
+        &val => println!("Got a value via destructuring: {:?}", val),
+    }
+
+    // To avoid the `&`, you dereference before matching.
+    match *reference {
+        val => println!("Got a value via dereferencing: {:?}", val),
+    }
+
+    // What if you don't start with a reference? `reference` was a `&`
+    // because the right side was already a reference. This is not
+    // a reference because the right side is not one.
+    let _not_a_reference = 3;
+
+    // Rust provides `ref` for exactly this purpose. It modifies the
+    // assignment so that a reference is created for the element; this
+    // reference is assigned.
+    let ref _is_a_reference = 3;
+
+    // Accordingly, by defining 2 values without references, references
+    // can be retrieved via `ref` and `ref mut`.
+    let value = 5;
+    let mut mut_value = 6;
+
+    // Use `ref` keyword to create a reference.
+    match value {
+        ref r => println!("Got a reference to a value: {:?}", r),
+    }
+
+    // Use `ref mut` similarly.
+    match mut_value {
+        ref mut m => {
+            // Got a reference. Gotta dereference it before we can
+            // add anything to it.
+            *m += 10;
+            println!("We added 10. `mut_value`: {:?}", m);
+        },
+    }
+}
+```
+
 ## if let
 
 - if let 运算符可将模式与表达式进行比较。 如果表达式与模式匹配，则会执行 if 块。 - if let 表达式的好处是，当你关注的是要匹配的单个模式时，你不需要 match 表达式的所有样板代码。
@@ -5324,6 +5824,8 @@ fn main() {
     }
 }
 ```
+
+## let-else
 
 ## while let
 
