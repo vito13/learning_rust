@@ -27,8 +27,7 @@ https://zhuanlan.zhihu.com/p/457636529
 https://github.com/wasmflow/node-to-rust
 
 
-https://doc.rust-lang.org/stable/rust-by-example/fn/closures.html
-https://doc.rust-lang.org/stable/rust-by-example/std_misc.html
+https://doc.rust-lang.org/rust-by-example/fn/closures/input_parameters.html
 ---
 
 # 准备
@@ -3839,17 +3838,22 @@ Symmetric Difference: [1, 5]
 
 字符串是在任何编程语言中最常用的数据类型之一。在 Rust 中，它们通常以两种形式出现：&str 类型和 String 类型。Rust 字符串保证是有效的 UTF-8 编码字节序列。它们不像C 字符串那样以空值（NULL）终止，并且可以在字符串之间包含空的字节。
 
+## 字面值
+
+字符串字面值被直接存储在二进制程序中。下面的"Hello,World!"是字面值。变量 s 的类型是 &str ，它是一个指向二进制程序特定位置的切片， &str 是不可变引用，所以字符串字面值也是不可变的
+
+``` rust
+let s = "Hello,World!";
+```
+
 ## String
 
-字符串被存储为一个字节的向量（Vec<u8>），但保证总是一个有效的UTF-8序列。字符串是堆分配的，可增长的，不以空值为终点。
-
-- 可变长度的字符串对象
-- String 是一个 Vec\<u8> 的封装。并通过功能性的⽅法将字节解析为⽂本。
-- String是由标准库提供的，是可增长的、可变的、有所有权的、UTF-8 编码的字符串类型。
+- 字符串是堆分配的，可增长的，不以空值为终点
+- String内部指向的连续内存可以看作为UTF-8编码的字节数组
 - 操作字符串前要确定是要操作字符还是字节，因为一个Unicode字符不一定是一个字节。对于Unicode可以使用chars获取所有字符，使用bytes则能得到所有字节。
-- 尝试通过索引访问String中的字符往往是⼗分复杂的，这是因为⼈和计算机对String数据的解释⽅式不同。
 - Rust中的字符串并不⽀持索引方式获取单个字符。
 - String类型的本质是一个字段为Vec<u8>类型的结构体，它把字符内容存放在堆上，由指向堆上字节序列的指针（as_ptr方法）、记录堆上字节序列的长度（len方法）和堆分配的容量（capacity方法）3部分组成。
+- 可以将一段字节序列转换为string。
 
 ``` rust
 fn main() {
@@ -3978,17 +3982,28 @@ fn main() {
 
 ```
 
-## str
+## 字符串切片
 
-&str是一个切片（&[u8]），总是指向一个有效的UTF-8序列，与String的关系就像&[T]和Vec<T>
-
-- 固定长度的字符串字面量str
-- Rust提供了原始的字符串类型str，也叫作字符串切片 。它通常以不可变借用的形式存在，即&str。
+- Rust中的字符串本质上是一段有效的UTF8字节序列。字符串切⽚（&str）则是指向此字节序列的引⽤（&[u8]），使用时候而无需复制
 - str字符串类型由两部分组成：指向字符串序列的指针和记录长度的值。可以通过str模块提供的as_ptr和len方法分别求得指针和长度
-- Rust中的字符串本质上是一段有效的UTF8字节序列。字符串切⽚则是指向此字节序列的引⽤。
-- 可以将一段字节序列转换为str字符串。
 
-下面的案例演示了上面的叙述
+
+``` rust
+fn main() {
+    println!("字符串切片----->");
+    let s = String::from("broadcast");
+
+    let part1 = &s[0..5];
+    let part2 = &s[5..9];
+
+    println!("{}={}+{}", s, part1, part2);
+}
+
+字符串切片----->
+broadcast=broad+cast
+```
+
+字符串切片的成员函数
 
 ``` rust
 fn main(){
@@ -4001,6 +4016,29 @@ fn main(){
         std::str::from_utf8(slice)
     };
     assert_eq!(s,Ok(truth));
+}
+```
+
+定义函数时，使用 &str作为参数类型，可以同时接受String和&str类型的参数。即使用字符串切片代替字符串引用会使API更加通用。下面是字符串切片当作函数参数的案例
+
+``` rust
+fn main() {
+    let my_string = String::from("Hello world");
+    let wordIndex = first_word(&my_string[..]);
+
+    let my_string_literal = "hello world";
+    let wordIndex = first_word(my_string_literal);
+}
+
+fn first_word(s: &str) -> &str {
+    let bytes = s.as_bytes();
+
+    for (i, &item) in bytes.iter().enumerate() {
+        if item == b' ' {
+            return &s[..i];
+        }
+    }
+    &s[..]
 }
 ```
 
@@ -6965,6 +7003,16 @@ fn main() { // 外部作用域
 ## 解引用
 
 
+``` rust
+fn main() {
+    let mut x = 6;
+    let y = &mut x;
+    *y += 1;
+    let z = x;
+    println!("y: {}, z: {}", *y, z);
+}
+
+```
 
 # 泛型
 
@@ -8645,10 +8693,15 @@ fn main() {
 }
 ```
 
-## 捕获上下⽂环境
+## 捕获变量
 
 - 闭包可以捕获⾃⼰所在的环境并访问⾃⼰被定义时的作⽤域中的变量
 - 当闭包从环境中捕获值时，它会使⽤额外的空间来存储这些值以便在闭包体内使⽤
+- 闭包可以通过3种⽅式捕获变量，默认使用引用捕获，只有在需要时才会自动升级
+
+  - 通过引用：&T（不可变借⽤）
+  - 通过可变引用：&mut T（可变借⽤）
+  - 通过值：T（获取所有权 move或copy）
 
 ``` rust
 fn main() {
@@ -8659,9 +8712,92 @@ fn main() {
 }
 ```
 
-## 不同的捕获类型
+下面的2个案例演示了上面说的3中捕获类型
 
-- 闭包可以通过3种⽅式从它们的环境中捕获值，这和函数接收参数的3种⽅式是完全⼀致的：获取所有权、可变借⽤及不可变借⽤。
+``` rust
+fn main() {
+    use std::mem;
+
+// 不可变引用
+    let color = String::from("green");
+    //  一个闭包，它捕获了color并将其存储在了闭包里，它将一直被（不可变的）借用，直到最后一次使用此闭包
+    // println!只需要通过不可变的引用来获得参数即可
+    let print = || println!("`color`: {}", color);
+    print();
+    // color可以再次被不可变引用，因为闭包只持有对`color`的不可变引用。
+    let _reborrow = &color;
+    print();
+    // 在最后一次使用 "print "后，允许移动或重新借用
+    let _color_moved = color;
+
+// 可变引用
+    let mut count = 0;
+    // 下面的闭包可以使用&mut count（可变引⽤）或count（获取所有权）进行捕获，
+    // 因为&mut count可以满足获取，所以没有必要升级到获取所有权。
+    // inc得可变才行，因为里面存储了一个可变引用"&mut"。因此inc需要mut才行
+    let mut inc = || {
+        count += 1;
+        println!("`count`: {}", count);
+    };
+    inc();
+
+    // 闭包仍然可变引用了count，因为它在后面被调用。 
+    // 试图重新借用将导致一个错误。如下
+    // let _reborrow = &count; 
+    // ^ TODO: try uncommenting this line.
+    inc();
+
+    // 此时闭包不再需要借用&mut count了。可以重新借用了
+    let _count_reborrowed = &mut count; 
+    *_count_reborrowed += 1;
+    println!("`_count_reborrowed`: {}", _count_reborrowed);
+    
+
+// 获取所有权，此处是move效果
+    // A non-copy type.
+    let movable = Box::new(3);
+    // mem::drop需要类型T，所以必须有值。一个拷贝类型将复制到闭包中，而不影响被拷贝的数据
+    // 非拷贝则移动，所以movable被move到闭包里了
+    let consume = || {
+        println!("`movable`: {:?}", movable);
+        mem::drop(movable);
+    };
+    // `consume`消耗变量，所以只能调用一次。
+    consume();
+    // consume();
+    // ^ TODO: Try uncommenting this line.
+}
+
+`color`: green
+`color`: green
+`count`: 1
+`count`: 2
+`_count_reborrowed`: 3
+`movable`: 3
+```
+
+``` rust
+fn main() {
+    // `Vec` has non-copy semantics.
+    let haystack = vec![1, 2, 3];
+
+    let contains = move |needle| haystack.contains(needle);
+
+    println!("{}", contains(&1));
+    println!("{}", contains(&4));
+
+    // println!("There're {} elements in vec", haystack.len());
+    // ^ 取消上面这一行的注释将导致编译错误，因为不允许在变量被移动后再使用它
+    
+    // 从closure的签名中去掉`move`则是闭包借用haystack变量，
+    // 因此haystack仍然是可用的，取消上面的那句注释也不会导致错误。
+}
+
+true
+false
+There're 3 elements in vec
+```
+
 
 这3种⽅式被分别编码在如下所⽰的3种Fn系列的 trait中：
 
