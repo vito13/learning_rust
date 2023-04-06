@@ -2284,6 +2284,8 @@ fn main() {
 
 ## 命令行参数
 
+命令行参数可使用 std::env::args 进行接收，这将返回一个迭代器，该迭代器会对 每个参数举出一个字符串。
+
 - 使用cargo run方式输入命令行参数
 
 ``` rust
@@ -2308,19 +2310,21 @@ use std::env;
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    let query = &args[1];
-    let filename = &args[2];
+    // 第一个参数是调用本程序的路径
+    println!("My path is {}.", args[0]);
 
-    println!("Searching for {}", query);
-    println!("In file {}", filename);
+    // 其余的参数是被传递给程序的命令行参数。
+    // 请这样调用程序：
+    //   $ ./args arg1 arg2
+    println!("I got {:?} arguments: {:?}.", args.len() - 1, &args[1..]);
 }
 
-huaw@test:~/playground/rust/tut$ cargo run 123 abc.txt
-   Compiling tut v0.1.0 (/home/huaw/playground/rust/tut)
-    Finished dev [unoptimized + debuginfo] target(s) in 0.25s
-     Running `target/debug/tut 123 abc.txt`
-Searching for 123
-In file abc.txt
+huaw@huaw:~/playground/rust/tut$ cargo run --bin main p1 p2
+warning: unused manifest key: build
+    Finished dev [unoptimized + debuginfo] target(s) in 0.05s
+     Running `target/debug/main p1 p2`
+My path is target/debug/main.
+I got 2 arguments: ["p1", "p2"].
 ```
 
 - 使用vscode方式输入命令行参数
@@ -2447,6 +2451,11 @@ fn main() {
     }
 }
 ```
+
+- 自定义条件
+
+有部分条件如 target_os 是由 rustc 隐式地提供的，但是自定义条件必须使用 --cfg 标记来传给 rustc。
+详见https://doc.rust-lang.org/stable/rust-by-example/attribute/cfg/custom.html，暂未细致查阅cargo里如何使用
 
 # 内建复合类型
 
@@ -2967,6 +2976,38 @@ origin = (0, 0)
 
 - 单元结构体（Unit-Like Struct）
 - Rust允许我们创建没有任何字段的结构体！因为这种结构体与空元组()⼗分相似，所以它们也被称为空结构体。当你想要在某些类型上实现⼀个trait，却不需要在该类型中存储任何数据时，空结构体就可以发挥相应的作⽤。也就是多用于泛型中使用。
+
+``` rust
+struct Cardinal;
+struct BlueJay;
+struct Turkey;
+
+trait Red {}
+trait Blue {}
+
+impl Red for Cardinal {}
+impl Blue for BlueJay {}
+
+// 这些函数只对实现了相应的 trait 的类型有效。
+// 事实上这些 trait 内部是空的，但这没有关系。
+fn red<T: Red>(_: &T)   -> &'static str { "red" }
+fn blue<T: Blue>(_: &T) -> &'static str { "blue" }
+
+fn main() {
+    let cardinal = Cardinal;
+    let blue_jay = BlueJay;
+    let _turkey   = Turkey;
+
+    // 由于约束，`red()` 不能作用于 blue_jay （蓝松鸟），反过来也一样。
+    println!("A cardinal is {}", red(&cardinal));
+    println!("A blue jay is {}", blue(&blue_jay));
+    //println!("A turkey is {}", red(&_turkey));
+    // ^ 试一试：去掉此行注释。
+}
+
+A cardinal is red
+A blue jay is blue
+```
 
 ## 打印结构体
 
@@ -3536,6 +3577,15 @@ fn main() {
     v1.append(&mut v2);
     println!("{:?}", v1);
 
+    // 可以在迭代 `Vector` 的同时，使用独立变量（`i`）来记录迭代次数
+    for (i, x) in xs.iter().enumerate() {
+        println!("In position {} we have value {}", i, x);
+    }
+
+    // 多亏了 `iter_mut`，可变的 `Vector` 在迭代的同时，其中每个值都能被修改
+    for x in xs.iter_mut() {
+        *x *= 3;
+    }
 }
   
 ```
@@ -3788,38 +3838,37 @@ Sets have 4 primary operations (all of the following calls return an iterator):
 use std::collections::HashSet;
 
 fn main() {
-    let mut a: HashSet<i32> = vec![1i32, 2, 3].into_iter().collect();
-    let mut b: HashSet<i32> = vec![2i32, 3, 4].into_iter().collect();
+    let mut a: HashSet<i32> = vec!(1i32, 2, 3).into_iter().collect();
+    let mut b: HashSet<i32> = vec!(2i32, 3, 4).into_iter().collect();
 
     assert!(a.insert(4));
     assert!(a.contains(&4));
 
-    // `HashSet::insert()` returns false if
-    // there was a value already present.
-    // assert!(b.insert(4), "Value 4 is already in set B!");
-    // FIXME ^ Comment out this line
+    // 如果值已经存在，那么 `HashSet::insert()` 返回 false。
+    assert!(b.insert(4), "Value 4 is already in set B!");
+    // 改正 ^ 将此行注释掉。
 
     b.insert(5);
 
-    // If a collection's element type implements `Debug`,
-    // then the collection implements `Debug`.
-    // It usually prints its elements in the format `[elem1, elem2, ...]`
+    // 若一个集合（collection）的元素类型实现了 `Debug`，那么该集合也就实现了 `Debug`。
+    // 这通常将元素打印成这样的格式 `[elem1, elem2, ...]
     println!("A: {:?}", a);
     println!("B: {:?}", b);
 
-    // Print [1, 2, 3, 4, 5] in arbitrary order
+    // 乱序打印 [1, 2, 3, 4, 5]。
     println!("Union: {:?}", a.union(&b).collect::<Vec<&i32>>());
 
-    // This should print [1]
+    // 这将会打印出 [1]
     println!("Difference: {:?}", a.difference(&b).collect::<Vec<&i32>>());
 
-    // Print [2, 3, 4] in arbitrary order.
+    // 乱序打印 [2, 3, 4]。
     println!("Intersection: {:?}", a.intersection(&b).collect::<Vec<&i32>>());
 
-    // Print [1, 5]
+    // 打印 [1, 5]
     println!("Symmetric Difference: {:?}",
              a.symmetric_difference(&b).collect::<Vec<&i32>>());
 }
+
 
 A: {3, 2, 4, 1}
 B: {2, 3, 5, 4}
@@ -4045,24 +4094,77 @@ fn first_word(s: &str) -> &str {
 
 ## raw string
 
+原始标识符可以避免由于新增加关键字导致的不兼容问题，使用 r# 来使用。
+
 ``` rust
 fn main() {
     let raw_str = r"Escapes don't work here: \x3F \u{211D}";
     println!("{}", raw_str);
 
-    // If you need quotes in a raw string, add a pair of #s
+    // 如果你要在原始字符串中写引号，请在两边加一对 #
     let quotes = r#"And then I said: "There is no escape!""#;
     println!("{}", quotes);
 
-    // If you need "# in your string, just use more #s in the delimiter.
-    // You can use up to 65535 #s.
+    // 如果字符串中需要写 "#，那就在定界符中使用更多的 #。
+    // 可使用的 # 的数目没有限制。
     let longer_delimiter = r###"A string with "# in it. And even "##!"###;
     println!("{}", longer_delimiter);
 }
 
+
 Escapes don't work here: \x3F \u{211D}
 And then I said: "There is no escape!"
 A string with "# in it. And even "##!
+```
+
+## 字节数组
+
+想要非 UTF-8 字符串（记住，&str 和 String 都必须是合法的 UTF-8 序列），或者 需要一个字节数组，其中大部分是文本？请使用字节串（byte string）！
+
+``` rust
+use std::str;
+
+fn main() {
+    // 注意这并不是一个 &str
+    let bytestring: &[u8; 20] = b"this is a bytestring";
+
+    // 字节串没有实现 Display，所以它们的打印功能有些受限
+    println!("A bytestring: {:?}", bytestring);
+
+    // 字节串可以使用单字节的转义字符...
+    let escaped = b"\x52\x75\x73\x74 as bytes";
+    // ...但不能使用 Unicode 转义字符
+    // let escaped = b"\u{211D} is not allowed";
+    println!("Some escaped bytes: {:?}", escaped);
+
+
+    // 原始字节串和原始字符串的写法一样
+    let raw_bytestring = br"\u{211D} is not escaped here";
+    println!("{:?}", raw_bytestring);
+
+    // 把字节串转换为 &str 可能失败
+    if let Ok(my_str) = str::from_utf8(raw_bytestring) {
+        println!("And the same as text: '{}'", my_str);
+    }
+
+    let quotes = br#"You can also use "fancier" formatting, \
+                    like with normal raw strings"#;
+
+    // 字节串可以不使用 UTF-8 编码
+    let shift_jis = b"\x82\xe6\x82\xa8\x82\xb1\x82"; // SHIFT-JIS 编码的 "ようこそ"
+
+    // 但这样的话它们就无法转换成 &str 了
+    match str::from_utf8(shift_jis) {
+        Ok(my_str) => println!("Conversion successful: '{}'", my_str),
+        Err(e) => println!("Conversion failed: {:?}", e),
+    };
+}
+
+A bytestring: [116, 104, 105, 115, 32, 105, 115, 32, 97, 32, 98, 121, 116, 101, 115, 116, 114, 105, 110, 103]
+Some escaped bytes: [82, 117, 115, 116, 32, 97, 115, 32, 98, 121, 116, 101, 115]
+[92, 117, 123, 50, 49, 49, 68, 125, 32, 105, 115, 32, 110, 111, 116, 32, 101, 115, 99, 97, 112, 101, 100, 32, 104, 101, 114, 101]
+And the same as text: '\u{211D} is not escaped here'
+Conversion failed: Utf8Error { valid_up_to: 0, error_len: Some(1) }
 ```
 
 # 函数
@@ -4711,7 +4813,7 @@ fn main() {
 
 ### filter_map
 
-过滤掉result=None的元素
+filter_map 会调用一个函数，过滤掉为 None 的所有结果。
 
 ``` rust
 fn main() {
@@ -4910,56 +5012,62 @@ functional style: 5456
 
 ## Option
 
-- 定义于标准库里，在Prelude（预导入模块）中
-- Option（是个枚举）可标识⼀个值⽆效或缺失，即类似Null的作用，可选的枚举值是Some(T)与None
-- 基于泛型的描述见[带有类型参数的枚举](#带有类型参数的枚举)
+在标准库（std）中有个叫做 Option<T>（option 中文意思是 “选项”）的枚举 类型，用于有 “不存在” 的可能性的情况。它表现为以下两个 “option”（选项）中 的一个：
+
+- Some(T)：找到一个属于 T 类型的元素
+- None：找不到相应元素
+
+这些选项可以通过 match 显式地处理，或使用 unwrap 隐式地处理。隐式处理要么 返回 Some 内部的元素，要么就 panic。简单的使用如下：
 
 ``` rust
-enum Option<T> {
-    None,     // The value doesn't exist
-    Some(T),  // The value exists
+// 平民（commoner）们见多识广，收到什么礼物都能应对。
+// 所有礼物都显式地使用 `match` 来处理。
+fn give_commoner(gift: Option<&str>) {
+    // 指出每种情况下的做法。
+    match gift {
+        Some("snake") => println!("Yuck! I'm throwing that snake in a fire."),
+        Some(inner)   => println!("{}? How nice.", inner),
+        None          => println!("No gift? Oh well."),
+    }
 }
-```
 
-- Option\<T>与T不是同一种类型，需要将Option\<T>转为T才行
-- None 和 Some 不是类型，而是 Option<T> 类型的变体。函数不能使用 Some 或 None 作为参数，而只能使用 Option<T> 作为参数
+// 养在深闺人未识的公主见到蛇就会 `panic`（恐慌）。
+// 这里所有的礼物都使用 `unwrap` 隐式地处理。
+fn give_princess(gift: Option<&str>) {
+    // `unwrap` 在接收到 `None` 时将返回 `panic`。
+    let inside = gift.unwrap();
+    if inside == "snake" { panic!("AAAaaaaa!!!!"); }
 
-简单的使用如下
+    println!("I love {}s!!!!!", inside);
+}
 
-``` rust
 fn main() {
-    let s :Option<i8> = Some(42);
-    let s2 = Some("str");
-    let n: Option<i32> = None;  // 此处n为空
-    let s3:i8 = 10;
-    let sum = s + s3;   // 此句错误，两种类型不一致
+    let food  = Some("chicken");
+    let snake = Some("snake");
+    let void  = None;
+
+    give_commoner(food);
+    give_commoner(snake);
+    give_commoner(void);
+
+    let bird = Some("robin");
+    let nothing = None;
+
+    give_princess(bird);
+    give_princess(nothing);
 }
-```
 
-``` rust
-let fruits = vec!["banana", "apple", "coconut", "orange", "strawberry"];
-
-// pick the first item:
-let first = fruits.get(0);
-println!("{:?}", first);
-
-// pick the third item:
-let third = fruits.get(2);
-println!("{:?}", third);
-
-// pick the 99th item, which is non-existent:
-let non_existent = fruits.get(99);
-println!("{:?}", non_existent);
-
-输出
-Some("banana")
-Some("coconut")
-None
+chicken? How nice.
+Yuck! I'm throwing that snake in a fire.
+No gift? Oh well.
+I love robins!!!!!
+thread 'main' panicked at 'called `Option::unwrap()` on a `None` value', src/bin/main.rs:16:23
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 ```
 
 ### 展开option
 
-你可以通过使用匹配语句来解包Options，但通常使用?操作符更容易。如果x是一个Option且some有值则x? 将返回基础值，否则将终止正在执行的任何函数并返回None。
+你可以使用 match 语句来解开 Option，但使用 ? 运算符通常会更容易。如果 x 是 Option，那么若 x 是 Some ，对x?表达式求值将返回底层值，否则无论函数是否正在执行都将终止且返回 None。
 
 ``` rust
 struct Person {
@@ -4979,11 +5087,10 @@ struct PhoneNumber {
 
 impl Person {
 
-    // Gets the area code of the phone number of the person's job, if it exists.
+    // 获取此人的工作电话号码的区号（如果存在的话）。
     fn work_phone_area_code(&self) -> Option<u8> {
-        // This would need many nested `match` statements without the `?` operator.
-        // It would take a lot more code - try writing it yourself and see which
-        // is easier.
+        // 没有`？`运算符的话，这将需要很多的嵌套的 `match` 语句。
+        // 这将需要更多代码——尝试自己编写一下，看看哪个更容易。
         self.job?.phone_number?.area_code
     }
 }
@@ -5000,6 +5107,7 @@ fn main() {
 
     assert_eq!(p.work_phone_area_code(), Some(61));
 }
+
 ```
 
 ### map
@@ -5017,8 +5125,7 @@ Option有一个内置的方法叫做map()，这是一个组合器，用于Some->
 #[derive(Debug)] struct Chopped(Food);
 #[derive(Debug)] struct Cooked(Food);
 
-// Peeling food. If there isn't any, then return `None`.
-// Otherwise, return the peeled food.
+// 削皮。如果没有食物，就返回 `None`。否则返回削好皮的食物。
 fn peel(food: Option<Food>) -> Option<Peeled> {
     match food {
         Some(food) => Some(Peeled(food)),
@@ -5026,8 +5133,7 @@ fn peel(food: Option<Food>) -> Option<Peeled> {
     }
 }
 
-// Chopping food. If there isn't any, then return `None`.
-// Otherwise, return the chopped food.
+// 切食物。如果没有食物，就返回 `None`。否则返回切好的食物。
 fn chop(peeled: Option<Peeled>) -> Option<Chopped> {
     match peeled {
         Some(Peeled(food)) => Some(Chopped(food)),
@@ -5035,20 +5141,19 @@ fn chop(peeled: Option<Peeled>) -> Option<Chopped> {
     }
 }
 
-// Cooking food. Here, we showcase `map()` instead of `match` for case handling.
+// 烹饪食物。这里，我们使用 `map()` 来替代 `match` 以处理各种情况。
 fn cook(chopped: Option<Chopped>) -> Option<Cooked> {
     chopped.map(|Chopped(food)| Cooked(food))
 }
 
-// A function to peel, chop, and cook food all in sequence.
-// We chain multiple uses of `map()` to simplify the code.
+// 这个函数会完成削皮切块烹饪一条龙。我们把 `map()` 串起来，以简化代码。
 fn process(food: Option<Food>) -> Option<Cooked> {
     food.map(|f| Peeled(f))
         .map(|Peeled(f)| Chopped(f))
         .map(|Chopped(f)| Cooked(f))
 }
 
-// Check whether there's food or not before trying to eat it!
+// 在尝试吃食物之前确认食物是否存在是非常重要的！
 fn eat(food: Option<Cooked>) {
     match food {
         Some(food) => println!("Mmm. I love {:?}", food),
@@ -5063,7 +5168,8 @@ fn main() {
 
     let cooked_apple = cook(chop(peel(apple)));
     let cooked_carrot = cook(chop(peel(carrot)));
-    // Let's try the simpler looking `process()` now.
+
+    // 现在让我们试试看起来更简单的 `process()`。
     let cooked_potato = process(potato);
 
     eat(cooked_apple);
@@ -5105,6 +5211,8 @@ fn extension(file_name: &str) -> Option<&str> {
 
 ### and_then
 
+map() 以链式调用的方式来简化 match 语句。然而，如果以返回类型是 Option<T> 的函数作为 map() 的参数，会导致出现嵌套形式 Option<Option<T>>。这样多层串联 调用就会变得混乱。所以有必要引入 and_then()，在某些语言中它叫做 flatmap。
+
 如果and_then之前的结果是 None 则返回 None ，否则执行and_then指定的函数再返回结果。可以理解为如初步计算结果有值则继续后面的再次计算
 
 案例：and_then代替处理多层match，函数v2与v1的作用是一样的
@@ -5115,7 +5223,7 @@ fn extension(file_name: &str) -> Option<&str> {
 #[derive(Debug)] enum Food { CordonBleu, Steak, Sushi }
 #[derive(Debug)] enum Day { Monday, Tuesday, Wednesday }
 
-// We don't have the ingredients to make Sushi.
+// 我们没有制作寿司所需的原材料（ingredient）（有其他的原材料）。
 fn have_ingredients(food: Food) -> Option<Food> {
     match food {
         Food::Sushi => None,
@@ -5123,7 +5231,7 @@ fn have_ingredients(food: Food) -> Option<Food> {
     }
 }
 
-// We have the recipe for everything except Cordon Bleu.
+// 我们拥有全部食物的食谱，除了法国蓝带猪排（Cordon Bleu）的。
 fn have_recipe(food: Food) -> Option<Food> {
     match food {
         Food::CordonBleu => None,
@@ -5131,23 +5239,22 @@ fn have_recipe(food: Food) -> Option<Food> {
     }
 }
 
-// To make a dish, we need both the recipe and the ingredients.
-// We can represent the logic with a chain of `match`es:
-// map()被描述为一种简化匹配语句的可连锁方式。然而，在一个返回Option<T>的函数上使用map()会产生嵌套的Option<Option<T>>。将多个调用串联起来就会变得很混乱。这就是另一个叫做and_then()的组合器的用武之地，
+
+// 要做一份好菜，我们需要原材料和食谱。
+// 我们可以借助一系列 `match` 来表达这个逻辑：
 fn cookable_v1(food: Food) -> Option<Food> {
-    match have_recipe(food) {
+    match have_ingredients(food) {
         None       => None,
-        Some(food) => match have_ingredients(food) {
+        Some(food) => match have_recipe(food) {
             None       => None,
             Some(food) => Some(food),
         },
     }
 }
 
-// This can conveniently be rewritten more compactly with `and_then()`:
-// and_then()用包装好的值调用它的函数输入并返回结果。如果选项是None，那么它将返回None。
+// 也可以使用 `and_then()` 把上面的逻辑改写得更紧凑：
 fn cookable_v2(food: Food) -> Option<Food> {
-    have_recipe(food).and_then(have_ingredients)
+    have_ingredients(food).and_then(have_recipe)
 }
 
 fn eat(food: Food, day: Day) {
@@ -5164,6 +5271,7 @@ fn main() {
     eat(steak, Day::Tuesday);
     eat(sushi, Day::Wednesday);
 }
+
 
 Oh no. We don't get to eat on Monday?
 Yay! On Tuesday we get to eat Steak.
@@ -5860,57 +5968,65 @@ fn main() {
 
 ### 匹配指针与引用
 
+对指针来说，解构（destructure）和解引用（dereference）要区分开，因为这两者的概念是不同的，和 C 那样的语言用法不一样。
+
+- 解引用使用 *
+- 解构使用 &、ref、和 ref mut
+
 ``` rust
 fn main() {
-    // Assign a reference of type `i32`. The `&` signifies there
-    // is a reference being assigned.
+    // 获得一个 `i32` 类型的引用。`&` 表示取引用。
     let reference = &4;
 
     match reference {
-        // If `reference` is pattern matched against `&val`, it results
-        // in a comparison like:
-        // `&i32`
-        // `&val`
-        // ^ We see that if the matching `&`s are dropped, then the `i32`
-        // should be assigned to `val`.
+        // 如果用 `&val` 这个模式去匹配 `reference`，就相当于做这样的比较：
+        // `&i32`（译注：即 `reference` 的类型）
+        // `&val`（译注：即用于匹配的模式）
+        // ^ 我们看到，如果去掉匹配的 `&`，`i32` 应当赋给 `val`。
+        // 译注：因此可用 `val` 表示被 `reference` 引用的值 4。
         &val => println!("Got a value via destructuring: {:?}", val),
     }
 
-    // To avoid the `&`, you dereference before matching.
+    // 如果不想用 `&`，需要在匹配前解引用。
     match *reference {
         val => println!("Got a value via dereferencing: {:?}", val),
     }
 
-    // What if you don't start with a reference? `reference` was a `&`
-    // because the right side was already a reference. This is not
-    // a reference because the right side is not one.
+    // 如果一开始就不用引用，会怎样？ `reference` 是一个 `&` 类型，因为赋值语句
+    // 的右边已经是一个引用。但下面这个不是引用，因为右边不是。
     let _not_a_reference = 3;
 
-    // Rust provides `ref` for exactly this purpose. It modifies the
-    // assignment so that a reference is created for the element; this
-    // reference is assigned.
+    // Rust 对这种情况提供了 `ref`。它更改了赋值行为，从而可以对具体值创建引用。
+    // 下面这行将得到一个引用。
     let ref _is_a_reference = 3;
 
-    // Accordingly, by defining 2 values without references, references
-    // can be retrieved via `ref` and `ref mut`.
+    // 相应地，定义两个非引用的变量，通过 `ref` 和 `ref mut` 仍可取得其引用。
     let value = 5;
     let mut mut_value = 6;
 
-    // Use `ref` keyword to create a reference.
+    // 使用 `ref` 关键字来创建引用。
+    // 译注：下面的 r 是 `&i32` 类型，它像 `i32` 一样可以直接打印，因此用法上
+    // 似乎看不出什么区别。但读者可以把 `println!` 中的 `r` 改成 `*r`，仍然能
+    // 正常运行。前面例子中的 `println!` 里就不能是 `*val`，因为不能对整数解
+    // 引用。
     match value {
         ref r => println!("Got a reference to a value: {:?}", r),
     }
 
-    // Use `ref mut` similarly.
+    // 类似地使用 `ref mut`。
     match mut_value {
         ref mut m => {
-            // Got a reference. Gotta dereference it before we can
-            // add anything to it.
+            // 已经获得了 `mut_value` 的引用，先要解引用，才能改变它的值。
             *m += 10;
             println!("We added 10. `mut_value`: {:?}", m);
         },
     }
 }
+
+Got a value via destructuring: 4
+Got a value via dereferencing: 4
+Got a reference to a value: 5
+We added 10. `mut_value`: 16
 ```
 
 ## if let
@@ -6154,21 +6270,12 @@ panic!的使用准则：
 
 ## Result<T, E>
 
-Result 和 Option 有点类似，不过它代表可能失败，而不是可能不存在。 Result 类型一般是在可能发生错误的时候使用。
+Result 是 Option 类型的更丰富的版本，描述的是可能 的错误而不是可能的不存在。 也就是说，Result<T，E> 可以有两个结果的其中一个：
 
-``` rust
-enum Result<T, E> {
-    Ok(T),
-    Err(E),
-}
-```
+- Ok<T>：找到 T 元素
+- Err<E>：找到 E 元素，E 即表示错误的类型。
 
-Result<T, E>可以有两种结果之一：
-
-- Ok(T)：找到了一个元素T
-- Err(E): 在元素E中发现了一个错误。
-
-按照惯例，预期结果是Ok，而意外结果是Err。
+按照约定，预期结果是 “Ok”，而意外结果是 “Err”。
 
 ### unwrap与expect
 
@@ -6267,9 +6374,9 @@ Error: invalid digit found in string
 ``` rust
 use std::num::ParseIntError;
 
-// As with `Option`, we can use combinators such as `map()`.
-// This function is otherwise identical to the one above and reads:
-// Modify n if the value is valid, otherwise pass on the error.
+// 就像 `Option` 那样，我们可以使用 `map()` 之类的组合算子。
+// 除去写法外，这个函数与上面那个完全一致，它的作用是：
+// 如果值是合法的，计算其乘积，否则返回错误。
 fn multiply(first_number_str: &str, second_number_str: &str) -> Result<i32, ParseIntError> {
     first_number_str.parse::<i32>().and_then(|first_number| {
         second_number_str.parse::<i32>().map(|second_number| first_number * second_number)
@@ -6284,11 +6391,11 @@ fn print(result: Result<i32, ParseIntError>) {
 }
 
 fn main() {
-    // This still presents a reasonable answer.
+    // 这种情况下仍然会给出正确的答案。
     let twenty = multiply("10", "2");
     print(twenty);
 
-    // The following now provides a much more helpful error message.
+    // 这种情况下就会提供一条更有用的错误信息。
     let tt = multiply("t", "2");
     print(tt);
 }
@@ -6473,34 +6580,42 @@ fn main() {
 可以定义一种新的错误类型，然后将所有不一致的类型都转为自己定义的类型。
 
 ``` rust
+use std::error;
 use std::fmt;
 
 type Result<T> = std::result::Result<T, DoubleError>;
 
-// Define our error types. These may be customized for our error handling cases.
-// Now we will be able to write our own errors, defer to an underlying error
-// implementation, or do something in between.
 #[derive(Debug, Clone)]
+// 定义我们的错误类型，这种类型可以根据错误处理的实际情况定制。
+// 我们可以完全自定义错误类型，也可以在类型中完全采用底层的错误实现，
+// 也可以介于二者之间。
 struct DoubleError;
 
-// Generation of an error is completely separate from how it is displayed.
-// There's no need to be concerned about cluttering complex logic with the display style.
+// 错误的生成与它如何显示是完全没关系的。没有必要担心复杂的逻辑会导致混乱的显示。
 //
-// Note that we don't store any extra info about the errors. This means we can't state
-// which string failed to parse without modifying our types to carry that information.
+// 注意我们没有储存关于错误的任何额外信息，也就是说，如果不修改我们的错误类型定义的话，
+// 就无法指明是哪个字符串解析失败了。
 impl fmt::Display for DoubleError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "invalid first item to double")
     }
 }
 
+// 为 `DoubleError` 实现 `Error` trait，这样其他错误可以包裹这个错误类型。
+impl error::Error for DoubleError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        // 泛型错误，没有记录其内部原因。
+        None
+    }
+}
+
 fn double_first(vec: Vec<&str>) -> Result<i32> {
     vec.first()
-        // Change the error to our new type.
-        .ok_or(DoubleError)
-        .and_then(|s| {
+       // 把错误换成我们的新类型。
+       .ok_or(DoubleError)
+       .and_then(|s| {
             s.parse::<i32>()
-                // Update to the new error type here also.
+                // 这里也换成新类型。
                 .map_err(|_| DoubleError)
                 .map(|i| 2 * i)
         })
@@ -6508,7 +6623,7 @@ fn double_first(vec: Vec<&str>) -> Result<i32> {
 
 fn print(result: Result<i32>) {
     match result {
-        Ok(n) => println!("The first doubled is {}", n),
+        Ok(n)  => println!("The first doubled is {}", n),
         Err(e) => println!("Error: {}", e),
     }
 }
@@ -6522,6 +6637,7 @@ fn main() {
     print(double_first(empty));
     print(double_first(strings));
 }
+
 
 The first doubled is 84
 Error: invalid first item to double
@@ -6851,6 +6967,42 @@ fn takes_and_gives_back(a_string: String) -> String { 
 }
 ```
 
+## 部分move
+
+在单个变量的解构内，可以同时使用 by-move 和 by-reference 模式绑定。这样做将导致变量的部分移动（partial move），这意味着变量的某些部分将被移动，而其他部分将保留。在这种情况下，后面不能整体使用父级变量，但是仍然可以使用只引用（而不移动）的部分。
+
+``` rust
+fn main() {
+    #[derive(Debug)]
+    struct Person {
+        name: String,
+        age: u8,
+    }
+
+    let person = Person {
+        name: String::from("Alice"),
+        age: 20,
+    };
+
+    // `name` 从 person 中移走，但 `age` 只是引用
+    let Person { name, ref age } = person;
+
+    println!("The person's age is {}", age);
+
+    println!("The person's name is {}", name);
+
+    // 报错！部分移动值的借用：`person` 部分借用产生
+    //println!("The person struct is {:?}", person);
+
+    // `person` 不能使用，但 `person.age` 因为没有被移动而可以继续使用
+    println!("The person's age from person struct is {}", person.age);
+}
+
+The person's age is 20
+The person's name is Alice
+The person's age from person struct is 20
+```
+
 ## Copy与Clone
 
 浅复制Copy是指复制栈上数据，深复制Clone是指复制栈上和堆上数据。
@@ -6947,12 +7099,54 @@ fn main() {
 }
 ```
 
-# 引用和借用
+# 借用
 
-- 引用是使用引用操作符（＆）创建出来的，而执行解引用则需要使用解引用操作符（＊）这些操作符都是单目操作符，意味着它们只接收—个操作数。
-- 引用（Reference）是一种语法（本质上是Rust提供的一种指针语义），而借用（Borrowing）是对引用行为的描述。引用分为不可变引用和可变引用，对应着不可变借用和可变借用。使用&操作符执行不可变引用，使用&mut执行可变引用。&x也可称为对x的借用。通过&操作符完成对所有权的借用，不会造成所有权的转移。
+多数情况下，我们更希望能访问数据，同时不取得其所有权。为实现这点，Rust 使用了借用（borrowing）机制。对象可以通过引用（&T）来传递，从而取代通过值（T）来传递。编译器（通过借用检查）静态地保证了引用总是指向有效的对象。也就是说，当存在引用指向一个对象时，该对象不能被销毁。
 
-## 引用与解引用
+- 复杂的案例
+
+``` rust
+// 此函数取得一个 box 的所有权并销毁它
+fn eat_box_i32(boxed_i32: Box<i32>) {
+    println!("Destroying box that contains {}", boxed_i32);
+}
+
+// 此函数借用了一个 i32 类型
+fn borrow_i32(borrowed_i32: &i32) {
+    println!("This int is: {}", borrowed_i32);
+}
+
+fn main() {
+    // 创建一个装箱的 i32 类型，以及一个存在栈中的 i32 类型。
+    let boxed_i32 = Box::new(5_i32);
+    let stacked_i32 = 6_i32;
+
+    // 借用了 box 的内容，但没有取得所有权，所以 box 的内容之后可以再次借用。
+    // 译注：请注意函数自身就是一个作用域，因此下面两个函数运行完成以后，
+    // 在函数中临时创建的引用也就不复存在了。
+    borrow_i32(&boxed_i32);
+    borrow_i32(&stacked_i32);
+
+    {
+        // 取得一个对 box 中数据的引用
+        let _ref_to_i32: &i32 = &boxed_i32;
+
+        // 报错！
+        // 当 `boxed_i32` 里面的值之后在作用域中被借用时，不能将其销毁。
+        eat_box_i32(boxed_i32);
+        // 改正 ^ 注释掉此行
+
+        // 在 `_ref_to_i32` 里面的值被销毁后，尝试借用 `_ref_to_i32`
+        //（译注：如果此处不借用，则在上一行的代码中，eat_box_i32(boxed_i32)可以将 `boxed_i32` 销毁。）
+        borrow_i32(_ref_to_i32);
+        // `_ref_to_i32` 离开作用域且不再被借用。
+    }
+
+    // `boxed_i32` 现在可以将所有权交给 `eat_i32` 并被销毁。
+    //（译注：能够销毁是因为已经不存在对 `boxed_i32` 的引用）
+    eat_box_i32(boxed_i32);
+}
+```
 
 - 引用：变量的案例
 
@@ -7048,11 +7242,61 @@ v1: [1, 2, 3], v2: [4, 5, 6], sum: 21
 
 ## 可变引用
 
+可变数据可以使用 &mut T 进行可变借用。这叫做可变引用（mutable reference），它使借用者可以读/写数据。相反，&T 通过不可变引用（immutable reference）来借用数据，借用者可以读数据而不能更改数据：
+
 引用默认是只读的，要想修改引用的值，应该使用可变引用&mut。在定义与调用带有可变引用参数的函数时，必须同时满足以下3个要求，缺一不可，否则会导致程序错误。
 
 - 变量本身必须是可变的，因为可变引用只能操作可变变量，不能获取不可变变量的可变引用。变量声明中必须使用mut。
 - 函数的参数必须是可变的，函数的参数定义中必须使用&mut。
 - 调用函数时传递的实参必须是可变的，传递给函数的实参必须使用&mut。
+
+``` rust
+#[allow(dead_code)]
+#[derive(Clone, Copy)]
+struct Book {
+    // `&'static str` 是一个对分配在只读内存区的字符串的引用
+    author: &'static str,
+    title: &'static str,
+    year: u32,
+}
+
+// 此函数接受一个对 Book 类型的引用
+fn borrow_book(book: &Book) {
+    println!("I immutably borrowed {} - {} edition", book.title, book.year);
+}
+
+// 此函数接受一个对可变的 Book 类型的引用，它把年份 `year` 改为 2014 年
+fn new_edition(book: &mut Book) {
+    book.year = 2014;
+    println!("I mutably borrowed {} - {} edition", book.title, book.year);
+}
+
+fn main() {
+    // 创建一个名为 `immutabook` 的不可变的 Book 实例
+    let immutabook = Book {
+        // 字符串字面量拥有 `&'static str` 类型
+        author: "Douglas Hofstadter",
+        title: "Gödel, Escher, Bach",
+        year: 1979,
+    };
+
+    // 创建一个 `immutabook` 的可变拷贝，命名为 `mutabook`
+    let mut mutabook = immutabook;
+
+    // 不可变地借用一个不可变对象
+    borrow_book(&immutabook);
+
+    // 不可变地借用一个可变对象
+    borrow_book(&mutabook);
+
+    // 可变地借用一个可变对象
+    new_edition(&mut mutabook);
+
+    // 报错！不能可变地借用一个不可变对象
+    new_edition(&mut immutabook);
+    // 改正 ^ 注释掉此行
+}
+```
 
 案例：以可变引用修改动态数组的值
 
@@ -7092,76 +7336,117 @@ x: 7
 
 ## 借用规则
 
-为了保证内存安全，借用必须遵循以下规则：
-
-- 对于同一个资源的借用，在同一个作用域只能有一个可变引用（&mut T），或有n个不可变引用（&T），但不能同时存在可变引用和不可变引用。
-- 在可变引用释放前不能访问资源所有者。
-- 任何引用的作用域都必须小于资源所有者的作用域，并在离开作用域后自动释放。
+数据可以多次不可变借用，但是在不可变借用的同时，原始数据不能使用可变借用。或者说，同一时间内只允许一次可变借用。仅当最后一次使用可变引用之后，原始数据才可以再次借用。
 
 借用规则类似于读写锁，即同一时刻只能拥有一个写锁，或者多个读锁，不允许写锁和读锁同时出现。这是为了避免数据竞争，保障数据一致性。Rust在编译时完成借用规则的检查，这样可以有效地避免运行时出现死锁等问题。
 
-错误的案例：在可变借用的同时进行不可变借用
-
 ``` rust
-在同一个作用域，有一个可变引用y，又有一个不可变引用z，这显然违反了借用规则的第一条：不能在可变借用的同时进行不可变借用。
+struct Point { x: i32, y: i32, z: i32 }
 
 fn main() {
-    let mut x = 6;
-    let y = &mut x;
-    *y += 1;
-    let z = &x;
-    println!("y: {}, z: {}", *y, *z);
+    let mut point = Point { x: 0, y: 0, z: 0 };
+
+    let borrowed_point = &point;
+    let another_borrow = &point;
+
+    // 数据可以通过引用或原始类型来访问
+    println!("Point has coordinates: ({}, {}, {})",
+                borrowed_point.x, another_borrow.y, point.z);
+    
+    // 报错！`point` 不能以可变方式借用，因为当前还有不可变借用。
+    // let mutable_borrow = &mut point;
+    // TODO ^ 试一试去掉此行注释
+
+    // 被借用的值在这里被重新使用
+    println!("Point has coordinates: ({}, {}, {})",
+                borrowed_point.x, another_borrow.y, point.z);
+
+    // 不可变的引用不再用于其余的代码，因此可以使用可变的引用重新借用。
+    let mutable_borrow = &mut point;
+
+    // 通过可变引用来修改数据
+    mutable_borrow.x = 5;
+    mutable_borrow.y = 2;
+    mutable_borrow.z = 1;
+
+    // 报错！不能再以不可变方式来借用 `point`，因为它当前已经被可变借用。
+    // let y = &point.y;
+    // TODO ^ 试一试去掉此行注释
+
+    // 报错！无法打印，因为 `println!` 用到了一个不可变引用。
+    // println!("Point Z coordinate is {}", point.z);
+    // TODO ^ 试一试去掉此行注释
+
+    // 正常运行！可变引用能够以不可变类型传入 `println!`
+    println!("Point has coordinates: ({}, {}, {})",
+                mutable_borrow.x, mutable_borrow.y, mutable_borrow.z);
+
+    // 可变引用不再用于其余的代码，因此可以重新借用
+    let new_borrowed_point = &point;
+    println!("Point now has coordinates: ({}, {}, {})",
+             new_borrowed_point.x, new_borrowed_point.y, new_borrowed_point.z);
 }
+
 ```
 
-错误的案例：在可变引用释放前访问资源所有者
+## ref 模式
+
+在通过 let 绑定来进行模式匹配或解构时，ref 关键字可用来创建结构体/元组的字段的引用。下面的例子展示了几个实例，可看到 ref 的作用：
 
 ``` rust
-在变量x的可变引用y未释放前再次访问变量x，这违反了借用规则的第二条：在可变引用释放前不能访问资源所有者。
+#[derive(Clone, Copy)]
+struct Point { x: i32, y: i32 }
 
 fn main() {
-    let mut x = 6;
-    let y = &mut x;
-    *y += 1;
-    let z = x;
-    println!("y: {}, z: {}", *y, z);
+    let c = 'Q';
+
+    // 赋值语句中左边的 `ref` 关键字等价于右边的 `&` 符号。
+    let ref ref_c1 = c;
+    let ref_c2 = &c;
+
+    println!("ref_c1 equals ref_c2: {}", *ref_c1 == *ref_c2);
+
+    let point = Point { x: 0, y: 0 };
+
+    // 在解构一个结构体时 `ref` 同样有效。
+    let _copy_of_x = {
+        // `ref_to_x` 是一个指向 `point` 的 `x` 字段的引用。
+        let Point { x: ref ref_to_x, y: _ } = point;
+
+        // 返回一个 `point` 的 `x` 字段的拷贝。
+        *ref_to_x
+    };
+
+    // `point` 的可变拷贝
+    let mut mutable_point = point;
+
+    {
+        // `ref` 可以与 `mut` 结合以创建可变引用。
+        let Point { x: _, y: ref mut mut_ref_to_y } = mutable_point;
+
+        // 通过可变引用来改变 `mutable_point` 的字段 `y`。
+        *mut_ref_to_y = 1;
+    }
+
+    println!("point is ({}, {})", point.x, point.y);
+    println!("mutable_point is ({}, {})", mutable_point.x, mutable_point.y);
+
+    // 包含一个指针的可变元组
+    let mut mutable_tuple = (Box::new(5u32), 3u32);
+    
+    {
+        // 解构 `mutable_tuple` 来改变 `last` 的值。
+        let (_, ref mut last) = mutable_tuple;
+        *last = 2u32;
+    }
+    
+    println!("tuple is {:?}", mutable_tuple);
 }
 
-借用规则的第三条的案例见下面的悬垂引用
-```
-
-## 悬垂引用
-
-生命周期的作用是避免代码中出现悬垂引用。悬垂引用是指引用了无效的数据，也就是内存中的数据释放后再次被使用。
-
-案例：使用离开作用域的值的引用
-
-``` rust
-外部作用域声明了一个没有初始值的变量r，而内部作用域声明了一个初始值为7的变量i，并将r的值设置为i的引用。在内部作用域结束后，在外部作用域尝试打印r的值。
-
-fn main() { // 外部作用域
-    let r;
-    { // 内部作用域
-        let i = 7;
-        r = &i;
-    } // 变量i就离开了作用域，而变量r因为是在外部作用域声明的，此时仍是有效的。
-    println!("r: {}", r); // 尝试使用变量r的值，导致变量r将会引用变量i离开作用域时被释放的内存，这显然违反了借用规则的第三条：任何对变量r的操作都应该被禁止。
-}
-
-```
-
-## 解引用
-
-
-``` rust
-fn main() {
-    let mut x = 6;
-    let y = &mut x;
-    *y += 1;
-    let z = x;
-    println!("y: {}, z: {}", *y, z);
-}
-
+ref_c1 equals ref_c2: true
+point is (0, 0)
+mutable_point is (0, 1)
+tuple is (5, 2)
 ```
 
 # 泛型
@@ -8142,6 +8427,10 @@ rect.area: 57.75, circle.area: 28.26, total area:
     86.01
 ```
 
+### 空约束
+
+约束的工作机制会产生这样的效果：即使一个 trait 不包含任何功能，你仍然可以用它 作为约束。标准库中的 Eq 和 Ord 就是这样的 trait。案例见(空结构体)[空结构体]
+
 ### 其余案例
 
 - 一个Trait
@@ -8343,6 +8632,50 @@ fn returns_summarizable() -> impl Summary {
 }
 ```
 
+## 使用dyn返回trait
+
+可以简单理解为返回基类指针
+
+``` rust
+struct Sheep {}
+struct Cow {}
+
+trait Animal {
+    // 实例方法签名
+    fn noise(&self) -> &'static str;
+}
+
+// 实现 `Sheep` 的 `Animal` trait。
+impl Animal for Sheep {
+    fn noise(&self) -> &'static str {
+        "baaaaah!"
+    }
+}
+
+// 实现 `Cow` 的 `Animal` trait。
+impl Animal for Cow {
+    fn noise(&self) -> &'static str {
+        "moooooo!"
+    }
+}
+
+// 返回一些实现 Animal 的结构体，但是在编译时我们不知道哪个结构体。
+fn random_animal(random_number: f64) -> Box<dyn Animal> {
+    if random_number < 0.5 {
+        Box::new(Sheep {})
+    } else {
+        Box::new(Cow {})
+    }
+}
+
+fn main() {
+    let random_number = 0.234;
+    let animal = random_animal(random_number);
+    println!("You've randomly chosen an animal, and it says {}", animal.noise());
+}
+
+```
+
 ## 自定义Iterator
 
 - 该接口在标准库中定义，用于（如范围、数组、矢量和哈希映射）这些容器。
@@ -8486,6 +8819,10 @@ fn main() {
 }
 
 ```
+
+## 运算符重载
+
+https://mirrors.gitcode.host/rust-lang-cn/rust-by-example-cn/trait/ops.html
 
 # 继承与多态
 
@@ -8783,6 +9120,48 @@ Rust的unsafe关键字有以下几种用法：
 - 用于修饰代码块
 - 用于修饰trait
 - 用于修饰impl
+
+不安全代码块主要用于四件事情
+
+## 解引用裸指针
+
+原始指针（raw pointer，裸指针）* 和引用 &T 有类似的功能，但引用总是安全 的，因为借用检查器保证了它指向一个有效的数据。解引用一个裸指针只能通过不安全 代码块执行。
+
+``` rust
+fn main() {
+    let raw_p: *const u32 = &10;
+
+    unsafe {
+        assert!(*raw_p == 10);
+        println!("{}", *raw_p);
+    }
+}
+```
+
+
+## 通过 FFI 调用函数
+
+## 调用不安全的函数
+
+一些函数可以声明为不安全的（unsafe），这意味着在使用它时保证正确性不再是编译器 的责任，而是程序员的。一个例子就是 std::slice::from_raw_parts，向它传入指向 第一个元素的指针和长度参数，它会创建一个切片。
+
+``` rust
+use std::slice;
+
+fn main() {
+    let some_vector = vec![1, 2, 3, 4];
+    let pointer = some_vector.as_ptr();
+    let length = some_vector.len();
+    unsafe {
+        // slice::from_raw_parts 假设传入的指针指向有效的内存，且被指向的内存具有正确的 数据类型，我们必须满足这一假设，否则程序的行为是未定义的（undefined），于是 我们就不能预测会发生些什么了。
+        let my_slice: &[u32] = slice::from_raw_parts(pointer, length);
+        assert_eq!(some_vector.as_slice(), my_slice);
+    }
+}
+```
+
+## 内联汇编（inline assembly）
+
 
 
 # 闭包
@@ -9198,6 +9577,7 @@ my-project
 
 ### 箱 Crate
 
+- 是 Rust 的编译单元。模块不会单独被编译，只有 crate 才会被编译
 - 可以理解为项目，编译为可执行程序或库文件。
 - ⼀个⽤于⽣成库或可执⾏⽂件的树形模块结构。
 - cargo new my-project，创建可执行程序，在src内有main.rs
@@ -9800,6 +10180,10 @@ cargo run --bin client
 ```
 
 这种方式运行即将实现的客户端。
+
+## 构建脚本
+
+build.rs
 
 # 自动化测试
 
@@ -10471,7 +10855,7 @@ error: test failed, to rerun pass `--bin tut`
 
 ## 独占所有权的Box<T>
 
-Box<T>是指向类型为T的堆内存分配值的智能指针，可以通过解引用操作符来获取Box<T>中的T。当Box<T>超出作用域范围时，Rust会自动调用其析构函数，销毁内部对象，并释放所占的堆内存。
+Box<T>是指向类型为T的堆内存分配值的智能指针，可以通过解引用操作符来获取Box<T>中的T。当Box<T>超出作用域范围时，Rust会自动调用其析构函数，销毁内部对象，并释放所占的堆内存。使用 * 运算符进行解引用
 
 ### Box<T>在堆上存储数据
 
@@ -10501,12 +10885,10 @@ struct Point {
     y: f64,
 }
 
-// A Rectangle can be specified by where its top left and bottom right 
-// corners are in space
 #[allow(dead_code)]
 struct Rectangle {
-    top_left: Point,
-    bottom_right: Point,
+    p1: Point,
+    p2: Point,
 }
 
 fn origin() -> Point {
@@ -10514,49 +10896,50 @@ fn origin() -> Point {
 }
 
 fn boxed_origin() -> Box<Point> {
-    // Allocate this point on the heap, and return a pointer to it
+    // 在堆上分配这个点（point），并返回一个指向它的指针
     Box::new(Point { x: 0.0, y: 0.0 })
 }
 
 fn main() {
-    // (all the type annotations are superfluous)
-    // Stack allocated variables
+    // （所有的类型标注都不是必需的）
+    // 栈分配的变量
     let point: Point = origin();
     let rectangle: Rectangle = Rectangle {
-        top_left: origin(),
-        bottom_right: Point { x: 3.0, y: -4.0 }
+        p1: origin(),
+        p2: Point { x: 3.0, y: 4.0 }
     };
 
-    // Heap allocated rectangle
+    // 堆分配的 rectangle（矩形）
     let boxed_rectangle: Box<Rectangle> = Box::new(Rectangle {
-        top_left: origin(),
-        bottom_right: Point { x: 3.0, y: -4.0 },
+        p1: origin(),
+        p2: origin()
     });
 
-    // The output of functions can be boxed
+    // 函数的输出可以装箱
     let boxed_point: Box<Point> = Box::new(origin());
 
-    // Double indirection
+    // 两层装箱
     let box_in_a_box: Box<Box<Point>> = Box::new(boxed_origin());
 
-    println!("Point occupies {} bytes on the stack",
+    println!("Point occupies {} bytes in the stack",
              mem::size_of_val(&point));
-    println!("Rectangle occupies {} bytes on the stack",
+    println!("Rectangle occupies {} bytes in the stack",
              mem::size_of_val(&rectangle));
 
-    // box size == pointer size
-    println!("Boxed point occupies {} bytes on the stack",
+    // box 的宽度就是指针宽度
+    println!("Boxed point occupies {} bytes in the stack",
              mem::size_of_val(&boxed_point));
-    println!("Boxed rectangle occupies {} bytes on the stack",
+    println!("Boxed rectangle occupies {} bytes in the stack",
              mem::size_of_val(&boxed_rectangle));
-    println!("Boxed box occupies {} bytes on the stack",
+    println!("Boxed box occupies {} bytes in the stack",
              mem::size_of_val(&box_in_a_box));
 
-    // Copy the data contained in `boxed_point` into `unboxed_point`
+    // 将包含在 `boxed_point` 中的数据复制到 `unboxed_point`
     let unboxed_point: Point = *boxed_point;
-    println!("Unboxed point occupies {} bytes on the stack",
+    println!("Unboxed point occupies {} bytes in the stack",
              mem::size_of_val(&unboxed_point));
 }
+
 
 Point occupies 16 bytes on the stack
 Rectangle occupies 32 bytes on the stack
@@ -10634,7 +11017,7 @@ Dropping Custom with data: hello rust!
 Dropping Custom with data: hello world!
 ```
 
-## 引用计数智能指针Rc<T>
+## 引用计数 Rc
 
 当需要多个所有权时，可以使用Rc（Reference Counting）。Rc记录了引用的数量，也就是Rc里面包裹的值的所有者的数量。
 
@@ -10691,10 +11074,10 @@ fn main() {
             println!("Reference Count of rc_b: {}", Rc::strong_count(&rc_b));
             println!("Reference Count of rc_a: {}", Rc::strong_count(&rc_a));
             
-            // Two `Rc`s are equal if their inner values are equal
+            // 如果两者内部的值相等的话，则两个 `Rc` 相等。
             println!("rc_a and rc_b are equal: {}", rc_a.eq(&rc_b));
-            
-            // We can use methods of a value directly
+                        
+            // 我们可以直接使用值的方法
             println!("Length of the value inside rc_a: {}", rc_a.len());
             println!("Value of rc_b: {}", rc_b);
             
@@ -10706,11 +11089,12 @@ fn main() {
         println!("--- rc_a is dropped out of scope ---");
     }
     
-    // Error! `rc_examples` already moved into `rc_a`
-    // And when `rc_a` is dropped, `rc_examples` is dropped together
+    // 报错！`rc_examples` 已经移入 `rc_a`。
+    // 而且当 `rc_a` 被删时，`rc_examples` 也被一起删除。
     // println!("rc_examples: {}", rc_examples);
-    // TODO ^ Try uncommenting this line
+    // 试一试 ^ 注释掉此行代码
 }
+
 
 --- rc_a is created ---
 Reference Count of rc_a: 1
@@ -10824,6 +11208,199 @@ fn main() {
 
 - RefCell<T>常配合Rc<T>来使用。Rc<T>允许数据有多个所有者，但只能提供数据的不可变访问。如果两者结合使用，Rc<RefCell<T>>表面上是不可变的，但利用RefCell<T>的内部可变性可以在需要时修改数据。
 
+# 进程
+
+## 子进程
+
+process::Output 结构体表示已结束的子进程（child process）的输出，而 process::Command 结构体是一个进程创建者（process builder）。
+
+``` rust
+use std::process::Command;
+
+fn main() {
+    let output = Command::new("rustc")
+        .arg("--version")
+        .output().unwrap_or_else(|e| {
+            panic!("failed to execute process: {}", e)
+    });
+
+    if output.status.success() {
+        let s = String::from_utf8_lossy(&output.stdout);
+
+        print!("rustc succeeded and stdout was:\n{}", s);
+    } else {
+        let s = String::from_utf8_lossy(&output.stderr);
+
+        print!("rustc failed and stderr was:\n{}", s);
+    }
+}
+
+```
+
+## 管道 pipe
+
+std::Child 结构体代表了一个正在运行的子进程，它暴露了 stdin（标准 输入），stdout（标准输出） 和 stderr（标准错误） 句柄，从而可以通过管道与 所代表的进程交互。
+
+``` rust
+use std::error::Error;
+use std::io::prelude::*;
+use std::process::{Command, Stdio};
+
+static PANGRAM: &'static str =
+"the quick brown fox jumped over the lazy dog\n";
+
+fn main() {
+    // 启动 `wc` 命令
+    let process = match Command::new("wc")
+                                .stdin(Stdio::piped())
+                                .stdout(Stdio::piped())
+                                .spawn() {
+        Err(why) => panic!("couldn't spawn wc: {}", why.description()),
+        Ok(process) => process,
+    };
+
+    // 将字符串写入 `wc` 的 `stdin`。
+    //
+    // `stdin` 拥有 `Option<ChildStdin>` 类型，不过我们已经知道这个实例不为空值，
+    // 因而可以直接 `unwrap 它。
+    match process.stdin.unwrap().write_all(PANGRAM.as_bytes()) {
+        Err(why) => panic!("couldn't write to wc stdin: {}",
+                           why.description()),
+        Ok(_) => println!("sent pangram to wc"),
+    }
+
+    // 因为 `stdin` 在上面调用后就不再存活，所以它被 `drop` 了，管道也被关闭。
+    //
+    // 这点非常重要，因为否则 `wc` 就不会开始处理我们刚刚发送的输入。
+
+    // `stdout` 字段也拥有 `Option<ChildStdout>` 类型，所以必需解包。
+    let mut s = String::new();
+    match process.stdout.unwrap().read_to_string(&mut s) {
+        Err(why) => panic!("couldn't read wc stdout: {}",
+                           why.description()),
+        Ok(_) => print!("wc responded with:\n{}", s),
+    }
+}
+
+sent pangram to wc
+wc responded with:
+      1       9      45
+```
+
+
+## wait
+
+如果你想等待一个 process::Child 完成，就必须调用 Child::wait，这会返回 一个 process::ExitStatus。
+
+``` rust
+use std::process::Command;
+
+fn main() {
+    let mut child = Command::new("sleep").arg("5").spawn().unwrap();
+    let _result = child.wait().unwrap();
+
+    println!("reached end of main");
+}
+```
+
+# 目录操作
+
+``` rust
+use std::fs;
+use std::fs::{File, OpenOptions};
+use std::io;
+use std::io::prelude::*;
+use std::os::unix;
+use std::path::Path;
+
+// `% cat path` 的简单实现
+fn cat(path: &Path) -> io::Result<String> {
+    let mut f = File::open(path)?;
+    let mut s = String::new();
+    match f.read_to_string(&mut s) {
+        Ok(_) => Ok(s),
+        Err(e) => Err(e),
+    }
+}
+
+// `% echo s > path` 的简单实现
+fn echo(s: &str, path: &Path) -> io::Result<()> {
+    let mut f = File::create(path)?;
+
+    f.write_all(s.as_bytes())
+}
+
+// `% touch path` 的简单实现（忽略已存在的文件）
+fn touch(path: &Path) -> io::Result<()> {
+    match OpenOptions::new().create(true).write(true).open(path) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(e),
+    }
+}
+
+fn main() {
+    println!("`mkdir a`");
+    // 创建一个目录，返回 `io::Result<()>`
+    match fs::create_dir("a") {
+        Err(why) => println!("! {:?}", why.kind()),
+        Ok(_) => {},
+    }
+
+    println!("`echo hello > a/b.txt`");
+    // 前面的匹配可以用 `unwrap_or_else` 方法简化
+    echo("hello", &Path::new("a/b.txt")).unwrap_or_else(|why| {
+        println!("! {:?}", why.kind());
+    });
+
+    println!("`mkdir -p a/c/d`");
+    // 递归地创建一个目录，返回 `io::Result<()>`
+    fs::create_dir_all("a/c/d").unwrap_or_else(|why| {
+        println!("! {:?}", why.kind());
+    });
+
+    println!("`touch a/c/e.txt`");
+    touch(&Path::new("a/c/e.txt")).unwrap_or_else(|why| {
+        println!("! {:?}", why.kind());
+    });
+
+    println!("`ln -s ../b.txt a/c/b.txt`");
+    // 创建一个符号链接，返回 `io::Resutl<()>`
+    if cfg!(target_family = "unix") {
+        unix::fs::symlink("../b.txt", "a/c/b.txt").unwrap_or_else(|why| {
+        println!("! {:?}", why.kind());
+        });
+    }
+
+    println!("`cat a/c/b.txt`");
+    match cat(&Path::new("a/c/b.txt")) {
+        Err(why) => println!("! {:?}", why.kind()),
+        Ok(s) => println!("> {}", s),
+    }
+
+    println!("`ls a`");
+    // 读取目录的内容，返回 `io::Result<Vec<Path>>`
+    match fs::read_dir("a") {
+        Err(why) => println!("! {:?}", why.kind()),
+        Ok(paths) => for path in paths {
+            println!("> {:?}", path.unwrap().path());
+        },
+    }
+
+    println!("`rm a/c/e.txt`");
+    // 删除一个文件，返回 `io::Result<()>`
+    fs::remove_file("a/c/e.txt").unwrap_or_else(|why| {
+        println!("! {:?}", why.kind());
+    });
+
+    println!("`rmdir a/c/d`");
+    // 移除一个空目录，返回 `io::Result<()>`
+    fs::remove_dir("a/c/d").unwrap_or_else(|why| {
+        println!("! {:?}", why.kind());
+    });
+}
+```
+
+
 # 文件读写
 
 ## 文本文件一次全读到string
@@ -10927,6 +11504,10 @@ fn main() {
 }
 ```
 
+# FFI
+
+见github "Rust FFI Examples"
+
 # 并发
 
 ## 通用概念
@@ -10958,6 +11539,7 @@ fn main() {
 - spawn生成的线程，默认没有名称，并且其栈大小默认为2MB
 - thread::spawn的返回值类型是⼀个⾃持有所有权的JoinHandle，调⽤它的join⽅法可以阻塞当前线程直到对应的新线程运⾏结束。
 - 在线程句柄上调⽤join函数会阻塞当前线程，直到句柄代表的线程结束
+- spawn的参数是一个通过值捕获变量的闭包（moving closure）。
 
 案例：使用spawn函数创建子线程
 
@@ -11139,9 +11721,138 @@ fn main() {
 }
 ```
 
-### 原子引用计数 Arc
+### 多线程分工合并案例
 
-当需要线程之间共享所有权时，可以使用Arc(Atomically Reference Counted)。这个结构，通过Clone实现可以为内存堆中的值的位置创建一个引用指针，同时增加引用计数器。由于它在线程之间共享所有权，当某个值的最后一个引用指针超出范围时，该变量就会被丢弃。
+Rust 使数据的并行化处理非常简单，在 Rust 中你无需面对并行处理的很多传统难题。
+
+标准库提供了开箱即用的线程类型，把它和 Rust 的所有权概念与别名规则结合 起来，可以自动地避免数据竞争（data race）。
+
+当某状态对某线程是可见的，别名规则（即一个可变引用 XOR 一些只读引用。译注：XOR 是异或的意思，即「二者仅居其一」）就自动地避免了别的线程对它的操作。（当需要同步 处理时，请使用 Mutex 或 Channel 这样的同步类型。）
+
+在本例中，我们将会计算一堆数字中每一位的和。我们将把它们分成几块，放入不同的 线程。每个线程会把自己那一块数字的每一位加起来，之后我们再把每个线程提供的结果 再加起来。
+
+注意到，虽然我们在线程之间传递了引用，但 Rust 理解我们是在传递只读的引用，因此 不会发生数据竞争等不安全的事情。另外，因为我们把数据块 move 到了线程中，Rust 会保证数据存活至线程退出，因此不会产生悬挂指针。
+
+``` rust
+use std::thread;
+
+// 这是 `main` 线程
+fn main() {
+
+    // 这是我们要处理的数据。
+    // 我们会通过线程实现 map-reduce 算法，从而计算每一位的和
+    // 每个用空白符隔开的块都会分配给单独的线程来处理
+    //
+    // 试一试：插入空格，看看输出会怎样变化！
+    let data = "86967897737416471853297327050364959
+11861322575564723963297542624962850
+70856234701860851907960690014725639
+38397966707106094172783238747669219
+52380795257888236525459303330302837
+58495327135744041048897885734297812
+69920216438980873548808413720956532
+16278424637452589860345374828574668";
+
+    // 创建一个向量，用于储存将要创建的子线程
+    let mut children = vec![];
+
+    /*************************************************************************
+     * "Map" 阶段
+     *
+     * 把数据分段，并进行初始化处理
+     ************************************************************************/
+
+    // 把数据分段，每段将会单独计算
+    // 每段都是完整数据的一个引用（&str）
+    let chunked_data = data.split_whitespace();
+
+    // 对分段的数据进行迭代。
+    // .enumerate() 会把当前的迭代计数与被迭代的元素以元组 (index, element)
+    // 的形式返回。接着立即使用 “解构赋值” 将该元组解构成两个变量，
+    // `i` 和 `data_segment`。
+    for (i, data_segment) in chunked_data.enumerate() {
+        println!("data segment {} is \"{}\"", i, data_segment);
+
+        // 用单独的线程处理每一段数据
+        //
+        // spawn() 返回新线程的句柄（handle），我们必须拥有句柄，
+        // 才能获取线程的返回值。
+        //
+        // 'move || -> u32' 语法表示该闭包：
+        // * 没有参数（'||'）
+        // * 会获取所捕获变量的所有权（'move'）
+        // * 返回无符号 32 位整数（'-> u32'）
+        //
+        // Rust 可以根据闭包的内容推断出 '-> u32'，所以我们可以不写它。
+        //
+        // 试一试：删除 'move'，看看会发生什么
+        children.push(thread::spawn(move || -> u32 {
+            // 计算该段的每一位的和：
+            let result = data_segment
+                        // 对该段中的字符进行迭代..
+                        .chars()
+                        // ..把字符转成数字..
+                        .map(|c| c.to_digit(10).expect("should be a digit"))
+                        // ..对返回的数字类型的迭代器求和
+                        .sum();
+
+            // println! 会锁住标准输出，这样各线程打印的内容不会交错在一起
+            println!("processed segment {}, result={}", i, result);
+
+            // 不需要 “return”，因为 Rust 是一种 “表达式语言”，每个代码块中
+            // 最后求值的表达式就是代码块的值。
+            result
+
+        }));
+    }
+
+
+    /*************************************************************************
+     * "Reduce" 阶段
+     *
+     * 收集中间结果，得出最终结果
+     ************************************************************************/
+
+    // 把每个线程产生的中间结果收入一个新的向量中
+    let mut intermediate_sums = vec![];
+    for child in children {
+        // 收集每个子线程的返回值
+        let intermediate_sum = child.join().unwrap();
+        intermediate_sums.push(intermediate_sum);
+    }
+
+    // 把所有中间结果加起来，得到最终结果
+    //
+    // 我们用 “涡轮鱼” 写法 ::<> 来为 sum() 提供类型提示。
+    //
+    // 试一试：不使用涡轮鱼写法，而是显式地指定 intermediate_sums 的类型
+    let final_result = intermediate_sums.iter().sum::<u32>();
+
+    println!("Final sum result: {}", final_result);
+}
+
+data segment 0 is "86967897737416471853297327050364959"
+data segment 1 is "11861322575564723963297542624962850"
+data segment 2 is "70856234701860851907960690014725639"
+processed segment 0, result=187
+data segment 3 is "38397966707106094172783238747669219"
+processed segment 2, result=154
+processed segment 1, result=157
+data segment 4 is "52380795257888236525459303330302837"
+processed segment 3, result=177
+processed segment 4, result=153
+data segment 5 is "58495327135744041048897885734297812"
+data segment 6 is "69920216438980873548808413720956532"
+data segment 7 is "16278424637452589860345374828574668"
+processed segment 5, result=172
+processed segment 6, result=165
+processed segment 7, result=177
+Final sum result: 1342
+```
+
+### 共享引用计数 Arc
+
+当线程之间所有权需要共享时，可以使用Arc（共享引用计数，Atomic Reference Counted 缩写）可以使用。这个结构通过 Clone 实现可以为内存堆中的值的位置创建一个引用指针，同时增加引用计数器。由于它在线程之间共享所有权，因此当指向某个值的最后一个引用指针退出作用域时，该变量将被删除。
 
 Arc是Rc的线程安全版本。它的全称是“Atomic reference counter”。注意第一个单词代表的是atomic而不是automatic。它强调的是“原子性”。它跟Rc最大的区别在于，引用计数用的是原子整数类型。
 
@@ -11173,17 +11884,15 @@ use std::sync::Arc;
 use std::thread;
 
 fn main() {
-    // This variable declaration is where its value is specified.
+   // 这个变量声明用来指定其值的地方。
     let apple = Arc::new("the same apple");
 
     for _ in 0..10 {
-        // Here there is no value specification as it is a pointer to a
-        // reference in the memory heap.
+        // 这里没有数值说明，因为它是一个指向内存堆中引用的指针。
         let apple = Arc::clone(&apple);
 
         thread::spawn(move || {
-            // As Arc was used, threads can be spawned using the value allocated
-            // in the Arc variable pointer's location.
+            // 由于使用了Arc，线程可以使用分配在 `Arc` 变量指针位置的值来生成。
             println!("{:?}", apple);
         });
     }
@@ -11498,10 +12207,10 @@ async fn print_async_2(i: i32) {
 
 ```
 
-## 消息通道 channel
+## 通道 channel
 
 - Rust在标准库中实现了⼀个名为通道（channel）的编程概念来实现消息传递（message passing）
-- 编程中的通道由发送者（transmitter）和接收者（receiver）两个部分组成。
+- 编程中的通道由Sender（发送端） 和 Receiver（接收端）两个部分组成。
 - 使⽤mpsc::channel函数创建了⼀个新的通道，返回⼀个含有发送端tx与接收端rx的元组。
 - mpsc是英⽂ “multiple producer, single consumer”（多个⽣产者，单个消费者）的缩写。
 
@@ -11557,6 +12266,55 @@ fn main() {
 }
 
 ```
+
+另一个案例
+
+``` rust
+use std::sync::mpsc::{Sender, Receiver};
+use std::sync::mpsc;
+use std::thread;
+
+static NTHREADS: i32 = 3;
+
+fn main() {
+    // 通道有两个端点：`Sender<T>` 和 `Receiver<T>`，其中 `T` 是要发送
+    // 的消息的类型（类型标注是可选的）
+    let (tx, rx): (Sender<i32>, Receiver<i32>) = mpsc::channel();
+
+    for id in 0..NTHREADS {
+        // sender 端可被复制
+        let thread_tx = tx.clone();
+
+        // 每个线程都将通过通道来发送它的 id
+        thread::spawn(move || {
+            // 被创建的线程取得 `thread_tx` 的所有权
+            // 每个线程都把消息放在通道的消息队列中
+            thread_tx.send(id).unwrap();
+
+            // 发送是一个非阻塞（non-blocking）操作，线程将在发送完消息后
+            // 会立即继续进行
+            println!("thread {} finished", id);
+        });
+    }
+
+    // 所有消息都在此处被收集
+    let mut ids = Vec::with_capacity(NTHREADS as usize);
+    for _ in 0..NTHREADS {
+        // `recv` 方法从通道中拿到一个消息
+        // 若无可用消息的话，`recv` 将阻止当前线程
+        ids.push(rx.recv());
+    }
+
+    // 显示消息被发送的次序
+    println!("{:?}", ids);
+}
+
+thread 0 finished
+thread 1 finished
+thread 2 finished
+[Ok(0), Ok(1), Ok(2)]
+```
+
 
 ### 同步通道
 
