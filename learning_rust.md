@@ -28,6 +28,7 @@ https://github.com/wasmflow/node-to-rust
 
 
 https://doc.rust-lang.org/rust-by-example/fn/closures/input_parameters.html
+https://mirrors.gitcode.host/rust-lang-cn/rust-by-example-cn/mod.html
 ---
 
 # 准备
@@ -4408,7 +4409,7 @@ Rust提供的迭代器IntoIter、Iter、IterMut和所有权借用的对应关系
 
 ![迭代器](迭代器.png)
 
-## 不可变借用Iter
+## 不可变引用 iter
 
 - 迭代器Iter由iter方法创建，能把容器中元素的引用传递给迭代器，而不发生所有权转移。引用传递之后，原容器还可以继续使用。
 - next方法用于返回迭代器中的下一个元素，并将其封装在Some函数中。如果已经迭代到集合的末尾（最后一个元素的后面），则返回None。
@@ -4452,6 +4453,87 @@ Some(3)
 None
 ```
 
+## 可变引用 iter_mut
+
+迭代器IterMut由iter_mut方法创建，会把容器中元素的可变引用传递给迭代器，不发生所有权转移。引用传递之后，原容器还可以继续使用。iter_mut方法与iter方法的不同点在于，iter方法创建的是只读迭代器，不能在迭代器中改变原容器的元素。但iter_mut方法创建的是可变迭代器，在迭代器中可以改变原容器的元素。
+
+案例：iter_mut方法获得所有权的可变借用。由于迭代器中元素是对动态数组中元素的可变引用，因此在match模式匹配时需要使用&mut，并且通过解引用操作符“*”可以更改原动态数组中的元素。迭代器遍历元素后，原动态数组还可以继续使用。
+
+``` rust
+fn main() {
+    let mut vec = vec!["Java", "Rust", "Python"];
+    for str in vec.iter_mut() {
+        match str {
+            &mut "Rust" => {
+                *str = "Niubility";
+                println!("{}", str);
+            }
+            _ => println!("{}", str),
+        }
+    }
+
+    println!("{:?}", vec);
+}
+
+Java
+Niubility
+Python
+["Java", "Niubility", "Python"]
+```
+
+## 转移所有权 into_iter
+
+迭代器IntoIter由into_iter方法创建，会把容器中元素的所有权转移给迭代器，之后原容器不能再使用。
+
+``` rust
+fn main() {
+    let vec = vec!["Java", "Rust", "Python"];
+    for str in vec.into_iter() {
+        match str {
+            "Rust" => println!("Niubility"),
+            _ => println!("{}", str),
+        }
+    }
+
+    // println!("{:?}", vec); into_iter方法创建迭代器后，原动态数组不能再使用。如果取消注释，将会抛出value borrowed here after ove的错误提示。
+}
+```
+
+``` rust
+fn main() {
+    let vec1 = vec![1, 2, 3];
+    let vec2 = vec![4, 5, 6];
+
+    // `iter()` for vecs yields `&i32`. Destructure to `i32`.
+    println!("2 in vec1: {}", vec1.iter().any(|&x| x == 2));
+    // `into_iter()` for vecs yields `i32`. No destructuring required.
+    println!("2 in vec2: {}", vec2.into_iter().any(|x| x == 2));
+
+    // `iter()` only borrows `vec1` and its elements, so they can be used again
+    println!("vec1 len: {}", vec1.len());
+    println!("First element of vec1 is: {}", vec1[0]);
+    // `into_iter()` does move `vec2` and its elements, so they cannot be used again
+    // println!("First element of vec2 is: {}", vec2[0]);
+    // println!("vec2 len: {}", vec2.len());
+    // TODO: uncomment two lines above and see compiler errors.
+
+    let array1 = [1, 2, 3];
+    let array2 = [4, 5, 6];
+
+    // `iter()` for arrays yields `&i32`.
+    println!("2 in array1: {}", array1.iter().any(|&x| x == 2));
+    // `into_iter()` for arrays yields `i32`.
+    println!("2 in array2: {}", array2.into_iter().any(|x| x == 2));
+}
+
+2 in vec1: true
+2 in vec2: false
+vec1 len: 3
+First element of vec1 is: 1
+2 in array1: true
+2 in array2: false
+```
+
 ## 消费器
 
 Rust中的迭代器都是惰性的，它们不会自动发生遍历行为。Iterator trait中定义了一类方法，这类方法叫作消费器。通过消费器可以消费迭代器中的元素，这些方法的默认实现都调用了next方法。下面介绍常用的消费器sum、any和collect，其他消费器可以在std::iter::Iterator中找到。
@@ -4492,6 +4574,41 @@ false
 false
 ```
 
+``` rust
+fn main() {
+    let vec1 = vec![1, 2, 3];
+    let vec2 = vec![4, 5, 6];
+
+    // `iter()` for vecs yields `&i32`. Destructure to `i32`.
+    println!("2 in vec1: {}", vec1.iter().any(|&x| x == 2));
+    // `into_iter()` for vecs yields `i32`. No destructuring required.
+    println!("2 in vec2: {}", vec2.into_iter().any(|x| x == 2));
+
+    // `iter()` only borrows `vec1` and its elements, so they can be used again
+    println!("vec1 len: {}", vec1.len());
+    println!("First element of vec1 is: {}", vec1[0]);
+    // `into_iter()` does move `vec2` and its elements, so they cannot be used again
+    // println!("First element of vec2 is: {}", vec2[0]);
+    // println!("vec2 len: {}", vec2.len());
+    // TODO: uncomment two lines above and see compiler errors.
+
+    let array1 = [1, 2, 3];
+    let array2 = [4, 5, 6];
+
+    // `iter()` for arrays yields `&i32`.
+    println!("2 in array1: {}", array1.iter().any(|&x| x == 2));
+    // `into_iter()` for arrays yields `i32`.
+    println!("2 in array2: {}", array2.into_iter().any(|x| x == 2));
+}
+
+2 in vec1: true
+2 in vec2: false
+vec1 len: 3
+First element of vec1 is: 1
+2 in array1: true
+2 in array2: false
+```
+
 ### collect
 
 collect可以将迭代器转换成指定的容器类型，即将迭代器中的元素收集到指定的容器中。
@@ -4522,7 +4639,7 @@ fn main() {
 Results: Err(ParseIntError { kind: InvalidDigit })
 ```
 
-## 迭代器适配器
+## 适配器
 
 适配器Iterator trait中定义了一类方法，这类方法叫作迭代器适配器。它会将当前迭代器转换成另一种类型的迭代器，并支持链式调用多个迭代器适配器。不过，由于所有的迭代器都是惰性的，必须使用一个消费器来获取迭代器适配器的调用结果。
 
@@ -4710,50 +4827,83 @@ fn main() {
 [3, 9]
 ```
 
-## 转移所有权IntoIter
+### find
 
-迭代器IntoIter由into_iter方法创建，会把容器中元素的所有权转移给迭代器，之后原容器不能再使用。
+- find() 采用返回 true 或 false 的闭包。它将这个闭包应用于迭代器的每个元素，如果它们中的任何一个返回 true ，那么 find() 返回 Some(element) 。如果它们都返回 false ，则返回 None 。
+- find() 短路；换句话说，一旦闭包返回 true ，它将停止处理。
+- 因为find() 采用引用，并且许多迭代器迭代引用，这导致参数是双重引用的可能令人困惑的情况。您可以在下面的示例中使用 &&x 看到这种效果。
 
 ``` rust
 fn main() {
-    let vec = vec!["Java", "Rust", "Python"];
-    for str in vec.into_iter() {
-        match str {
-            "Rust" => println!("Niubility"),
-            _ => println!("{}", str),
-        }
-    }
+    let vec1 = vec![1, 2, 3];
+    let vec2 = vec![4, 5, 6];
 
-    // println!("{:?}", vec); into_iter方法创建迭代器后，原动态数组不能再使用。如果取消注释，将会抛出value borrowed here after ove的错误提示。
+    // 对 vec1 的 `iter()` 举出 `&i32` 类型。
+    let mut iter = vec1.iter();
+    // 对 vec2 的 `into_iter()` 举出 `i32` 类型。
+    let mut into_iter = vec2.into_iter();
+
+    // 对迭代器举出的元素的引用是 `&&i32` 类型。解构成 `i32` 类型。
+    // 译注：注意 `find` 方法会把迭代器元素的引用传给闭包。迭代器元素自身
+    // 是 `&i32` 类型，所以传给闭包的是 `&&i32` 类型。
+    println!("Find 2 in vec1: {:?}", iter     .find(|&&x| x == 2));
+    // 对迭代器举出的元素的引用是 `&i32` 类型。解构成 `i32` 类型。
+    println!("Find 2 in vec2: {:?}", into_iter.find(| &x| x == 2));
+
+    let array1 = [1, 2, 3];
+    let array2 = [4, 5, 6];
+
+    // 对数组的 `iter()` 举出 `&i32`。
+    println!("Find 2 in array1: {:?}", array1.iter()     .find(|&&x| x == 2));
+    // 对数组的 `into_iter()` 通常举出 `&i32``。
+    println!("Find 2 in array2: {:?}", array2.into_iter().find(|&x| x == 2));
 }
 ```
 
-## 可变借用IterMut
+## 高阶函数
 
-迭代器IterMut由iter_mut方法创建，会把容器中元素的可变引用传递给迭代器，不发生所有权转移。引用传递之后，原容器还可以继续使用。iter_mut方法与iter方法的不同点在于，iter方法创建的是只读迭代器，不能在迭代器中改变原容器的元素。但iter_mut方法创建的是可变迭代器，在迭代器中可以改变原容器的元素。
-
-案例：iter_mut方法获得所有权的可变借用。由于迭代器中元素是对动态数组中元素的可变引用，因此在match模式匹配时需要使用&mut，并且通过解引用操作符“*”可以更改原动态数组中的元素。迭代器遍历元素后，原动态数组还可以继续使用。
+Rust 提供了高阶函数（Higher Order Function, HOF），指那些输入一个或多个函数，并且/或者产生一个更有用的函数的函数。HOF 和惰性迭代器（lazy iterator）给 Rust 带来了函数式（functional）编程的风格。
 
 ``` rust
-fn main() {
-    let mut vec = vec!["Java", "Rust", "Python"];
-    for str in vec.iter_mut() {
-        match str {
-            &mut "Rust" => {
-                *str = "Niubility";
-                println!("{}", str);
-            }
-            _ => println!("{}", str),
-        }
-    }
-
-    println!("{:?}", vec);
+fn is_odd(n: u32) -> bool {
+    n % 2 == 1
 }
 
-Java
-Niubility
-Python
-["Java", "Niubility", "Python"]
+fn main() {
+    println!("Find the sum of all the squared odd numbers under 1000");
+    let upper = 1000;
+
+    // 命令式（imperative）的写法
+    // 声明累加器变量
+    let mut acc = 0;
+    // 迭代：0，1, 2, ... 到无穷大
+    for n in 0.. {
+        // 数字的平方
+        let n_squared = n * n;
+
+        if n_squared >= upper {
+            // 若大于上限则退出循环
+            break;
+        } else if is_odd(n_squared) {
+            // 如果是奇数就计数
+            acc += n_squared;
+        }
+    }
+    println!("imperative style: {}", acc);
+
+    // 函数式的写法
+    let sum_of_squared_odd_numbers: u32 =
+        (0..).map(|n| n * n)             // 所有自然数取平方
+             .take_while(|&n| n < upper) // 取小于上限的
+             .filter(|&n| is_odd(n))     // 取奇数
+             .fold(0, |sum, i| sum + i); // 最后加起来
+    println!("functional style: {}", sum_of_squared_odd_numbers);
+}
+
+Find the sum of all the squared odd numbers under 1000
+imperative style: 5456
+functional style: 5456
+
 ```
 
 # Option与匹配
@@ -8798,18 +8948,106 @@ false
 There're 3 elements in vec
 ```
 
+## 闭包作为函数参数
 
-这3种⽅式被分别编码在如下所⽰的3种Fn系列的 trait中：
+- 当闭包作为函数参数时，需要明确闭包的捕获类型。
 
-- FnOnce 意味着闭包可以从它的封闭作⽤域中，也就是闭包所处的环境 中，消耗捕获的变量。为了实现这⼀功能，闭包必须在定义时取得这些变量的所有权并将它们移动⾄闭包中。这也是名称FnOnce中Once⼀词的含义：因为闭包不能多次获取并消耗掉同⼀变量的所有权，所以它只能被调⽤⼀次。
+    - FnOnce：闭包通过值（T）捕获。程度最高
+    - FnMut：闭包通过可变引用捕获（&mut T）。
+    - Fn：闭包通过引用捕获（&T）。程度最低
 
-- FnMut可以从环境中可变地借⽤值并对它们进⾏修改。
-- Fn可以从环境中不可变地借⽤值。
+- 编译器会根据实际代码使用情况自动降低严格程度（只会自动降低不会升高）。例如，一个被注解为FnOnce的参数。这指定了闭包可以通过&T、&mut T或T来捕获，但编译器最终会根据捕获的变量在闭包中的使用方式来选择最合适的一种。
 
-当创建闭包时，Rust会基于闭包从环境中使⽤
-值的⽅式来⾃动推导出它需要使⽤的trait。所有闭包都⾃动实现了FnOnce，因为它们⾄少都可以被调⽤⼀次。那些不需要移动被捕获变量的闭包还会实现FnMut，⽽那些不需要对被捕获变量进⾏可变访问的闭包则同时实现了Fn。
+- 当创建闭包时，Rust会基于闭包从环境中使⽤值的⽅式来⾃动推导出它需要使⽤的trait（上面3种）。所有闭包都⾃动实现了FnOnce，因为它们⾄少都可以被调⽤⼀次。那些不需要移动被捕获变量的闭包还会实现FnMut，⽽那些不需要对被捕获变量进⾏可变访问的闭包则同时实现了Fn。
 
-假如希望强制闭包获取环境中值的所有权，那么你可以在参数列表前添加move关键字。这个特性在把闭包传⼊新线程时相当有⽤，它可以将捕获的变量⼀并移动到新线程中去。
+- 假如希望强制闭包获取环境中值的所有权（即强制要求值传递），那么你可以在参数列表前添加move关键字。这个特性在把闭包传⼊新线程时相当有⽤，它可以将捕获的变量⼀并移动到新线程中去。
+
+``` rust
+// 一个函数，F是类型参数且F是闭包，且此闭包无参数与返回值
+fn apply<F>(f: F) where F: FnOnce() { // ^ TODO: Try changing this to `Fn` or `FnMut`.
+    f();
+}
+
+// 一个函数，参数是闭包，且此闭包的参数与返回值均为i32
+fn apply_to_3<F>(f: F) -> i32 where F: Fn(i32) -> i32 {
+    f(3)
+}
+
+fn main() {
+    use std::mem;
+    let greeting = "hello";
+    // 一个非复制类型。`to_owned`从借来的数据创建拥有的数据
+    let mut farewell = "goodbye".to_owned();
+    // 捕获2个变量：`greeting`通过引用,`farewell`通过值。
+    let diary = || {
+        // `greeting` 通过引用：需要`Fn'。
+        println!("I said {}.", greeting);
+        // `farewell`被可变引用所捕获。现在需要`FnMut`。
+        farewell.push_str("!!!");
+        println!("Then I screamed {}.", farewell);
+        println!("Now I can sleep. zzzzz");
+        // 手动调用drop迫使`farewell`被值捕获。现在需要`FnOnce`。
+        mem::drop(farewell);
+    };
+    // 调用函数，应用闭包
+    apply(diary);
+    // double "满足 "apply_to_3 "的约束
+    let double = |x| 2 * x;
+    println!("3 doubled: {}", apply_to_3(double));
+}
+
+I said hello.
+Then I screamed goodbye!!!.
+Now I can sleep. zzzzz
+3 doubled: 6
+```
+
+## 闭包作为返回值
+
+- 必须使用 impl Trait 来返回它们
+- 必须使用 move 关键字，这表明所有的捕获都是通过值进行的。这是必须的，因为一旦函数退出，任何通过引用的捕获都会被丢弃，在闭包中留下无效的引用。
+
+``` rust
+fn create_fn() -> impl Fn() {
+    let text = "Fn".to_owned();
+    move || println!("This is a: {}", text)
+}
+
+fn create_fnmut() -> impl FnMut() {
+    let text = "FnMut".to_owned();
+    move || println!("This is a: {}", text)
+}
+
+fn create_fnonce() -> impl FnOnce() {
+    let text = "FnOnce".to_owned();
+    move || println!("This is a: {}", text)
+}
+
+fn main() {
+    let fn_plain = create_fn();
+    let mut fn_mut = create_fnmut();
+    let fn_once = create_fnonce();
+    fn_plain();
+    fn_mut();
+    fn_once();
+}
+
+This is a: Fn
+This is a: FnMut
+This is a: FnOnce
+```
+
+``` rust
+fn two_times_impl() -> impl Fn(i32) -> i32 {
+    let i= 2;
+    move|j|j*i
+}
+
+fn main(){
+    let result = two_times_impl();
+    assert_eq!(result(2), 4);
+}
+```
 
 ## 使⽤泛型参数和Fn trait来存储闭包
 
@@ -8885,41 +9123,6 @@ huaw@huaw:~/playground/rust/tut$ cargo run
 calculating slowly...
 Today, do 10 pushups!
 Next, do 10 situps!
-```
-
-## 闭包作为函数参数
-
-- 函数closure_math的参数的类型是F，且F受Fn（）-＞i32 trait的限定，即只允许实现了Fn（）-＞i32 trait的类型作为参数
-- Rust中闭包实际上就是由一个匿名结构体和trait来组合实现的 。
-- main里分别传入||a+b和||a*b这两个闭包，都实现了Fn（）-＞i32。
-- 在math函数内部，通过在后面添加一对圆括号来调用传入的闭包。
-
-``` rust
-fn closure_math<F: Fn() -> i32>(op: F) -> i32 {
-    op()
-}
-fn main() {
-    let a = 2;
-    let b = 3;
-    assert_eq!(closure_math(|| a + b),5);
-    assert_eq!(closure_math(|| a * b),6);
-}
-```
-
-## 闭包作为返回值
-
-- 使用impl Fn（i32）-＞i32作为函数的返回值
-- 返回闭包时使用了move关键字，将捕获变量i的所有权转移到闭包中，就不会按引用进行捕获变量，这样闭包才可以安全地返回。
-
-``` rust
-fn two_times_impl() -> impl Fn(i32) -> i32 {
-    let i= 2;
-    move|j|j*i
-}
-fn main(){
-    let result = two_times_impl();
-    assert_eq!(result(2), 4);
-}
 ```
 
 # 组织管理
