@@ -2158,6 +2158,23 @@ huaw@test:~/playground/rust/hellocargo$ cargo run
 ["Jack", "Jane", "Jill", "John"]
 ```
 
+## 打印数据类型
+
+``` rust
+fn print_type_of<T>(_: &T) {
+    println!("{}", std::any::type_name::<T>())
+}
+
+fn main() {
+    let mut x= Some(123);
+    print_type_of(&x);
+    let z = x.as_ref();
+    print_type_of(&z);
+}
+core::option::Option<i32>
+core::option::Option<&i32>
+```
+
 ## 类型别名
 
 - 可以用type关键字给同一个类型起个别名（type alias）
@@ -2825,6 +2842,82 @@ fn main() {
 }
 
 [1, 2, 3, 7, 5]
+```
+
+### 切片的函数
+
+#### binary_search
+
+在排序后的切片中搜索给定的元素。就是直接给个值当参数即可。
+
+如果找到该值，则返回 Result::Ok，其中包含匹配元素的索引。 如果有多个匹配项，则可以返回任何一个匹配项。 索引的选择是确定的，但在 Rust 的未来版本中可能会发生变化。 如果找不到该值，则返回 Result::Err，其中包含在保留排序顺序的同时可以在其中插入匹配元素的索引。
+
+``` rust
+fn main() {
+    let s = [0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55];
+    assert_eq!(s.binary_search(&13),  Ok(9)); // 找到第一个，具有唯一确定的位置；
+    assert_eq!(s.binary_search(&4),   Err(7)); // 没有找到第二个和第三个；
+    assert_eq!(s.binary_search(&100), Err(13));
+    let r = s.binary_search(&1); // 第四个可以匹配 [1, 4] 中的任何位置。
+    assert!(match r { Ok(1..=4) => true, _ => false, });
+}
+```
+
+#### binary_search_by
+
+使用比较器函数搜索排序后的切片。需要给个类似cmp函数的闭包当参数
+
+``` rust
+fn main() {
+    let s = [0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55];
+    let seek = 13;
+    assert_eq!(s.binary_search_by(|probe| probe.cmp(&seek)), Ok(9)); // 找到第一个，具有唯一确定的位置
+    let seek = 4;
+    assert_eq!(s.binary_search_by(|probe| probe.cmp(&seek)), Err(7)); // 没有找到第二个和第三个
+    let seek = 100;
+    assert_eq!(s.binary_search_by(|probe| probe.cmp(&seek)), Err(13));
+    let seek = 1;
+    let r = s.binary_search_by(|probe| probe.cmp(&seek)); // 第四个可以匹配 [1, 4] 中的任何位置。
+    assert!(match r {
+        Ok(1..=4) => true,
+        _ => false,
+    });
+}
+
+```
+
+#### binary_search_by_key
+
+使用关键字提取函数搜索排序后的切片。需要2个参数，第一个是要找的值，第2个是闭包（“&(a, b)”是解构每行的2个数字，“b”是以它排序）
+
+``` rust
+fn main() {
+    let s = [
+        (0, 0),
+        (2, 1),
+        (4, 1),
+        (5, 1),
+        (3, 1),
+        (1, 2),
+        (2, 3),
+        (4, 5),
+        (5, 8),
+        (3, 13),
+        (1, 21),
+        (2, 34),
+        (4, 55),
+    ];
+    // 在成对的切片中按其第二个元素排序的一系列四个元素中查找。 
+    assert_eq!(s.binary_search_by_key(&13, |&(a, b)| b), Ok(9)); // 找到第一个，具有唯一确定的位置；
+    assert_eq!(s.binary_search_by_key(&4, |&(a, b)| b), Err(7)); // 没有找到第二个和第三个；
+    assert_eq!(s.binary_search_by_key(&100, |&(a, b)| b), Err(13));
+    let r = s.binary_search_by_key(&1, |&(a, b)| b); // 第四个可以匹配 [1, 4] 中的任何位置。
+    assert!(match r {
+        Ok(1..=4) => true,
+        _ => false,
+    });
+}
+
 ```
 
 ## range
@@ -3586,6 +3679,14 @@ fn main() {
     for x in xs.iter_mut() {
         *x *= 3;
     }
+
+// 插入（已排序）
+    // 如果要在排序的 vector 中插入项目，同时保持排序顺序，请执行以下操作：
+    let mut s = vec![0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55];
+    let num = 42;
+    let idx = s.binary_search(&num).unwrap_or_else(|x| x);
+    s.insert(idx, num);
+    assert_eq!(s, [0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 42, 55]);
 }
   
 ```
@@ -5110,7 +5211,66 @@ fn main() {
 
 ```
 
-### map
+### 常用方法
+
+- 处理引用
+    - as_ref 从 &Option 转换为 Option<&T>
+    - as_mut 从 &mut Option 转换为 Option<&mut T>
+    - as_deref 从 &Option 转换为 Option<&T::Target>
+    - as_deref_mut 从 &mut Option 转换为 Option<&mut T::Target>
+    - as_pin_ref 从 Pin<&Option> 转换为 Option<Pin<&T>>
+    - as_pin_mut 从 Pin<&mut Option> 转换为 Option<Pin<&mut T>>
+
+- 获取Option包装的源，如果 Option 为None：
+    - expect panics 带有提供的自定义消息
+    - unwrap panics 带有泛型信息
+    - unwrap_or 返回提供的默认值
+    - unwrap_or_default 返回类型 T 的默认值 (必须实现 Default trait)
+    - unwrap_or_else 返回对提供的函数求值的结果
+
+- 转Result
+    - ok_or 使用提供的默认 err 值将 Some(v) 转换为 Ok(v)，将 None 转换为 Err(err)
+    - ok_or_else 使用提供的函数将 Some(v) 转换为 Ok(v)，并将 None 转换为 Err 的值
+    - transpose 实现 Result 和 Option 来回转换
+
+- 转换Option包装的源
+    - filter (过滤操作) 针对源过滤如果源不是None那么执行方法求值只为真返回源，为假返回一个None
+    - flatten 从一个对象中删除一层嵌套 Option < Option< T > >
+    - map (转换操作)通过将提供的函数应用于 Some 的包含值并保持 None 值不变，将 Option 转换为 Option< U >
+    - map_or 将提供的函数应用于 Some 的包含值，或者如果 Option 是返回提供的默认值 None
+    - map_or_else 转换Some的值并且提供默认值，直接返回被包装的值，等同Java8 Stream的flatmap + get
+
+- 转换Option包装的源生成一个元组
+    - zip 把2个Some生成一个Some((x,y))
+    - zip_with 基于一个自定义函数来生成Some((x,y))
+
+- 布尔操作
+    - 这些方法将 Option 视为布尔值，其中 Some 的作用类似于 true，而 None 的作用类似于 false。
+
+    ![OPTION_bool](./OPTION_bool.png)
+    
+    - and_then 和 or_else 方法将函数作为输入，并且仅在需要产生新值时才评估函数。只有 and_then 方法可以生成具有与 Option 不同的内部类型 U 的 Option< U> 值。
+    
+    ![OPTION_bool2](./OPTION_bool2.png)
+
+- 归约操作
+    
+    实现了 FromIterator trait，它允许将 Option 值上的迭代器收集到原始 Option 值的每个包含值的集合的 Option 中，或者如果任何元素是 None，则为 None。还实现了 Product 和 Sum traits
+    
+    - collect 收集到集合中
+    - product 求所有值得乘积
+    - sum 求和
+
+- 操作Option
+    
+    原地修改Option枚举
+    
+    - insert 插入一个值，丢弃任何旧内容
+    - get_or_insert 获取当前值并且插入一个新值。默认是None
+    - get_or_insert_default 获取当前值，如果是None，则插入类型 T (必须实现 Default) 的默认值
+    - get_or_insert_with 获取当前值，如果是None，则插入函数的返回值
+
+#### map
 
 Option 的 map 方法，可以将一个值映射（转换）成另一个值。其实作用就是对map前的值进行数据类型转换后再返回
 
@@ -5209,7 +5369,7 @@ fn extension(file_name: &str) -> Option<&str> {
 
 ```
 
-### and_then
+#### and_then
 
 map() 以链式调用的方式来简化 match 语句。然而，如果以返回类型是 Option<T> 的函数作为 map() 的参数，会导致出现嵌套形式 Option<Option<T>>。这样多层串联 调用就会变得混乱。所以有必要引入 and_then()，在某些语言中它叫做 flatmap。
 
@@ -5289,7 +5449,7 @@ fn main() {
 Some(7)
 ```
 
-### or、or_else
+#### or、or_else
 
 - 当option是none时候会使用or的参数做右值。or()是可级联调用的，参数会被move，如下面的例子所示传递给or的变量被移动走了，后面再使用就会报错了
 - 如果or的参数是函数或闭包则要使用or_else
@@ -5337,7 +5497,7 @@ fn main() {
 }
 ```
 
-### get_or_insert、get_or_insert_with
+#### get_or_insert、get_or_insert_with
 
 这2个与or、or_else的区别在于会改变当前option的值。相当于如果自身是none则先给自身赋值，然后再用自己给其它变量赋值
 
@@ -5396,7 +5556,7 @@ should_be_apple is: Apple
 my_apple is unchanged: Some(Apple)
 ```
 
-### unwrap_or
+#### unwrap_or
 
 ``` rust
 fn find(haystack: &str, needle: char) -> Option<usize> {
@@ -5885,6 +6045,8 @@ Some numbers: 2, 8, 32
 
 ### 匹配Option
 
+- 不转移所有权的案例
+
 ``` rust
 匹配准确的数字
 fn main() {
@@ -5935,6 +6097,38 @@ fn main() {
     let five = Some(5);
     let six = plus_one(five);
     let none = plus_one(None);
+}
+```
+
+- 转移所有权的案例
+
+``` rust
+fn main() {
+    fn print_type_of<T>(_: &T) {
+        println!("{}", std::any::type_name::<T>())
+    }
+
+    let some = Some(String::from("hello"));
+    let ref_some = &some;
+    match ref_some {
+        Some(s) => { // 这里匹配的是一个&Option，所以s是一个&String，不会造成所有权的转移。
+            // 对于引用来说，匹配出来的值依旧是引用，也就是&T
+            println!("ref_some: {}",s);
+            print_type_of(&s); // &alloc::string::String
+        },
+        None => println!("no string"),
+    }
+ 
+    match some {
+        Some(s) => { // 这里匹配的是Option，所以s为String，会发生所有权的转移
+            // 对于变量本身来说，匹配出来的值就是T本身 
+            println!("some: {}",s);
+            print_type_of(&s); // alloc::string::String
+        },
+        None => println!("no string"),
+    }
+
+    // println!("{:?}", some); // some的所有权已经被上面的match move走了
 }
 ```
 
@@ -6277,159 +6471,399 @@ Result 是 Option 类型的更丰富的版本，描述的是可能 的错误而�
 
 按照约定，预期结果是 “Ok”，而意外结果是 “Err”。
 
-### unwrap与expect
-
-这2个类似断言的效果，失败则直接产生恐慌。match模式匹配虽然能够对返回值进行相应的处理，但是代码看上去有些冗长。Result<T, E>类型提供的unwrap和expect方法可以实现与match模式匹配相似的功能。
-
-- unwrap()要么产生元素T，要么陷入恐慌。即：
-
-  - 如果 Result 值是成员 Ok，unwrap 会返回 Ok 中的值。
-  - 如果 Result 是成员 Err，unwrap 会调用 panic!
+### 常用方法
 
 ``` rust
-use std::fs::File;
-
-fn main() {
-    let f1 = File::open("hello.txt").unwrap();
-    // let f2 = File::open("hello.txt").expect("Failed to open.");
-}
-```
-
-下面是演示产生恐慌的案例
-
-``` rust
-fn multiply(first_number_str: &str, second_number_str: &str) -> i32 {
-    // Let's try using `unwrap()` to get the number out. Will it bite us?
-    let first_number = first_number_str.parse::<i32>().unwrap();
-    let second_number = second_number_str.parse::<i32>().unwrap();
-    first_number * second_number
+fn ok_err() {
+    println!("--------- ok(), err()");
+    // ok(self) -> Option<T>: 从 Result<T, E> 转换为 Option<T>，Ok(T)转为Some(T)，err(E)会转为None
+    // err(self) -> Option<E>: 从 Result<T, E> 转换为 Option<E>，ok(T)转换为none，err(E)转为Some(E)
+    let x: Result<u32, &str> = Ok(2);
+    assert_eq!(x.ok(), Some(2));
+    assert_eq!(x.err(), None);
+    println!("{:?}", x.ok());   // Some(2)
+    println!("{:?}", x.err());   // None
+    let x: Result<u32, &str> = Err("Nothing here");
+    assert_eq!(x.ok(), None);
+    assert_eq!(x.err(), Some("Nothing here"));
+    println!("{:?}", x.ok());   // None
+    println!("{:?}", x.err());   // Some("Nothing here")
 }
 
-fn main() {
-    let twenty = multiply("10", "2");
-    println!("double is {}", twenty);
-
-    let tt = multiply("t", "2");
-    println!("double is {}", tt);
+fn isok_iserr() {
+    println!("--------- is_ok(), is_err()");
+    // is_ok(&self) -> bool: 如果结果为 Ok，则返回 true。
+    // is_err(&self) -> bool: 如果结果为 Err，则返回 true。
+    let x: Result<i32, &str> = Ok(-3);
+    assert_eq!(x.is_ok(), true);
+    assert_eq!(x.is_err(), false);
+    println!("{:?}", x.is_ok());    // true
+    println!("{:?}", x.is_err());    // false
+    let x: Result<i32, &str> = Err("Some error message");
+    assert_eq!(x.is_ok(), false);
+    assert_eq!(x.is_err(), true);
+    println!("{:?}", x.is_ok());    // false
+    println!("{:?}", x.is_err());    // true
 }
-```
 
-- 允许在unwrap的基础上指定panic! 所附带的错误提⽰信息。使⽤expect并附带上⼀段清晰的错误提⽰信息可以阐明你的意图，并使你更容易追踪到panic的起源。
 
-``` rust
-use std::fs::File;
 
-fn main() {
-    let f = File::open("hello.txt").expect("Failed to open hello.txt");
-}
-```
+/* 总结
+map<U, F>(self, op: F) -> Result<U, E>：            U:原ok类型，F:闭包，E：err类型
+map_or<U, F>(self, default: U, f: F) -> U           U:原ok类型，F:闭包，仅返回U
+map_or_else<U, D, F>(self, default: D, f: F) -> U   U:原ok类型，D:默认闭包参数，F：闭包，仅返回U
+map_err<F, O>(self, op: O) -> Result<T, F>          O:闭包，作用将老err（E类型，这里没有体现出来）换为新err类型（F类型）
 
-### map、and_then、？
-
-使用这3个的目的是精简代码，另外下面的案例都不会产生恐慌，因为进行了match处理。
-
-先看一个使用match处理Result的啰嗦的案例
-
-``` rust
-use std::num::ParseIntError;
-
-// With the return type rewritten, we use pattern matching without `unwrap()`.
-fn multiply(first_number_str: &str, second_number_str: &str) -> Result<i32, ParseIntError> {
-    match first_number_str.parse::<i32>() {
-        Ok(first_number)  => {
-            match second_number_str.parse::<i32>() {
-                Ok(second_number)  => {
-                    Ok(first_number * second_number)
-                },
-                Err(e) => Err(e),
+    result为ok时候：                      result为err时候：
+    map：将ok值代入闭包返回计算结果         直接返回err
+    map_or：同map                         返回提供的默认值   
+    map_or_else：同map                    执行另一个返回ok类型的闭包
+    map_err：直接返回ok                   执行另一个返回err类型的闭包
+*/
+fn map_fn(){
+    println!("--------- map()");
+    // map: 如果map前的result为err则直接err，否则取ok值带入map的闭包进行计算后再返回result
+    let result: Result<i32, &str> = Ok(44);
+    println!("{:?}", result.map(|e| e / 4)); // Ok(11)
+    let result: Result<i32, &str> = Err("Some error message");
+    println!("{:?}", result.map(|e| e / 4)); // Err("Some error message")
+    
+    // 使用match：如果map前的result为err则直接match此err，否则取ok值带入map的闭包进行计算后再match结果
+    let line = "1\n2\nA\nB\n3";
+    for num in line.lines() {
+        match num.parse::<i32>().map(|i| i * 2) {
+            Ok(n) => println!("num={}, Ok: {}", num, n),
+            Err(e) => {
+                println!("num={}, Err: {}", num, e);
             }
-        },
-        Err(e) => Err(e),
+        }
+    }
+
+    println!("--------- map_or()");
+    // 如果x是ok则将x带入闭包返回计算结果，否则直接返回提供的默认值（即42）
+    let x: Result<_, &str> = Ok("foo");
+    let u = x.map_or(42, |v| v.len());  // x有值，返回"foo".len=3
+    assert_eq!(u, 3);
+    println!("{:?}", u);
+    let x: Result<&str, _> = Err("bar");
+    let u = x.map_or(42, |v| v.len()); // x为err，直接返回42
+    assert_eq!(u, 42);
+    println!("{:?}", u);
+
+    println!("--------- map_or_else()");
+    // 如果x是ok则将x带入第二个闭包，否则执行第一个闭包，返回值是ok的类型
+    let k = 21;
+    let x : Result<_, &str> = Ok("foo");
+    let u = x.map_or_else(|_| k * 2, |v| v.len()); // 这里的_代表x是none，闭包也没有可用的参数了
+    assert_eq!(u, 3);
+    println!("{:?}", u);
+    let x : Result<&str, _> = Err("bar");
+    let u = x.map_or_else(|_| k * 2, |v| v.len());
+    assert_eq!(u, 42);
+    println!("{:?}", u);
+    
+
+    println!("--------- map_err()");
+    // 如果x为ok则直接返回x，否则(即x为err)另一种err类型（用于从Aerr换为bErr类型）另外stringify也可是闭包形式
+    fn stringify(x: u32) -> String { format!("error code: {}", x) }
+    let x: Result<u32, u32> = Ok(2);
+    let u = x.map_err(stringify);
+    assert_eq!(u, Ok(2));
+    println!("{:?}", u);
+    let x: Result<u32, u32> = Err(13);
+    let u = x.map_err(stringify);
+    assert_eq!(u, Err("error code: 13".to_string()));
+    println!("{:?}", u);
+
+}
+
+fn iter_fn() {
+    println!("--------- iter()");
+    // 返回不可变的迭代器。如果x是ok则可取到有值的iter，见下面的打印输出。
+    // 再通过next获取iter内的值
+    let x: Result<u32, &str> = Ok(7);
+    let v = x.iter().next();
+    println!("{:?}", x.iter()); // Iter { inner: Some(7) }
+    println!("{:?}", v);    // Some(7)
+    assert_eq!(v, Some(&7));
+    let x: Result<u32, &str> = Err("nothing!");
+    let v = x.iter().next();
+    println!("{:?}", x.iter()); // Iter { inner: None }
+    println!("{:?}", v);    // None
+    assert_eq!(v, None);
+
+
+    println!("--------- iter_mut()");
+    // 返回可变的迭代器，其余同iter
+    let mut x: Result<u32, &str> = Ok(7);
+    let mut v = x.iter_mut();
+    println!("{:?}", v); // IterMut { inner: Some(7) }
+    println!("{:?}", v.next()); // Some(7) 
+    match x.iter_mut().next() {
+        Some(v) => *v = 40, // 修改变量x
+        None => {},
+    }
+    assert_eq!(x, Ok(40)); // 通过iter_mut改值
+
+    let mut x: Result<u32, &str> = Err("nothing!");
+    let mut v = x.iter_mut();
+    println!("{:?}", v); // IterMut { inner: None }
+    println!("{:?}", v.next()); // None
+    assert_eq!(x.iter_mut().next(), None);
+}
+
+
+fn and_or() {
+    // and<U>(self, res: Result<U, E>) -> Result<U, E>
+    // 如果x是Ok则返回y(是个值); 否则返回x（即Err）
+    println!("--------- and()");
+    let x: Result<u32, &str> = Ok(2);
+    let y: Result<&str, &str> = Err("late error");
+    println!("{:?}", x.and(y)); // Err("late error")
+    assert_eq!(x.and(y), Err("late error"));
+
+    let x: Result<u32, &str> = Err("early error");
+    let y: Result<&str, &str> = Ok("foo");
+    println!("{:?}", x.and(y)); // Err("early error")
+    assert_eq!(x.and(y), Err("early error"));
+
+    let x: Result<u32, &str> = Err("not a 2");
+    let y: Result<&str, &str> = Err("late error");
+    println!("{:?}", x.and(y)); // Err("not a 2")
+    assert_eq!(x.and(y), Err("not a 2"));
+
+    let x: Result<u32, &str> = Ok(2);
+    let y: Result<&str, &str> = Ok("different result type");
+    println!("{:?}", x.and(y)); // Ok("different result type")
+    assert_eq!(x.and(y), Ok("different result type"));
+
+    println!("--------- and_then()");
+    // and_then<U, F>(self, op: F) -> Result<U, E>
+    // 如果是Ok则执行闭包(或是函数，返回result类型)，否则直接Err
+    {
+        fn sq(x: u32) -> Result<u32, u32> { Ok(x * x) } // 注意这里result的2个类型参数都是u32
+        fn err(x: u32) -> Result<u32, u32> { Err(x) } // 下面的err参数就可以使用数字了
+        assert_eq!(Ok(2).and_then(sq).and_then(sq), Ok(16));
+        assert_eq!(Ok(2).and_then(sq).and_then(err), Err(4));
+        assert_eq!(Ok(2).and_then(err).and_then(sq), Err(2));
+        assert_eq!(Err(3).and_then(sq).and_then(sq), Err(3));
+    }
+
+    println!("--------- or()");
+    // or<F>(self, res: Result<T, F>) -> Result<T, F>
+    // 如果x是ok则返回ok，否则返回y（y是值类型）
+    let x: Result<u32, &str> = Ok(2);
+    let y: Result<u32, &str> = Err("late error");
+    assert_eq!(x.or(y), Ok(2));
+    let x: Result<u32, &str> = Err("early error");
+    let y: Result<u32, &str> = Ok(2);
+    assert_eq!(x.or(y), Ok(2));
+    let x: Result<u32, &str> = Err("not a 2");
+    let y: Result<u32, &str> = Err("late error");
+    assert_eq!(x.or(y), Err("late error"));
+    let x: Result<u32, &str> = Ok(2);
+    let y: Result<u32, &str> = Ok(100);
+    assert_eq!(x.or(y), Ok(2));
+
+    println!("--------- or_else()");
+    // or_else<F, O>(self, op: O) -> Result<T, F>
+    // 如果x是err则执行闭包，否则返回ok
+    {
+        fn sq(x: u32) -> Result<u32, u32> { Ok(x * x) }
+        fn err(x: u32) -> Result<u32, u32> { Err(x) }
+        assert_eq!(Ok(2).or_else(sq).or_else(sq), Ok(2));
+        assert_eq!(Ok(2).or_else(err).or_else(sq), Ok(2));
+        assert_eq!(Err(3).or_else(sq).or_else(err), Ok(9));
+        assert_eq!(Err(3).or_else(err).or_else(err), Err(3));
     }
 }
 
-fn print(result: Result<i32, ParseIntError>) {
-    match result {
-        Ok(n)  => println!("n is {}", n),
-        Err(e) => println!("Error: {}", e),
+
+fn unwrap_fn() {
+    println!("--------- unwrap()");
+    // or_else<F, O>(self, op: O) -> Result<T, F>
+    // 返回Ok值或panic
+    let x: Result<u32, &str> = Ok(2);
+    assert_eq!(x.unwrap(), 2);
+    let x: Result<u32, &str> = Err("emergency failure");
+    // x.unwrap(); // 触发panics
+
+    println!("--------- unwrap_or()");
+    // unwrap_or(self, default: T) -> T
+    // x是ok则返回ok的值，否则返回默认值
+    let default = 2;
+    let x: Result<u32, &str> = Ok(9);
+    assert_eq!(x.unwrap_or(default), 9);
+    let x: Result<u32, &str> = Err("error");
+    assert_eq!(x.unwrap_or(default), default);
+
+    println!("--------- unwrap_or_else()");
+    // unwrap_or_else<F>(self, op: F) -> T
+    // x是ok则返回ok的值，否则返回闭包的值
+    fn count(x: &str) -> usize { x.len() }
+    assert_eq!(Ok(2).unwrap_or_else(count), 2);
+    assert_eq!(Err("foo").unwrap_or_else(count), 3);
+
+    println!("--------- unwrap_unchecked()");
+    // unwrap_unchecked(self) -> T
+    // 直接按ok返回数值，或者崩溃
+    let x: Result<u32, &str> = Ok(2);
+    assert_eq!(unsafe { x.unwrap_unchecked() }, 2);
+    let x: Result<u32, &str> = Err("emergency failure");
+    // unsafe { x.unwrap_unchecked(); } // 崩溃，未定义的行为！
+
+    println!("--------- unwrap_err_unchecked()");
+    // unwrap_err_unchecked(self) -> E
+    // 直接按err返回，或者崩溃
+    let x: Result<u32, &str> = Ok(2);
+    // unsafe { x.unwrap_err_unchecked() }; // 崩溃，未定义的行为！
+    let x: Result<u32, &str> = Err("emergency failure");
+    assert_eq!(unsafe { x.unwrap_err_unchecked() }, "emergency failure");
+
+
+    println!("--------- unwrap_or_default()");
+    // unwrap_or_default(self) -> T
+    // 如果ok则返回包含的值，如果Err则返回该类型值的默认值
+    let good_year_from_input = "1909";
+    let bad_year_from_input = "190blarg"; // 这里在下面会返回数字0
+    let good_year = good_year_from_input.parse().unwrap_or_default();
+    let bad_year = bad_year_from_input.parse().unwrap_or_default();
+    let r = bad_year_from_input.parse::<i32>();
+    println!("{:?}", r); // Err(ParseIntError { kind: InvalidDigit })
+    println!("{:?}", r.unwrap_or_default()); // 0，这里验证了上面的说明
+    assert_eq!(1909, good_year);
+    assert_eq!(0, bad_year);
+
+    println!("--------- unwrap_err()");
+    // unwrap_err(self) -> E
+    // 如是Ok则panic，否则返回err内的值
+    let x: Result<u32, &str> = Ok(2);
+    // x.unwrap_err(); // `2` 的 panics
+    let x: Result<u32, &str> = Err("emergency failure");
+    let s = x.unwrap_err(); // 此处返回的是&str，见上一行定义
+    println!("{:?}", s);
+    assert_eq!(s, "emergency failure");
+}
+
+fn expect_fn() {
+    println!("--------- expect()");
+    // expect(self, msg: &str) -> T
+    // 如果ok则返回值，否则触发自定义信息的panic
+    let x: Result<u32, &str> = Err("emergency failure");
+    // x.expect("Testing expect"); // 此处会触发自定义信息的panics
+
+    println!("--------- expect_err()");
+    // expect_err(self, msg: &str) -> E
+    // 如果ok则否则触发自定义信息的panic，与expect正相反
+    // let x: Result<u32, &str> = Ok(10); // 取消这句则下面panic
+    x.expect_err("Testing expect_err");
+}
+
+
+fn as_fn() {
+    // as_mut(&mut self) -> Result<&mut T, &mut E>
+    // 通过as_mut方法可以改变mut变量内部所包含的数据的值
+    // 即从 &mut Result<T, E> 转换为 Result<&mut T, &mut E>。
+    fn mutate(r: &mut Result<i32, i32>) {
+        match r.as_mut() {
+            Ok(v) => *v = 42,
+            Err(e) => *e = 0,
+        }
     }
+
+    let mut x: Result<i32, i32> = Ok(2);
+    mutate(&mut x);
+    println!("{:?}", x); // Ok(42)
+    assert_eq!(x.unwrap(), 42);
+    
+    let mut x: Result<i32, i32> = Err(13);
+    mutate(&mut x);
+    println!("{:?}", x); // Err(0)
+    assert_eq!(x.unwrap_err(), 0);
+
+    // as_ref(&self) -> Result<&T, &E>
+    // 将具有所有权对象转换成引用对象，其实就是对T创建个引用，此引用当作函数参数，这样就不会被move了，函数执行完T依然有所有权
+    let result: Result<String, &str> = Ok(String::from("hello"));
+    let size = result.map(|s| s.len()); // String的所有权被move了，下面会失败
+    // println!("{}",result.unwrap());
+    let result: Result<String, &str> = Ok(String::from("hello"));
+    let size = result.as_ref().map(|s| s.len()); // 这里是引用，string不被move，所以下面还有所有权
+    println!("{}",result.unwrap()); // hello
+
+
+    // as_deref(&self) -> Result<&<T as Deref>::Target, &E>
+    // 原result不变，返回一个将T和E都变为对应引用的Result，类似as_ref不产生move
+    let result: Result<String, &str> = Ok(String::from("hello"));
+    assert_eq!(result.as_deref(), Ok("hello"));
+    print_type_of(&result); // core::result::Result<alloc::string::String, &str>
+    print_type_of(&result.as_deref()); // core::result::Result<&str, &&str>
+    println!("{:?}", result); // Ok("hello") 
+
+    let x: Result<String, u32> = Ok("hello".to_string());
+    let y: Result<&str, &u32> = Ok("hello");
+    assert_eq!(x.as_deref(), y);
+    let x: Result<String, u32> = Err(42);
+    let y: Result<&str, &u32> = Err(&42);
+    assert_eq!(x.as_deref(), y);
+}
+
+fn cloned_copied(){
+    // cloned(self) -> Result<T, E>
+    // 当处理资源时，默认的行为是在赋值或函数调用的同时将它们转移。但是我们有时候也需要把资源复制一份。
+    // 通过克隆Ok部分的内容，将一个<&T, E>或<&mut T, E>映射到一个<T, E>
+    let val = 12;
+    let x: Result<&i32, i32> = Ok(&val);
+    assert_eq!(x, Ok(&12));
+    let cloned = x.cloned();
+    assert_eq!(cloned, Ok(12));
+
+    let mut val = 12;
+    let x: Result<&mut i32, i32> = Ok(&mut val);
+    assert_eq!(x, Ok(&mut 12));
+    let cloned = x.cloned();
+    assert_eq!(cloned, Ok(12));
+
+
+    // 通过复制Ok部分的内容，将一个<&T, E>或<&mut T, E>转换为一个<T, E>
+    let val = 12;
+    let x: Result<&i32, i32> = Ok(&val);
+    assert_eq!(x, Ok(&12));
+    let copied = x.copied();
+    assert_eq!(copied, Ok(12));
+
+    let mut val = 12;
+    let x: Result<&mut i32, i32> = Ok(&mut val);
+    assert_eq!(x, Ok(&mut 12));
+    let copied = x.copied();
+    assert_eq!(copied, Ok(12));
+}
+
+fn transpose(){
+    #[derive(Debug, Eq, PartialEq)]
+    struct SomeErr;
+    // 将Result<Option>转置为Option<Result>
+    // Ok(None)->None, Ok(Some(_))->Some(Ok(_)), Err(_)->Some(Err(_))
+    let x: Result<Option<i32>, SomeErr> = Ok(Some(5));
+    let y: Option<Result<i32, SomeErr>> = Some(Ok(5));
+    assert_eq!(x.transpose(), y);
+}
+
+fn print_type_of<T>(_: &T) {
+    println!("{}", std::any::type_name::<T>())
 }
 
 fn main() {
-    // This still presents a reasonable answer.
-    let twenty = multiply("10", "2");
-    print(twenty);
-
-    // The following now provides a much more helpful error message.
-    let tt = multiply("t", "2");
-    print(tt);
+    ok_err();
+    isok_iserr();
+    map_fn();
+    iter_fn();
+    and_or();
+    unwrap_fn();
+    expect_fn();
+    as_fn();
+    cloned_copied();
+    transpose();
 }
-
-n is 20
-Error: invalid digit found in string
-```
-
-这里使用了map与and_then进行精简，结果是一样的
-
-``` rust
-use std::num::ParseIntError;
-
-// 就像 `Option` 那样，我们可以使用 `map()` 之类的组合算子。
-// 除去写法外，这个函数与上面那个完全一致，它的作用是：
-// 如果值是合法的，计算其乘积，否则返回错误。
-fn multiply(first_number_str: &str, second_number_str: &str) -> Result<i32, ParseIntError> {
-    first_number_str.parse::<i32>().and_then(|first_number| {
-        second_number_str.parse::<i32>().map(|second_number| first_number * second_number)
-    })
-}
-
-fn print(result: Result<i32, ParseIntError>) {
-    match result {
-        Ok(n)  => println!("n is {}", n),
-        Err(e) => println!("Error: {}", e),
-    }
-}
-
-fn main() {
-    // 这种情况下仍然会给出正确的答案。
-    let twenty = multiply("10", "2");
-    print(twenty);
-
-    // 这种情况下就会提供一条更有用的错误信息。
-    let tt = multiply("t", "2");
-    print(tt);
-}
-
-n is 20
-Error: invalid digit found in string
-```
-
-又一种简单的方式，那就是使用?。使用？遇到错误时候会停止处理
-
-``` rust
-use std::num::ParseIntError;
-
-fn multiply(first_number_str: &str, second_number_str: &str) -> Result<i32, ParseIntError> {
-    let first_number = first_number_str.parse::<i32>()?;
-    let second_number = second_number_str.parse::<i32>()?;
-
-    Ok(first_number * second_number)
-}
-
-fn print(result: Result<i32, ParseIntError>) {
-    match result {
-        Ok(n)  => println!("n is {}", n),
-        Err(e) => println!("Error: {}", e),
-    }
-}
-
-fn main() {
-    print(multiply("10", "2"));
-    print(multiply("t", "2"));
-}
-
-n is 20
-Error: invalid digit found in string
 ```
 
 ### Result与Option的组合
@@ -6644,7 +7078,6 @@ Error: invalid first item to double
 Error: invalid first item to double
 ```
 
-
 ### 处理不同类型的错误
 
 下例中error的类型是io::Error，它是标准库提供的结构体类型，调用其kind方法可以获得一个io::ErrorKind类型的值。io::ErrorKind是标准库提供的枚举类型，它的值对应I/O操作中各种可能的错误类型。这里要用到的是ErrorKind::NotFound，它代表要打开的文件不存在时的错误。
@@ -6705,7 +7138,34 @@ let guess: u32 = match guess.trim().parse() {
 };
 ```
 
-### 传播错误
+### 统一化不同的错误类型
+
+Boy<dyn Error>它表示一个指向实现了 Error trait 的类型的智能指针。dyn关键字表示动态类型，它的作用是定一个变量的类型是动态类型，即在编译时无法确定类型。
+
+- Box<dyn Error> 类型是动态类型，它的类型信息会在运行时丢失，会导致在处理错误时，无法根据类型来处理不同的错误情况
+- 由于 Box<dyn Error> 类型只能存储一个智能指针，它并不能存储错误码。
+- 可以使用的“自定义错误类型”解决Box<dyn Error> 的缺点。但还是推荐使用第三方的thiserror库进行简化
+
+``` rust
+use std::error::Error;
+
+fn main() -> Result<(), Box<dyn Error>> {
+  let content = get_config_content()?;
+  println!("{}", content);
+  Ok(())
+}
+
+// 返回Box<dyn Error>
+fn get_config_content() -> Result<String, Box<dyn Error>> {
+    // 获取系统的环境变量CONFIG_FILE，可能会发生VarError错误
+    let file = std::env::var("CONFIG_FILE")?;
+    // 读取文件的内容，可能会发生错误std::io::Error
+    let content = std::fs::read_to_string(file)?;
+    Ok(content)
+}
+```
+
+### 传播错误 ?
 
 当编写的函数中包含可能会失败的操作时，除了在这个函数中处理错误外，还可以把处理错误的选择权交给该函数的调用者，因为调用者可能拥有更多的信息或逻辑来决定应该如何处理错误，这被称为传播错误。
 
@@ -6775,9 +7235,6 @@ fn read_username_from_file() -> Result<String, io::Error> {
 }
 ```
 
-
-
-
 ## 创建⾃定义类型来进⾏有效性验证
 
 - 如果程序多处要验证一个数字是否在1到100之间，那不如定义一个新类型直接使用
@@ -6799,6 +7256,77 @@ impl Guess {
     }
 }
 ```
+
+## thiserror和anyhow
+
+### thiserror
+
+提供了一个派生宏来简化自定义错误类型的过程，使用步骤：
+
+- Cargo.toml添加依赖 thiserror = "1.0"
+- 通过派生宏#[derive(thiserror::Error)]来定义自定义错误类型MyCustomError [error]属性：提供了错误消息的格式化功能
+- [from]属性：实现错误类型的转换，#[from] std::io::Error即表示IOError是从std::io::Error转换而来
+- transparent：表示错误类型是一个透明类型，透明类型是指错误类型与实际错误原因相同
+
+``` rust
+use std::fs::read_to_string;
+
+#[derive(thiserror::Error, Debug)]
+enum MyCustomError {
+    #[error("环境变量不存在")]
+    EnvironmentVariableNotFound(#[from] std::env::VarError),
+    #[error(transparent)]
+    IOError(#[from] std::io::Error), 
+}
+
+// 方法里可能会发生VarError或std::io::Error错误，都是通过?操作符，转换成MyCustomError错误返回
+fn get_config_content() -> Result<String, MyCustomError> {
+   // 获取系统的环境变量CONFIG_FILE，变量不存在会发生VarError错误
+   let file = std::env::var("CONFIG_FILE")?;
+   // 读取文件的内容，文件不存在会发生错误
+   let content = read_to_string(file)?;
+   Ok(content)
+}
+
+fn main() -> Result<(), MyCustomError> {
+    let content = get_config_content()?;
+    println!("{}", content);
+    Ok(())
+}
+```
+
+### anyhow
+
+和thiserror库一样，也是简化定义自定义错误类型的过程。它提供了一个可以包含任何错误类型的统一错误类型 anyhow::Error，支持将所有实现了Error trait 的自定义错误类型都转换为anyhow::Error类型，可以直接使用 ? 操作符完成这个转换，不必手工转换错误类型。使用步骤
+
+- 在Cargo.toml添加依赖 anyhow = "1.0"
+- 需要返回Result时，使用Result<T, anyhow::Error>或者等价的anyhow::Result<T>，就可以用？抛出任何类型实现了std::error::Error的错误。
+
+``` rust
+use std::fs::read_to_string;
+
+use anyhow::Result;
+
+fn main() -> Result<()> {
+    let content = get_config_content()?;
+    println!("{}", content);
+    Ok(())
+}
+
+// Result<String>等价于Result<String, anyhow::Error>
+fn get_config_content() -> Result<String> {
+   // 获取系统的环境变量CONFIG_FILE，可能会发生VarError错误
+   let file = std::env::var("INITDB_BIN_PATH")?;
+   // 读取文件的内容，可能会发生，可能会发生错误
+   let content = read_to_string(file)?;
+   Ok(content)
+}
+```
+
+### thiserror和anyhow的区别
+
+- thiserror：提供了一些宏属性（如 #[from] 和 #[error(transparent)]），用于设计自己的专用错误类型，以便给调用者提供更具体的自定义错误信息，常用于编写第三方库中
+- anyhow提供了一个可以包含任何错误类型的统一错误类型 anyhow::Error，只是简单的使用，不需要让调用者关注具体的错误类型，常用于应用程序业务代码中
 
 # 所有权
 
@@ -6840,7 +7368,9 @@ println!("{}", mascot);
 
 ### 变量赋值
 
-所有权机制只针对在堆上分配的数据，而基本类型的存储都是在栈上，因此其没有所有权的概念。对于基本类型来说，把一个变量赋值给另一个变量可以在内存上重新开辟一个空间来存储复制的数据，再与新的变量绑定。
+- 所有权机制只针对在堆上分配的数据，而基本类型的存储都是在栈上，因此其没有所有权的概念。
+- 对于基本类型来说，把一个变量赋值给另一个变量可以在内存上重新开辟一个空间来存储复制的数据，再与新的变量绑定。
+- 赋值即栈对象拷贝，同时转移所有权，保证一个对象在同一时间只能有一个所有者。
 
 ``` rust
 {
@@ -7005,6 +7535,8 @@ The person's age from person struct is 20
 
 ## Copy与Clone
 
+此贴简述了move, copy, clone，https://www.jianshu.com/p/bdfd4e777642
+
 浅复制Copy是指复制栈上数据，深复制Clone是指复制栈上和堆上数据。
 
 - 实现了Copy特征的值会被复制而不是移动，即所有权不能被转移。大多数简单类型都具有Copy特征。有如下：
@@ -7099,7 +7631,7 @@ fn main() {
 }
 ```
 
-# 借用
+# 引用
 
 多数情况下，我们更希望能访问数据，同时不取得其所有权。为实现这点，Rust 使用了借用（borrowing）机制。对象可以通过引用（&T）来传递，从而取代通过值（T）来传递。编译器（通过借用检查）静态地保证了引用总是指向有效的对象。也就是说，当存在引用指向一个对象时，该对象不能被销毁。
 
@@ -7447,6 +7979,47 @@ ref_c1 equals ref_c2: true
 point is (0, 0)
 mutable_point is (0, 1)
 tuple is (5, 2)
+```
+
+## mut与&的组合
+
+``` rust
+let mut a = 10;
+    let b = 20;
+    let mut c = 30;
+ 
+    // 左右都无mut
+    let ref_a = &a; // 类似const * const，即不能再指向别处，注意这里仅是“=&a”
+    // ref_a = &b; //  ref_a在这类似于*const(即指针是常量，不能再指向其它地址)
+    // *ref_a = 30;  // 这样也不行， 这里类似于const*（即指针指向的那个值不能变）
+    print_type_of(ref_a); // i32
+    print_type_of(&ref_a); // &i32
+
+    // 左值有mut
+    let mut mut_ref_a = &a; // 类似const*，即可以再指向别处（因为左值有mut），但不能改值。
+    mut_ref_a = &b;        // 可以将引用指向b，因为mut_ref_a是mut的
+    // *mut_ref_a = 20;      // 不可以更改值
+    print_type_of(mut_ref_a); // i32
+    print_type_of(&mut_ref_a); // &i32
+    println!("{}",mut_ref_a); // 20
+ 
+    // 右值有mut
+    let ref_mut_a = &mut a; // 类似 *const，不能再指向别处（左值无mut），但可以改值
+    // ref_mut_a = &mut c;  // 不可以
+    *ref_mut_a = 200;  //更改变量本身的值，可以
+    print_type_of(ref_mut_a); // i32
+    print_type_of(&ref_mut_a); // &mut i32
+    println!("{}",ref_mut_a); // 200
+
+    // 左右都有mut，能再指向别处，也能改值了
+    let mut ma = &mut a; 
+    *ma = 3000;
+    ma = &mut c; // c原本得是mut的才可
+    *ma = 2000;
+    print_type_of(ma); // i32
+    print_type_of(&ma); // &mut i32
+    println!("{}", a); // 3000
+    println!("{}", c); // 2000
 ```
 
 # 泛型
