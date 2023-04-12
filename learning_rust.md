@@ -3283,6 +3283,28 @@ impl Rectangle {
 }
 ```
 
+## 创建⾃定义类型来进⾏有效性验证
+
+- 如果程序多处要验证一个数字是否在1到100之间，那不如定义一个新类型直接使用
+- 如果⼀个函数需要将1〜100之间的数字作为参数或返回值，那么它就可以在⾃⼰的签名中使⽤Guess（⽽不是i32），并且再也不需要在函数体内做任何额外的检查了
+
+``` rust
+pub struct Guess {
+    value: i32,
+}
+impl Guess {
+    pub fn new(value: i32) -> Guess {
+        if value < 1 || value > 100 {
+            panic!("Guess value must be between 1 and 100, got {}.", value);
+        }
+        Guess { value }
+    }
+    pub fn value(&self) -> i32 {
+        self.value
+    }
+}
+```
+
 # 枚举
 
 ## 枚举的三种形式
@@ -3994,7 +4016,92 @@ Symmetric Difference: [1, 5]
 字符串字面值被直接存储在二进制程序中。下面的"Hello,World!"是字面值。变量 s 的类型是 &str ，它是一个指向二进制程序特定位置的切片， &str 是不可变引用，所以字符串字面值也是不可变的
 
 ``` rust
-let s = "Hello,World!";
+let s = "Hello,World!"; // s是字符串切片，“Hello,World!”是字面值
+```
+
+## 字符串切片 &str
+
+- Rust中的字符串本质上是一段有效的UTF8字节序列。字符串切⽚（&str）则是指向此字节序列的引⽤（&[u8]），使用时候而无需复制
+- str字符串类型由两部分组成：指向字符串序列的指针和记录长度的值。可以通过str模块提供的as_ptr和len方法分别求得指针和长度
+
+
+``` rust
+fn main() {
+    println!("字符串切片----->");
+    let s = String::from("broadcast"); // 这是string
+
+    let part1 = &s[0..5]; // 这是切片
+    let part2 = &s[5..9];
+
+    println!("{}={}+{}", s, part1, part2);
+}
+
+字符串切片----->
+broadcast=broad+cast
+```
+
+字符串切片的成员函数
+
+``` rust
+fn main(){
+    let truth:&'static str ="Rust是一门优雅的语言";
+    let ptr = truth.as_ptr();
+    let len = truth.len();
+    assert_eq!(28,len);
+    let s = unsafe {
+        let slice = std::slice::from_raw_parts(ptr, len);
+        std::str::from_utf8(slice)
+    };
+    assert_eq!(s,Ok(truth));
+}
+```
+
+定义函数时，使用 &str作为参数类型，可以同时接受String和&str类型的参数。即使用字符串切片代替字符串引用会使API更加通用。下面是字符串切片当作函数参数的案例
+
+``` rust
+fn main() {
+    let my_string = String::from("Hello world");
+    let wordIndex = first_word(&my_string[..]);
+
+    let my_string_literal = "hello world";
+    let wordIndex = first_word(my_string_literal);
+}
+
+fn first_word(s: &str) -> &str {
+    let bytes = s.as_bytes();
+
+    for (i, &item) in bytes.iter().enumerate() {
+        if item == b' ' {
+            return &s[..i];
+        }
+    }
+    &s[..]
+}
+```
+
+## 原始字符串 raw string
+
+原始标识符可以避免由于新增加关键字导致的不兼容问题，使用 r# 来使用。
+
+``` rust
+fn main() {
+    let raw_str = r"Escapes don't work here: \x3F \u{211D}";
+    println!("{}", raw_str);
+
+    // 如果你要在原始字符串中写引号，请在两边加一对 #
+    let quotes = r#"And then I said: "There is no escape!""#;
+    println!("{}", quotes);
+
+    // 如果字符串中需要写 "#，那就在定界符中使用更多的 #。
+    // 可使用的 # 的数目没有限制。
+    let longer_delimiter = r###"A string with "# in it. And even "##!"###;
+    println!("{}", longer_delimiter);
+}
+
+
+Escapes don't work here: \x3F \u{211D}
+And then I said: "There is no escape!"
+A string with "# in it. And even "##!
 ```
 
 ## String
@@ -4131,91 +4238,6 @@ fn main() {
     println!("{}", s);
 }
 
-```
-
-## 字符串切片
-
-- Rust中的字符串本质上是一段有效的UTF8字节序列。字符串切⽚（&str）则是指向此字节序列的引⽤（&[u8]），使用时候而无需复制
-- str字符串类型由两部分组成：指向字符串序列的指针和记录长度的值。可以通过str模块提供的as_ptr和len方法分别求得指针和长度
-
-
-``` rust
-fn main() {
-    println!("字符串切片----->");
-    let s = String::from("broadcast");
-
-    let part1 = &s[0..5];
-    let part2 = &s[5..9];
-
-    println!("{}={}+{}", s, part1, part2);
-}
-
-字符串切片----->
-broadcast=broad+cast
-```
-
-字符串切片的成员函数
-
-``` rust
-fn main(){
-    let truth:&'static str ="Rust是一门优雅的语言";
-    let ptr = truth.as_ptr();
-    let len = truth.len();
-    assert_eq!(28,len);
-    let s = unsafe {
-        let slice = std::slice::from_raw_parts(ptr, len);
-        std::str::from_utf8(slice)
-    };
-    assert_eq!(s,Ok(truth));
-}
-```
-
-定义函数时，使用 &str作为参数类型，可以同时接受String和&str类型的参数。即使用字符串切片代替字符串引用会使API更加通用。下面是字符串切片当作函数参数的案例
-
-``` rust
-fn main() {
-    let my_string = String::from("Hello world");
-    let wordIndex = first_word(&my_string[..]);
-
-    let my_string_literal = "hello world";
-    let wordIndex = first_word(my_string_literal);
-}
-
-fn first_word(s: &str) -> &str {
-    let bytes = s.as_bytes();
-
-    for (i, &item) in bytes.iter().enumerate() {
-        if item == b' ' {
-            return &s[..i];
-        }
-    }
-    &s[..]
-}
-```
-
-## raw string
-
-原始标识符可以避免由于新增加关键字导致的不兼容问题，使用 r# 来使用。
-
-``` rust
-fn main() {
-    let raw_str = r"Escapes don't work here: \x3F \u{211D}";
-    println!("{}", raw_str);
-
-    // 如果你要在原始字符串中写引号，请在两边加一对 #
-    let quotes = r#"And then I said: "There is no escape!""#;
-    println!("{}", quotes);
-
-    // 如果字符串中需要写 "#，那就在定界符中使用更多的 #。
-    // 可使用的 # 的数目没有限制。
-    let longer_delimiter = r###"A string with "# in it. And even "##!"###;
-    println!("{}", longer_delimiter);
-}
-
-
-Escapes don't work here: \x3F \u{211D}
-And then I said: "There is no escape!"
-A string with "# in it. And even "##!
 ```
 
 ## 字节数组
@@ -5109,478 +5131,82 @@ functional style: 5456
 
 ```
 
-# Option与匹配
+# 断言
 
-## Option
+## assert!
 
-在标准库（std）中有个叫做 Option<T>（option 中文意思是 “选项”）的枚举 类型，用于有 “不存在” 的可能性的情况。它表现为以下两个 “option”（选项）中 的一个：
-
-- Some(T)：找到一个属于 T 类型的元素
-- None：找不到相应元素
-
-这些选项可以通过 match 显式地处理，或使用 unwrap 隐式地处理。隐式处理要么 返回 Some 内部的元素，要么就 panic。简单的使用如下：
+- 在运行时断言布尔表达式是true，为false则测试失败会调用panic!。
+- 断言总是在调试和发布版本中检查，并且不能被禁用。
+- 可以第二个参数附带自定义错误信息
 
 ``` rust
-// 平民（commoner）们见多识广，收到什么礼物都能应对。
-// 所有礼物都显式地使用 `match` 来处理。
-fn give_commoner(gift: Option<&str>) {
-    // 指出每种情况下的做法。
-    match gift {
-        Some("snake") => println!("Yuck! I'm throwing that snake in a fire."),
-        Some(inner)   => println!("{}? How nice.", inner),
-        None          => println!("No gift? Oh well."),
-    }
-}
-
-// 养在深闺人未识的公主见到蛇就会 `panic`（恐慌）。
-// 这里所有的礼物都使用 `unwrap` 隐式地处理。
-fn give_princess(gift: Option<&str>) {
-    // `unwrap` 在接收到 `None` 时将返回 `panic`。
-    let inside = gift.unwrap();
-    if inside == "snake" { panic!("AAAaaaaa!!!!"); }
-
-    println!("I love {}s!!!!!", inside);
-}
-
 fn main() {
-    let food  = Some("chicken");
-    let snake = Some("snake");
-    let void  = None;
+    // the panic message for these assertions is the stringified value of the
+    // expression given.
+    assert!(true);
 
-    give_commoner(food);
-    give_commoner(snake);
-    give_commoner(void);
+    fn some_computation() -> bool { true } // a very simple function
 
-    let bird = Some("robin");
-    let nothing = None;
+    assert!(some_computation());
 
-    give_princess(bird);
-    give_princess(nothing);
+    // assert with a custom message
+    let x = true;
+    assert!(x, "x wasn't true!");
+
+    let a = 3; let b = 27;
+    assert!(a + b == 30, "a = {}, b = {}", a, b);
 }
-
-chicken? How nice.
-Yuck! I'm throwing that snake in a fire.
-No gift? Oh well.
-I love robins!!!!!
-thread 'main' panicked at 'called `Option::unwrap()` on a `None` value', src/bin/main.rs:16:23
-note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 ```
 
-### 展开option
+## assert_eq!
 
-你可以使用 match 语句来解开 Option，但使用 ? 运算符通常会更容易。如果 x 是 Option，那么若 x 是 Some ，对x?表达式求值将返回底层值，否则无论函数是否正在执行都将终止且返回 None。
+- 断言两个表达式彼此相等。panic时，此宏将打印表达式的值及其调试表示。
+- 像 assert! 一样，这个宏有第二种形式，可以提供自定义的panic消息。
+
+这个案例可以通过测试
 
 ``` rust
-struct Person {
-    job: Option<Job>,
+fn add(a: i32, b: i32) -> i32 {
+    a + b
 }
 
-#[derive(Clone, Copy)]
-struct Job {
-    phone_number: Option<PhoneNumber>,
-}
-
-#[derive(Clone, Copy)]
-struct PhoneNumber {
-    area_code: Option<u8>,
-    number: u32,
-}
-
-impl Person {
-
-    // 获取此人的工作电话号码的区号（如果存在的话）。
-    fn work_phone_area_code(&self) -> Option<u8> {
-        // 没有`？`运算符的话，这将需要很多的嵌套的 `match` 语句。
-        // 这将需要更多代码——尝试自己编写一下，看看哪个更容易。
-        self.job?.phone_number?.area_code
-    }
-}
-
-fn main() {
-    let p = Person {
-        job: Some(Job {
-            phone_number: Some(PhoneNumber {
-                area_code: Some(61),
-                number: 439222222,
-            }),
-        }),
-    };
-
-    assert_eq!(p.work_phone_area_code(), Some(61));
+#[test]
+fn add_works() {
+    assert_eq!(add(1, 2), 3);
+    assert_eq!(add(10, 12), 22);
+    assert_eq!(add(5, -2), 3);
 }
 
 ```
 
-### 常用方法
-
-- 处理引用
-    - as_ref 从 &Option 转换为 Option<&T>
-    - as_mut 从 &mut Option 转换为 Option<&mut T>
-    - as_deref 从 &Option 转换为 Option<&T::Target>
-    - as_deref_mut 从 &mut Option 转换为 Option<&mut T::Target>
-    - as_pin_ref 从 Pin<&Option> 转换为 Option<Pin<&T>>
-    - as_pin_mut 从 Pin<&mut Option> 转换为 Option<Pin<&mut T>>
-
-- 获取Option包装的源，如果 Option 为None：
-    - expect panics 带有提供的自定义消息
-    - unwrap panics 带有泛型信息
-    - unwrap_or 返回提供的默认值
-    - unwrap_or_default 返回类型 T 的默认值 (必须实现 Default trait)
-    - unwrap_or_else 返回对提供的函数求值的结果
-
-- 转Result
-    - ok_or 使用提供的默认 err 值将 Some(v) 转换为 Ok(v)，将 None 转换为 Err(err)
-    - ok_or_else 使用提供的函数将 Some(v) 转换为 Ok(v)，并将 None 转换为 Err 的值
-    - transpose 实现 Result 和 Option 来回转换
-
-- 转换Option包装的源
-    - filter (过滤操作) 针对源过滤如果源不是None那么执行方法求值只为真返回源，为假返回一个None
-    - flatten 从一个对象中删除一层嵌套 Option < Option< T > >
-    - map (转换操作)通过将提供的函数应用于 Some 的包含值并保持 None 值不变，将 Option 转换为 Option< U >
-    - map_or 将提供的函数应用于 Some 的包含值，或者如果 Option 是返回提供的默认值 None
-    - map_or_else 转换Some的值并且提供默认值，直接返回被包装的值，等同Java8 Stream的flatmap + get
-
-- 转换Option包装的源生成一个元组
-    - zip 把2个Some生成一个Some((x,y))
-    - zip_with 基于一个自定义函数来生成Some((x,y))
-
-- 布尔操作
-    - 这些方法将 Option 视为布尔值，其中 Some 的作用类似于 true，而 None 的作用类似于 false。
-
-    ![OPTION_bool](./OPTION_bool.png)
-    
-    - and_then 和 or_else 方法将函数作为输入，并且仅在需要产生新值时才评估函数。只有 and_then 方法可以生成具有与 Option 不同的内部类型 U 的 Option< U> 值。
-    
-    ![OPTION_bool2](./OPTION_bool2.png)
-
-- 归约操作
-    
-    实现了 FromIterator trait，它允许将 Option 值上的迭代器收集到原始 Option 值的每个包含值的集合的 Option 中，或者如果任何元素是 None，则为 None。还实现了 Product 和 Sum traits
-    
-    - collect 收集到集合中
-    - product 求所有值得乘积
-    - sum 求和
-
-- 操作Option
-    
-    原地修改Option枚举
-    
-    - insert 插入一个值，丢弃任何旧内容
-    - get_or_insert 获取当前值并且插入一个新值。默认是None
-    - get_or_insert_default 获取当前值，如果是None，则插入类型 T (必须实现 Default) 的默认值
-    - get_or_insert_with 获取当前值，如果是None，则插入函数的返回值
-
-#### map
-
-Option 的 map 方法，可以将一个值映射（转换）成另一个值。其实作用就是对map前的值进行数据类型转换后再返回
-
-Option有一个内置的方法叫做map()，这是一个组合器，用于Some->Some和None->None的简单映射。多个map()的调用可以被串联起来，以获得更多的灵活性。在下面的例子中，process()取代了之前的所有函数，同时保持紧凑。
-
-``` rust
-#![allow(dead_code)]
-
-#[derive(Debug)] enum Food { Apple, Carrot, Potato }
-
-#[derive(Debug)] struct Peeled(Food);
-#[derive(Debug)] struct Chopped(Food);
-#[derive(Debug)] struct Cooked(Food);
-
-// 削皮。如果没有食物，就返回 `None`。否则返回削好皮的食物。
-fn peel(food: Option<Food>) -> Option<Peeled> {
-    match food {
-        Some(food) => Some(Peeled(food)),
-        None       => None,
-    }
-}
-
-// 切食物。如果没有食物，就返回 `None`。否则返回切好的食物。
-fn chop(peeled: Option<Peeled>) -> Option<Chopped> {
-    match peeled {
-        Some(Peeled(food)) => Some(Chopped(food)),
-        None               => None,
-    }
-}
-
-// 烹饪食物。这里，我们使用 `map()` 来替代 `match` 以处理各种情况。
-fn cook(chopped: Option<Chopped>) -> Option<Cooked> {
-    chopped.map(|Chopped(food)| Cooked(food))
-}
-
-// 这个函数会完成削皮切块烹饪一条龙。我们把 `map()` 串起来，以简化代码。
-fn process(food: Option<Food>) -> Option<Cooked> {
-    food.map(|f| Peeled(f))
-        .map(|Peeled(f)| Chopped(f))
-        .map(|Chopped(f)| Cooked(f))
-}
-
-// 在尝试吃食物之前确认食物是否存在是非常重要的！
-fn eat(food: Option<Cooked>) {
-    match food {
-        Some(food) => println!("Mmm. I love {:?}", food),
-        None       => println!("Oh no! It wasn't edible."),
-    }
-}
-
-fn main() {
-    let apple = Some(Food::Apple);
-    let carrot = Some(Food::Carrot);
-    let potato = None;
-
-    let cooked_apple = cook(chop(peel(apple)));
-    let cooked_carrot = cook(chop(peel(carrot)));
-
-    // 现在让我们试试看起来更简单的 `process()`。
-    let cooked_potato = process(potato);
-
-    eat(cooked_apple);
-    eat(cooked_carrot);
-    eat(cooked_potato);
-}
-
-Mmm. I love Cooked(Apple)
-Mmm. I love Cooked(Carrot)
-Oh no! It wasn't edible.
-```
-
-简单的案例
-
-``` rust
-fn find(haystack: &str, needle: char) -> Option<usize> {
-    for (offset, c) in haystack.char_indices() {
-        if c == needle {
-            return Some(offset);
-        }
-    }
-    None
-}
-
-fn main() {
-    match extension("foo.rs") {
-        None => println!("no extension"),
-        Some(ext) => assert_eq!(ext, "rs"),
-    }
-}
-
-// 使用map去掉match
-fn extension(file_name: &str) -> Option<&str> {
-    // 如果find返回的不是none（即Some(T)）则将结果作为参数i调用闭包进行计算后再返回，反之直接返回None。
-    find(file_name, '.').map(|i| &file_name[i + 1..])
-}
-
-```
-
-#### and_then
-
-map() 以链式调用的方式来简化 match 语句。然而，如果以返回类型是 Option<T> 的函数作为 map() 的参数，会导致出现嵌套形式 Option<Option<T>>。这样多层串联 调用就会变得混乱。所以有必要引入 and_then()，在某些语言中它叫做 flatmap。
-
-如果and_then之前的结果是 None 则返回 None ，否则执行and_then指定的函数再返回结果。可以理解为如初步计算结果有值则继续后面的再次计算
-
-案例：and_then代替处理多层match，函数v2与v1的作用是一样的
-
-``` rust
-#![allow(dead_code)]
-
-#[derive(Debug)] enum Food { CordonBleu, Steak, Sushi }
-#[derive(Debug)] enum Day { Monday, Tuesday, Wednesday }
-
-// 我们没有制作寿司所需的原材料（ingredient）（有其他的原材料）。
-fn have_ingredients(food: Food) -> Option<Food> {
-    match food {
-        Food::Sushi => None,
-        _           => Some(food),
-    }
-}
-
-// 我们拥有全部食物的食谱，除了法国蓝带猪排（Cordon Bleu）的。
-fn have_recipe(food: Food) -> Option<Food> {
-    match food {
-        Food::CordonBleu => None,
-        _                => Some(food),
-    }
-}
-
-
-// 要做一份好菜，我们需要原材料和食谱。
-// 我们可以借助一系列 `match` 来表达这个逻辑：
-fn cookable_v1(food: Food) -> Option<Food> {
-    match have_ingredients(food) {
-        None       => None,
-        Some(food) => match have_recipe(food) {
-            None       => None,
-            Some(food) => Some(food),
-        },
-    }
-}
-
-// 也可以使用 `and_then()` 把上面的逻辑改写得更紧凑：
-fn cookable_v2(food: Food) -> Option<Food> {
-    have_ingredients(food).and_then(have_recipe)
-}
-
-fn eat(food: Food, day: Day) {
-    match cookable_v2(food) {
-        Some(food) => println!("Yay! On {:?} we get to eat {:?}.", day, food),
-        None       => println!("Oh no. We don't get to eat on {:?}?", day),
-    }
-}
-
-fn main() {
-    let (cordon_bleu, steak, sushi) = (Food::CordonBleu, Food::Steak, Food::Sushi);
-
-    eat(cordon_bleu, Day::Monday);
-    eat(steak, Day::Tuesday);
-    eat(sushi, Day::Wednesday);
-}
-
-
-Oh no. We don't get to eat on Monday?
-Yay! On Tuesday we get to eat Steak.
-Oh no. We don't get to eat on Wednesday?
-```
-
-更为简单的使用案例
-
 ``` rust
 fn main() {
-    let name = Some("JiangBo");
-    println!("{:?}", name.and_then(|e| Some(e.len())));
-}
-
-Some(7)
-```
-
-#### or、or_else
-
-- 当option是none时候会使用or的参数做右值。or()是可级联调用的，参数会被move，如下面的例子所示传递给or的变量被移动走了，后面再使用就会报错了
-- 如果or的参数是函数或闭包则要使用or_else
-- or与or_else不会改变当前option的值
-
-``` rust
-#[derive(Debug)] 
-enum Fruit { Apple, Orange, Banana, Kiwi, Lemon }
-
-fn main() {
-    let apple = Some(Fruit::Apple);
-    let orange = Some(Fruit::Orange);
-    let no_fruit: Option<Fruit> = None;
-
-    // no_fruit不会改变，这是与后面的get_or_insert的区别
-    let first_available_fruit = no_fruit.or(orange).or(apple);
-    println!("first_available_fruit: {:?}", first_available_fruit);
-    // first_available_fruit: Some(Orange)
-    // println!("The variable apple has been moved, so this line cannot be compiled: {:?}", apple); // TODO: Decomment the above line to see the compiler error.
+    let a = 3;
+    let b = 1 + 2;
+    assert_eq!(a, b);
+    assert_eq!(a, b, "we are testing addition with {} and {}", a, b);
 }
 ```
 
+## assert_ne!
+
+- 断言两个表达式不相等。Panics时，此宏将打印表达式的值及其调试表示。
+- 像 assert! 一样，这个宏有第二种形式，可以提供自定义的Panics消息。
+
 ``` rust
-#[derive(Debug)] 
-enum Fruit { Apple, Orange, Banana, Kiwi, Lemon }
-
 fn main() {
-    let apple = Some(Fruit::Apple);
-    let no_fruit: Option<Fruit> = None;
-    let get_kiwi_as_fallback = || {
-        println!("Providing kiwi as fallback");
-        Some(Fruit::Kiwi)
-    };
-    let get_lemon_as_fallback = || {
-        println!("Providing lemon as fallback");
-        Some(Fruit::Lemon)
-    };
-
-    let first_available_fruit = no_fruit
-        .or_else(get_kiwi_as_fallback)
-        .or_else(get_lemon_as_fallback);
-    println!("first_available_fruit: {:?}", first_available_fruit);
-    // Providing kiwi as fallback
-    // first_available_fruit: Some(Kiwi)
+    let a = 3;
+    let b = 2;
+    assert_ne!(a, b);
+    assert_ne!(a, b, "we are testing that the values are not equal");
 }
 ```
 
-#### get_or_insert、get_or_insert_with
+## debug 断言
 
-这2个与or、or_else的区别在于会改变当前option的值。相当于如果自身是none则先给自身赋值，然后再用自己给其它变量赋值
+这类似于 assert!。debug 断言宏也可以用在除测试代码之外的代码中。在其他代码中，这主要用于代码运行时，对应该保存的任何契约或不变性进行断言的情况。这些断言仅在调试版本中有效，并且有助于在调试模式下运行代码时捕获断言异常。当代码以优化模式编译时，这些宏调用将被忽略，并被优化为无操作。它还有类似的变体，例如 debug_assert_eq!和 debug_assert_ne!，它们的工作方式类似 assert!宏。
 
-``` rust
-#[derive(Debug)]
-enum Fruit { Apple, Orange, Banana, Kiwi, Lemon }
-
-fn main() {
-    let mut my_fruit: Option<Fruit> = None;
-    let apple = Fruit::Apple;
-    let first_available_fruit = my_fruit.get_or_insert(apple);
-    println!("first_available_fruit is: {:?}", first_available_fruit);
-    println!("my_fruit is: {:?}", my_fruit);
-    // first_available_fruit is: Apple
-    // my_fruit is: Some(Apple)
-    //println!("Variable named `apple` is moved: {:?}", apple);
-    // TODO: uncomment the line above to see the compiler error
-}
-
-first_available_fruit is: Apple
-my_fruit is: Some(Apple)
-```
-
-``` rust
-#[derive(Debug)] 
-enum Fruit { Apple, Orange, Banana, Kiwi, Lemon }
-
-fn main() {
-    let mut my_fruit: Option<Fruit> = None;
-    let get_lemon_as_fallback = || {
-        println!("Providing lemon as fallback");
-        Fruit::Lemon
-    };
-    let first_available_fruit = my_fruit
-        .get_or_insert_with(get_lemon_as_fallback);
-    println!("first_available_fruit is: {:?}", first_available_fruit);
-    println!("my_fruit is: {:?}", my_fruit);
-    // Providing lemon as fallback
-    // first_available_fruit is: Lemon
-    // my_fruit is: Some(Lemon)
-
-    // If the Option has a value, it is left unchanged, and the closure is not invoked
-    let mut my_apple = Some(Fruit::Apple);
-    let should_be_apple = my_apple.get_or_insert_with(get_lemon_as_fallback);
-    println!("should_be_apple is: {:?}", should_be_apple);
-    println!("my_apple is unchanged: {:?}", my_apple);
-    // The output is a follows. Note that the closure `get_lemon_as_fallback` is not invoked
-    // should_be_apple is: Apple
-    // my_apple is unchanged: Some(Apple)
-}
-
-Providing lemon as fallback
-first_available_fruit is: Lemon
-my_fruit is: Some(Lemon)
-should_be_apple is: Apple
-my_apple is unchanged: Some(Apple)
-```
-
-#### unwrap_or
-
-``` rust
-fn find(haystack: &str, needle: char) -> Option<usize> {
-    for (offset, c) in haystack.char_indices() {
-        if c == needle {
-            return Some(offset);
-        }
-    }
-    None
-}
-
-fn main() {
-    // unwrap_or提供了一个默认值default，当值为None时返回default：
-    // 下面第2个没有找到则使用了默认值rs，第一次找到了所以默认值随便写也不怕
-    assert_eq!(extension("foo.rs").unwrap_or("111rs"), "rs");
-    assert_eq!(extension("foo").unwrap_or("rs"), "rs");
-}
-
-// 使用map去掉match
-fn extension(file_name: &str) -> Option<&str> {
-    find(file_name, '.').map(|i| &file_name[i + 1..])
-}
-
-```
+# 匹配
 
 ## Match
 
@@ -6043,64 +5669,47 @@ fn main() {
 Some numbers: 2, 8, 32
 ```
 
-### 匹配Option
+### 匹配Option与使用？
 
-- 不转移所有权的案例
+由于Option是一个枚举，我们可以使用模式匹配来处理每个变量
+
+案例：简单类型的匹配不会转移所有权
 
 ``` rust
-匹配准确的数字
 fn main() {
+    // 数字
     let t = Some(64);
     match t {
             Some(64) => println!("Yes"),
             _ => println!("No"),
     }
-}
 
-Yes
----------------------
-匹配有值
-fn main() {
-    let opt = Option::Some("Hello");
-    match opt {
-        Option::Some(something) => {
-            println!("{}", something);
-        },
-        Option::None => {
-            println!("opt is nothing");
-        }
+    // 字符串切片
+    let something: Option<&str> = Some("a String"); // Some("a String")
+    let nothing: Option<&str> = None;   // None
+    match something {
+        Some(text) => println!("We go something: {}", text),
+        None => println!("We got nothing."),
     }
-    let opt: Option<&str> = Option::None;
-    match opt {
-        Option::Some(something) => {
-            println!("{}", something);
-        },
-        Option::None => {
-            println!("opt is nothing");
-        }
+    match nothing {
+        Some(something_else) => println!("We go something: {}", something_else),
+        None => println!("We got nothing"),
     }
-}
 
-Hello
-opt is nothing
----------------------
-匹配有值并逻辑计算
-
-fn main() {
+    // 匹配后进行计算
     fn plus_one(x: Option<i32>) -> Option<i32> {
         match x {
             None => None,
             Some(i) => Some(i + 1),
         }
     }
-
     let five = Some(5);
     let six = plus_one(five);
     let none = plus_one(None);
 }
 ```
 
-- 转移所有权的案例
+案例：string会转移所有权
 
 ``` rust
 fn main() {
@@ -6132,7 +5741,80 @@ fn main() {
 }
 ```
 
+可以使用 match 语句来解开 Option，但使用 ? 运算符通常会更容易。如果 x是 Some ，则x?将返回底层值，否则将终止后续操作并返回 None
+
+``` rust
+struct Person {
+    job: Option<Job>,
+}
+
+#[derive(Clone, Copy)]
+struct Job {
+    phone_number: Option<PhoneNumber>,
+}
+
+#[derive(Clone, Copy)]
+struct PhoneNumber {
+    area_code: Option<u8>,
+    number: u32,
+}
+
+impl Person {
+
+    // 获取此人的工作电话号码的区号（如果存在的话）。
+    fn work_phone_area_code(&self) -> Option<u8> {
+        // 没有`？`运算符的话，这将需要很多的嵌套的 `match` 语句。
+        // 这将需要更多代码——尝试自己编写一下，看看哪个更容易。
+        self.job?.phone_number?.area_code
+    }
+}
+
+fn main() {
+    let p = Person {
+        job: Some(Job {
+            phone_number: Some(PhoneNumber {
+                area_code: Some(61),
+                number: 439222222,
+            }),
+        }),
+    };
+
+    assert_eq!(p.work_phone_area_code(), Some(61));
+}
+```
+
 ### 匹配Result
+
+``` rust
+fn main() {
+    fn check_length(s: &str, min: usize) -> Result<&str, String> {
+        if s.chars().count() >= min {
+            return Ok(s)
+        } else {
+            return Err(format!("'{}' is not long enough!", s))
+        }
+    }
+    let a = check_length("some str", 5);
+    let b = check_length("another str", 300);
+    dbg!(a); // Ok("some str",)
+    dbg!(b); // Err("'another str' is not long enough!",)
+    let func_return = check_length("some string literal", 100);
+    let a_str = match func_return {
+        Ok(a_str) => a_str,
+        Err(error) => panic!("Problem running 'check_length':\n {:?}", error),
+    };
+}
+
+[src/bin/main.rs:56] a = Ok(
+    "some str",
+)
+[src/bin/main.rs:57] b = Err(
+    "'another str' is not long enough!",
+)
+thread 'main' panicked at 'Problem running 'check_length':
+ "'some string literal' is not long enough!"', src/bin/main.rs:61:23
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+```
 
 案例：match模式匹配对返回值进行相应的处理
 
@@ -6350,82 +6032,6 @@ fn main(){
 }
 ```
 
-# 断言
-
-## assert!
-
-- 在运行时断言布尔表达式是true，为false则测试失败会调用panic!。
-- 断言总是在调试和发布版本中检查，并且不能被禁用。
-- 可以第二个参数附带自定义错误信息
-
-``` rust
-fn main() {
-    // the panic message for these assertions is the stringified value of the
-    // expression given.
-    assert!(true);
-
-    fn some_computation() -> bool { true } // a very simple function
-
-    assert!(some_computation());
-
-    // assert with a custom message
-    let x = true;
-    assert!(x, "x wasn't true!");
-
-    let a = 3; let b = 27;
-    assert!(a + b == 30, "a = {}, b = {}", a, b);
-}
-```
-
-## assert_eq!
-
-- 断言两个表达式彼此相等。panic时，此宏将打印表达式的值及其调试表示。
-- 像 assert! 一样，这个宏有第二种形式，可以提供自定义的panic消息。
-
-这个案例可以通过测试
-
-``` rust
-fn add(a: i32, b: i32) -> i32 {
-    a + b
-}
-
-#[test]
-fn add_works() {
-    assert_eq!(add(1, 2), 3);
-    assert_eq!(add(10, 12), 22);
-    assert_eq!(add(5, -2), 3);
-}
-
-```
-
-``` rust
-fn main() {
-    let a = 3;
-    let b = 1 + 2;
-    assert_eq!(a, b);
-    assert_eq!(a, b, "we are testing addition with {} and {}", a, b);
-}
-```
-
-## assert_ne!
-
-- 断言两个表达式不相等。Panics时，此宏将打印表达式的值及其调试表示。
-- 像 assert! 一样，这个宏有第二种形式，可以提供自定义的Panics消息。
-
-``` rust
-fn main() {
-    let a = 3;
-    let b = 2;
-    assert_ne!(a, b);
-    assert_ne!(a, b, "we are testing that the values are not equal");
-}
-```
-
-## debug 断言
-
-这类似于 assert!。debug 断言宏也可以用在除测试代码之外的代码中。在其他代码中，这主要用于代码运行时，对应该保存的任何契约或不变性进行断言的情况。这些断言仅在调试版本中有效，并且有助于在调试模式下运行代码时捕获断言异常。当代码以优化模式编译时，这些宏调用将被忽略，并被优化为无操作。它还有类似的变体，例如 debug_assert_eq!和 debug_assert_ne!，它们的工作方式类似 assert!宏。
-
-
 # 错误处理
 
 Rust将错误分为两个主要类别：可恢复错误和不可恢复错误。可恢复错误是指可以被捕捉的且能够合理解决的问题，比如读取不存在文件、权限被拒绝、字符串解析出错等情况。一旦捕捉到可恢复错误，Rust可以通过不断尝试之前失败的操作或者选择一个备用的操作来矫正错误让程序继续运行。不可恢复错误是指会导致程序崩溃的错误，可视为程序的漏洞，比如数组的越界访问。一旦发生不可恢复错误，程序就会立即停止。Rust提供了分层式错误处理方案。
@@ -6462,16 +6068,594 @@ panic!的使用准则：
 - 在⽰例、原型和测试中使⽤unwrap与expect⽅法会⾮常⽅便，因为测试的失败状态正是通过panic来进⾏标记的
 - 假如你可以通过⼈⼯检查确保代码永远不会出现Err变体，那就放⼼⼤胆地使⽤unwrap吧。
 
-## Result<T, E>
+## thiserror
 
-Result 是 Option 类型的更丰富的版本，描述的是可能 的错误而不是可能的不存在。 也就是说，Result<T，E> 可以有两个结果的其中一个：
+thiserror：提供了一些宏属性（如 #[from] 和 #[error(transparent)]），用于设计自己的专用错误类型，以便给调用者提供更具体的自定义错误信息，常用于编写第三方库中
 
-- Ok<T>：找到 T 元素
-- Err<E>：找到 E 元素，E 即表示错误的类型。
+提供了一个派生宏来简化自定义错误类型的过程，使用步骤：
 
-按照约定，预期结果是 “Ok”，而意外结果是 “Err”。
+- Cargo.toml添加依赖 thiserror = "1.0"
+- 通过派生宏#[derive(thiserror::Error)]来定义自定义错误类型MyCustomError [error]属性：提供了错误消息的格式化功能
+- [from]属性：实现错误类型的转换，#[from] std::io::Error即表示IOError是从std::io::Error转换而来
+- transparent：表示错误类型是一个透明类型，透明类型是指错误类型与实际错误原因相同
 
-### 常用方法
+``` rust
+use std::fs::read_to_string;
+
+#[derive(thiserror::Error, Debug)]
+enum MyCustomError {
+    #[error("环境变量不存在")]
+    EnvironmentVariableNotFound(#[from] std::env::VarError),
+    #[error(transparent)]
+    IOError(#[from] std::io::Error), 
+}
+
+// 方法里可能会发生VarError或std::io::Error错误，都是通过?操作符，转换成MyCustomError错误返回
+fn get_config_content() -> Result<String, MyCustomError> {
+   // 获取系统的环境变量CONFIG_FILE，变量不存在会发生VarError错误
+   let file = std::env::var("CONFIG_FILE")?;
+   // 读取文件的内容，文件不存在会发生错误
+   let content = read_to_string(file)?;
+   Ok(content)
+}
+
+fn main() -> Result<(), MyCustomError> {
+    let content = get_config_content()?;
+    println!("{}", content);
+    Ok(())
+}
+```
+
+# Option
+
+一种表达值的存在或不存在的泛型枚举
+
+``` rust
+pub enum Option<T> {
+    None,       表示无
+    Some(T),    表示有T类型的值
+}
+```
+
+案例：赋值与打印
+
+``` rust
+fn main() {
+    let a_str: Option<&str> = Some("a str");
+    let a_string: Option<String> = Some(String::from("a String"));
+    let a_float: Option<f64> = Some(1.1);
+    let a_vec: Option<Vec<i32>> = Some(vec![0, 1, 2, 3]);
+
+    #[derive(Debug)]
+    struct Person {
+        name: String,
+        age: i32,
+    }
+
+    let marie = Person {
+        name: String::from("Marie"),
+        age: 2,
+    };
+
+    let a_person: Option<Person> = Some(marie);
+    let maybe_someone: Option<Person> = None;
+
+    println!(
+        "{:?}\n{:?}\n{:?}\n{:?}\n{:?}\n{:?}",
+        a_str, a_string, a_float, a_vec, a_person, maybe_someone
+    );
+}
+
+Some("a str")
+Some("a String")
+Some(1.1)
+Some([0, 1, 2, 3])
+Some(Person { name: "Marie", age: 2 })
+None
+```
+
+## 函数参数是Option
+
+``` rust
+fn main() {
+    fn might_print(option: Option<&str>) {
+        match option {
+            Some(text) => println!("The argument contains the following value: '{}'", text),
+            None => println!("The argument contains None."),
+        }
+    }
+    let something: Option<&str> = Some("some str");
+    let nothing: Option<&str> = None;
+    might_print(something);
+    might_print(nothing);
+}
+
+The argument contains the following value: 'some str'
+The argument contains None.s
+```
+
+## 函数返回Option
+
+案例：返回option
+
+``` rust
+fn main() {
+   // Returns the text if it contains target character, None otherwise:
+    fn contains_char(text: &str, target_c: char) -> Option<&str> {
+        if text.chars().any(|ch| ch == target_c) {
+            return Some(text);
+        } else {
+            return None;
+        }
+    }
+    let a = contains_char("Rust in action", 'a');
+    let q = contains_char("Rust in action", 'q');
+    println!("{:?}", a);
+    println!("{:?}", q);
+}
+
+Some("Rust in action")
+None
+```
+
+另一个案例：vec的pop返回的就是option
+
+``` rust
+fn main() {
+    let mut vec = vec![0, 1];
+    let a = vec.pop();
+    let b = vec.pop();
+    let c = vec.pop();
+    println!("{:?}\n{:?}\n{:?}\n", a, b, c);
+}
+
+Some(1)
+Some(0)
+None
+```
+
+## 处理返回的Option
+
+- unwrap： 最不安全的方式
+
+``` rust
+let a = contains_char("Rust in action", 'a');
+let a_unwrapped = a.unwrap();   
+println!("{:?}", a_unwrapped);
+```
+
+- match：安全的方式
+
+``` rust
+let a = contains_char("Rust in action", 'a');
+match a {
+    Some(a) => println!("contains_char returned something: {:?}!", a),
+    None => println!("contains_char did not return something, so branch off here"),
+}
+```
+
+- if let：优美的方式
+
+``` rust
+let a = contains_char("Rust in action", 'a');
+if let Some(a) = contains_char("Rust in action", 'a') {
+    println!("contains_char returned something: {:?}!", a);
+} else {
+    println!("contains_char did not return something, so branch off here")
+}
+```
+
+## 在结构里的Option
+
+在一个结构中使用 Option。这在一个字段可能有也可能没有任何值的情况下会很方便
+
+``` rust
+fn main() {
+    #[derive(Debug)]
+    struct Person {
+        name: String,
+        age: Option<i32>,
+    }
+    
+    let marie = Person {
+        name: String::from("Marie"),
+        age: Some(2),
+    };
+    
+    let jan = Person {
+        name: String::from("Jan"),
+        age: None,
+    };
+    println!("{:?}\n{:?}", marie, jan);
+}
+
+Person { name: "Marie", age: Some(2) }
+Person { name: "Jan", age: None }
+```
+
+## 常用方法
+
+- 处理引用
+    - as_ref 从 &Option 转换为 Option<&T>
+    - as_mut 从 &mut Option 转换为 Option<&mut T>
+    - as_deref 从 &Option 转换为 Option<&T::Target>
+    - as_deref_mut 从 &mut Option 转换为 Option<&mut T::Target>
+    - as_pin_ref 从 Pin<&Option> 转换为 Option<Pin<&T>>
+    - as_pin_mut 从 Pin<&mut Option> 转换为 Option<Pin<&mut T>>
+
+- 获取Option包装的源，如果 Option 为None：
+    - expect panics 带有提供的自定义消息
+    - unwrap panics 带有泛型信息
+    - unwrap_or 返回提供的默认值
+    - unwrap_or_default 返回类型 T 的默认值 (必须实现 Default trait)
+    - unwrap_or_else 返回对提供的函数求值的结果
+
+- 转Result
+    - ok_or 使用提供的默认 err 值将 Some(v) 转换为 Ok(v)，将 None 转换为 Err(err)
+    - ok_or_else 使用提供的函数将 Some(v) 转换为 Ok(v)，并将 None 转换为 Err 的值
+    - transpose 实现 Result 和 Option 来回转换
+
+- 转换Option包装的源
+    - filter (过滤操作) 针对源过滤如果源不是None那么执行方法求值只为真返回源，为假返回一个None
+    - flatten 从一个对象中删除一层嵌套 Option < Option< T > >
+    - map (转换操作)通过将提供的函数应用于 Some 的包含值并保持 None 值不变，将 Option 转换为 Option< U >
+    - map_or 将提供的函数应用于 Some 的包含值，或者如果 Option 是返回提供的默认值 None
+    - map_or_else 转换Some的值并且提供默认值，直接返回被包装的值，等同Java8 Stream的flatmap + get
+
+- 转换Option包装的源生成一个元组
+    - zip 把2个Some生成一个Some((x,y))
+    - zip_with 基于一个自定义函数来生成Some((x,y))
+
+- 布尔操作
+    - 这些方法将 Option 视为布尔值，其中 Some 的作用类似于 true，而 None 的作用类似于 false。
+
+    ![OPTION_bool](./OPTION_bool.png)
+    
+    - and_then 和 or_else 方法将函数作为输入，并且仅在需要产生新值时才评估函数。只有 and_then 方法可以生成具有与 Option 不同的内部类型 U 的 Option< U> 值。
+    
+    ![OPTION_bool2](./OPTION_bool2.png)
+
+- 归约操作
+    
+    实现了 FromIterator trait，它允许将 Option 值上的迭代器收集到原始 Option 值的每个包含值的集合的 Option 中，或者如果任何元素是 None，则为 None。还实现了 Product 和 Sum traits
+    
+    - collect 收集到集合中
+    - product 求所有值得乘积
+    - sum 求和
+
+- 操作Option
+    
+    原地修改Option枚举
+    
+    - insert 插入一个值，丢弃任何旧内容
+    - get_or_insert 获取当前值并且插入一个新值。默认是None
+    - get_or_insert_default 获取当前值，如果是None，则插入类型 T (必须实现 Default) 的默认值
+    - get_or_insert_with 获取当前值，如果是None，则插入函数的返回值
+
+### map
+
+Option 的 map 方法，可以将一个值映射（转换）成另一个值。其实作用就是对map前的值进行数据类型转换后再返回
+
+Option有一个内置的方法叫做map()，这是一个组合器，用于Some->Some和None->None的简单映射。多个map()的调用可以被串联起来，以获得更多的灵活性。在下面的例子中，process()取代了之前的所有函数，同时保持紧凑。
+
+``` rust
+#![allow(dead_code)]
+
+#[derive(Debug)] enum Food { Apple, Carrot, Potato }
+
+#[derive(Debug)] struct Peeled(Food);
+#[derive(Debug)] struct Chopped(Food);
+#[derive(Debug)] struct Cooked(Food);
+
+// 削皮。如果没有食物，就返回 `None`。否则返回削好皮的食物。
+fn peel(food: Option<Food>) -> Option<Peeled> {
+    match food {
+        Some(food) => Some(Peeled(food)),
+        None       => None,
+    }
+}
+
+// 切食物。如果没有食物，就返回 `None`。否则返回切好的食物。
+fn chop(peeled: Option<Peeled>) -> Option<Chopped> {
+    match peeled {
+        Some(Peeled(food)) => Some(Chopped(food)),
+        None               => None,
+    }
+}
+
+// 烹饪食物。这里，我们使用 `map()` 来替代 `match` 以处理各种情况。
+fn cook(chopped: Option<Chopped>) -> Option<Cooked> {
+    chopped.map(|Chopped(food)| Cooked(food))
+}
+
+// 这个函数会完成削皮切块烹饪一条龙。我们把 `map()` 串起来，以简化代码。
+fn process(food: Option<Food>) -> Option<Cooked> {
+    food.map(|f| Peeled(f))
+        .map(|Peeled(f)| Chopped(f))
+        .map(|Chopped(f)| Cooked(f))
+}
+
+// 在尝试吃食物之前确认食物是否存在是非常重要的！
+fn eat(food: Option<Cooked>) {
+    match food {
+        Some(food) => println!("Mmm. I love {:?}", food),
+        None       => println!("Oh no! It wasn't edible."),
+    }
+}
+
+fn main() {
+    let apple = Some(Food::Apple);
+    let carrot = Some(Food::Carrot);
+    let potato = None;
+
+    let cooked_apple = cook(chop(peel(apple)));
+    let cooked_carrot = cook(chop(peel(carrot)));
+
+    // 现在让我们试试看起来更简单的 `process()`。
+    let cooked_potato = process(potato);
+
+    eat(cooked_apple);
+    eat(cooked_carrot);
+    eat(cooked_potato);
+}
+
+Mmm. I love Cooked(Apple)
+Mmm. I love Cooked(Carrot)
+Oh no! It wasn't edible.
+```
+
+简单的案例
+
+``` rust
+fn find(haystack: &str, needle: char) -> Option<usize> {
+    for (offset, c) in haystack.char_indices() {
+        if c == needle {
+            return Some(offset);
+        }
+    }
+    None
+}
+
+fn main() {
+    match extension("foo.rs") {
+        None => println!("no extension"),
+        Some(ext) => assert_eq!(ext, "rs"),
+    }
+}
+
+// 使用map去掉match
+fn extension(file_name: &str) -> Option<&str> {
+    // 如果find返回的不是none（即Some(T)）则将结果作为参数i调用闭包进行计算后再返回，反之直接返回None。
+    find(file_name, '.').map(|i| &file_name[i + 1..])
+}
+
+```
+
+### and_then
+
+map() 以链式调用的方式来简化 match 语句。然而，如果以返回类型是 Option<T> 的函数作为 map() 的参数，会导致出现嵌套形式 Option<Option<T>>。这样多层串联 调用就会变得混乱。所以有必要引入 and_then()，在某些语言中它叫做 flatmap。
+
+如果and_then之前的结果是 None 则返回 None ，否则执行and_then指定的函数再返回结果。可以理解为如初步计算结果有值则继续后面的再次计算
+
+案例：and_then代替处理多层match，函数v2与v1的作用是一样的
+
+``` rust
+#![allow(dead_code)]
+
+#[derive(Debug)] enum Food { CordonBleu, Steak, Sushi }
+#[derive(Debug)] enum Day { Monday, Tuesday, Wednesday }
+
+// 我们没有制作寿司所需的原材料（ingredient）（有其他的原材料）。
+fn have_ingredients(food: Food) -> Option<Food> {
+    match food {
+        Food::Sushi => None,
+        _           => Some(food),
+    }
+}
+
+// 我们拥有全部食物的食谱，除了法国蓝带猪排（Cordon Bleu）的。
+fn have_recipe(food: Food) -> Option<Food> {
+    match food {
+        Food::CordonBleu => None,
+        _                => Some(food),
+    }
+}
+
+
+// 要做一份好菜，我们需要原材料和食谱。
+// 我们可以借助一系列 `match` 来表达这个逻辑：
+fn cookable_v1(food: Food) -> Option<Food> {
+    match have_ingredients(food) {
+        None       => None,
+        Some(food) => match have_recipe(food) {
+            None       => None,
+            Some(food) => Some(food),
+        },
+    }
+}
+
+// 也可以使用 `and_then()` 把上面的逻辑改写得更紧凑：
+fn cookable_v2(food: Food) -> Option<Food> {
+    have_ingredients(food).and_then(have_recipe)
+}
+
+fn eat(food: Food, day: Day) {
+    match cookable_v2(food) {
+        Some(food) => println!("Yay! On {:?} we get to eat {:?}.", day, food),
+        None       => println!("Oh no. We don't get to eat on {:?}?", day),
+    }
+}
+
+fn main() {
+    let (cordon_bleu, steak, sushi) = (Food::CordonBleu, Food::Steak, Food::Sushi);
+
+    eat(cordon_bleu, Day::Monday);
+    eat(steak, Day::Tuesday);
+    eat(sushi, Day::Wednesday);
+}
+
+
+Oh no. We don't get to eat on Monday?
+Yay! On Tuesday we get to eat Steak.
+Oh no. We don't get to eat on Wednesday?
+```
+
+更为简单的使用案例
+
+``` rust
+fn main() {
+    let name = Some("JiangBo");
+    println!("{:?}", name.and_then(|e| Some(e.len())));
+}
+
+Some(7)
+```
+
+### or、or_else
+
+- 当option是none时候会使用or的参数做右值。or()是可级联调用的，参数会被move，如下面的例子所示传递给or的变量被移动走了，后面再使用就会报错了
+- 如果or的参数是函数或闭包则要使用or_else
+- or与or_else不会改变当前option的值
+
+``` rust
+#[derive(Debug)] 
+enum Fruit { Apple, Orange, Banana, Kiwi, Lemon }
+
+fn main() {
+    let apple = Some(Fruit::Apple);
+    let orange = Some(Fruit::Orange);
+    let no_fruit: Option<Fruit> = None;
+
+    // no_fruit不会改变，这是与后面的get_or_insert的区别
+    let first_available_fruit = no_fruit.or(orange).or(apple);
+    println!("first_available_fruit: {:?}", first_available_fruit);
+    // first_available_fruit: Some(Orange)
+    // println!("The variable apple has been moved, so this line cannot be compiled: {:?}", apple); // TODO: Decomment the above line to see the compiler error.
+}
+```
+
+``` rust
+#[derive(Debug)] 
+enum Fruit { Apple, Orange, Banana, Kiwi, Lemon }
+
+fn main() {
+    let apple = Some(Fruit::Apple);
+    let no_fruit: Option<Fruit> = None;
+    let get_kiwi_as_fallback = || {
+        println!("Providing kiwi as fallback");
+        Some(Fruit::Kiwi)
+    };
+    let get_lemon_as_fallback = || {
+        println!("Providing lemon as fallback");
+        Some(Fruit::Lemon)
+    };
+
+    let first_available_fruit = no_fruit
+        .or_else(get_kiwi_as_fallback)
+        .or_else(get_lemon_as_fallback);
+    println!("first_available_fruit: {:?}", first_available_fruit);
+    // Providing kiwi as fallback
+    // first_available_fruit: Some(Kiwi)
+}
+```
+
+### get_or_insert、get_or_insert_with
+
+这2个与or、or_else的区别在于会改变当前option的值。相当于如果自身是none则先给自身赋值，然后再用自己给其它变量赋值
+
+``` rust
+#[derive(Debug)]
+enum Fruit { Apple, Orange, Banana, Kiwi, Lemon }
+
+fn main() {
+    let mut my_fruit: Option<Fruit> = None;
+    let apple = Fruit::Apple;
+    let first_available_fruit = my_fruit.get_or_insert(apple);
+    println!("first_available_fruit is: {:?}", first_available_fruit);
+    println!("my_fruit is: {:?}", my_fruit);
+    // first_available_fruit is: Apple
+    // my_fruit is: Some(Apple)
+    //println!("Variable named `apple` is moved: {:?}", apple);
+    // TODO: uncomment the line above to see the compiler error
+}
+
+first_available_fruit is: Apple
+my_fruit is: Some(Apple)
+```
+
+``` rust
+#[derive(Debug)] 
+enum Fruit { Apple, Orange, Banana, Kiwi, Lemon }
+
+fn main() {
+    let mut my_fruit: Option<Fruit> = None;
+    let get_lemon_as_fallback = || {
+        println!("Providing lemon as fallback");
+        Fruit::Lemon
+    };
+    let first_available_fruit = my_fruit
+        .get_or_insert_with(get_lemon_as_fallback);
+    println!("first_available_fruit is: {:?}", first_available_fruit);
+    println!("my_fruit is: {:?}", my_fruit);
+    // Providing lemon as fallback
+    // first_available_fruit is: Lemon
+    // my_fruit is: Some(Lemon)
+
+    // If the Option has a value, it is left unchanged, and the closure is not invoked
+    let mut my_apple = Some(Fruit::Apple);
+    let should_be_apple = my_apple.get_or_insert_with(get_lemon_as_fallback);
+    println!("should_be_apple is: {:?}", should_be_apple);
+    println!("my_apple is unchanged: {:?}", my_apple);
+    // The output is a follows. Note that the closure `get_lemon_as_fallback` is not invoked
+    // should_be_apple is: Apple
+    // my_apple is unchanged: Some(Apple)
+}
+
+Providing lemon as fallback
+first_available_fruit is: Lemon
+my_fruit is: Some(Lemon)
+should_be_apple is: Apple
+my_apple is unchanged: Some(Apple)
+```
+
+### unwrap_or
+
+``` rust
+fn find(haystack: &str, needle: char) -> Option<usize> {
+    for (offset, c) in haystack.char_indices() {
+        if c == needle {
+            return Some(offset);
+        }
+    }
+    None
+}
+
+fn main() {
+    // unwrap_or提供了一个默认值default，当值为None时返回default：
+    // 下面第2个没有找到则使用了默认值rs，第一次找到了所以默认值随便写也不怕
+    assert_eq!(extension("foo.rs").unwrap_or("111rs"), "rs");
+    assert_eq!(extension("foo").unwrap_or("rs"), "rs");
+}
+
+// 使用map去掉match
+fn extension(file_name: &str) -> Option<&str> {
+    find(file_name, '.').map(|i| &file_name[i + 1..])
+}
+
+```
+
+# Result
+
+一种可能成功或失败的泛型枚举类型
+
+``` rust
+pub enum Result<T, E> {
+    Ok(T), 表达一个成功的结果
+    Err(E), 表达一个错误值，E也是泛型，即可以表达多种错误，比Option只有一种None更强大
+}
+```
+
+## 常用方法
 
 ``` rust
 fn ok_err() {
@@ -6866,7 +7050,7 @@ fn main() {
 }
 ```
 
-### Result与Option的组合
+## Result与Option的组合
 
 - Option<Result<i32, ParseIntError>>
 
@@ -6928,7 +7112,7 @@ The first doubled is Ok(None)
 The first doubled is Err(ParseIntError { kind: InvalidDigit })
 ```
 
-### Result别名
+## Result别名
 
 也可以使用type重新取别名
 
@@ -6959,7 +7143,7 @@ fn main() {
 }
 ```
 
-### main函数返回Result
+## main函数返回Result
 
 ``` rust
 use std::num::ParseIntError;
@@ -6975,7 +7159,7 @@ fn main() -> Result<(), ParseIntError> {
 }
 ```
 
-### 提前返回
+## 提前返回
 
 Result 如果发生错误，怎么进行提前返回？直接return即可
 
@@ -7009,7 +7193,7 @@ fn main() {
 }
 ```
 
-### 自定义错误类型
+## 自定义Error
 
 可以定义一种新的错误类型，然后将所有不一致的类型都转为自己定义的类型。
 
@@ -7078,7 +7262,7 @@ Error: invalid first item to double
 Error: invalid first item to double
 ```
 
-### 处理不同类型的错误
+## 处理多种Error
 
 下例中error的类型是io::Error，它是标准库提供的结构体类型，调用其kind方法可以获得一个io::ErrorKind类型的值。io::ErrorKind是标准库提供的枚举类型，它的值对应I/O操作中各种可能的错误类型。这里要用到的是ErrorKind::NotFound，它代表要打开的文件不存在时的错误。
 
@@ -7138,34 +7322,7 @@ let guess: u32 = match guess.trim().parse() {
 };
 ```
 
-### 统一化不同的错误类型
-
-Boy<dyn Error>它表示一个指向实现了 Error trait 的类型的智能指针。dyn关键字表示动态类型，它的作用是定一个变量的类型是动态类型，即在编译时无法确定类型。
-
-- Box<dyn Error> 类型是动态类型，它的类型信息会在运行时丢失，会导致在处理错误时，无法根据类型来处理不同的错误情况
-- 由于 Box<dyn Error> 类型只能存储一个智能指针，它并不能存储错误码。
-- 可以使用的“自定义错误类型”解决Box<dyn Error> 的缺点。但还是推荐使用第三方的thiserror库进行简化
-
-``` rust
-use std::error::Error;
-
-fn main() -> Result<(), Box<dyn Error>> {
-  let content = get_config_content()?;
-  println!("{}", content);
-  Ok(())
-}
-
-// 返回Box<dyn Error>
-fn get_config_content() -> Result<String, Box<dyn Error>> {
-    // 获取系统的环境变量CONFIG_FILE，可能会发生VarError错误
-    let file = std::env::var("CONFIG_FILE")?;
-    // 读取文件的内容，可能会发生错误std::io::Error
-    let content = std::fs::read_to_string(file)?;
-    Ok(content)
-}
-```
-
-### 传播错误 ?
+## 使用?处理Error
 
 当编写的函数中包含可能会失败的操作时，除了在这个函数中处理错误外，还可以把处理错误的选择权交给该函数的调用者，因为调用者可能拥有更多的信息或逻辑来决定应该如何处理错误，这被称为传播错误。
 
@@ -7235,98 +7392,150 @@ fn read_username_from_file() -> Result<String, io::Error> {
 }
 ```
 
-## 创建⾃定义类型来进⾏有效性验证
+## 处理任意类型的Error
 
-- 如果程序多处要验证一个数字是否在1到100之间，那不如定义一个新类型直接使用
-- 如果⼀个函数需要将1〜100之间的数字作为参数或返回值，那么它就可以在⾃⼰的签名中使⽤Guess（⽽不是i32），并且再也不需要在函数体内做任何额外的检查了
+Boy<dyn Error>表示一个实现了 Error trait 的类型的智能指针。dyn关键字表示动态类型，即在编译时无法确定类型。
 
-``` rust
-pub struct Guess {
-    value: i32,
-}
-impl Guess {
-    pub fn new(value: i32) -> Guess {
-        if value < 1 || value > 100 {
-            panic!("Guess value must be between 1 and 100, got {}.", value);
-        }
-        Guess { value }
-    }
-    pub fn value(&self) -> i32 {
-        self.value
-    }
-}
-```
-
-## thiserror和anyhow
-
-### thiserror
-
-提供了一个派生宏来简化自定义错误类型的过程，使用步骤：
-
-- Cargo.toml添加依赖 thiserror = "1.0"
-- 通过派生宏#[derive(thiserror::Error)]来定义自定义错误类型MyCustomError [error]属性：提供了错误消息的格式化功能
-- [from]属性：实现错误类型的转换，#[from] std::io::Error即表示IOError是从std::io::Error转换而来
-- transparent：表示错误类型是一个透明类型，透明类型是指错误类型与实际错误原因相同
+案例：使用Box<dyn Error>处理任意类型错误
 
 ``` rust
-use std::fs::read_to_string;
+use anyhow::{anyhow, Context, Result};
+use serde_derive::{Deserialize, Serialize};
+use std::fs;
+use std::error::Error;
 
-#[derive(thiserror::Error, Debug)]
-enum MyCustomError {
-    #[error("环境变量不存在")]
-    EnvironmentVariableNotFound(#[from] std::env::VarError),
-    #[error(transparent)]
-    IOError(#[from] std::io::Error), 
+// Debug allows us to print the struct.
+// Deserialize and Serialize adds decoder and encoder capabilities to the struct.
+#[derive(Debug, Deserialize, Serialize)]
+struct Person {
+    name: String,
+    age: usize,
 }
 
-// 方法里可能会发生VarError或std::io::Error错误，都是通过?操作符，转换成MyCustomError错误返回
-fn get_config_content() -> Result<String, MyCustomError> {
-   // 获取系统的环境变量CONFIG_FILE，变量不存在会发生VarError错误
-   let file = std::env::var("CONFIG_FILE")?;
-   // 读取文件的内容，文件不存在会发生错误
-   let content = read_to_string(file)?;
-   Ok(content)
+fn file_to_json(s: &str) -> Result<Person, Box<dyn Error>> {
+    let text = fs::read_to_string(s)?;
+    let marie: Person = serde_json::from_str(&text)?;
+    Ok(marie)
 }
 
-fn main() -> Result<(), MyCustomError> {
-    let content = get_config_content()?;
-    println!("{}", content);
-    Ok(())
+fn main() {
+    let x = file_to_json("json.txt");
+    let y = file_to_json("invalid_json.txt");
+    let z = file_to_json("non_existing_file.txt");
+    
+    dbg!(x);
+    dbg!(y);
+    dbg!(z);
 }
+
+[src/bin/main.rs:25] x = Ok(
+    Person {
+        name: "Marie",
+        age: 2,
+    },
+)
+[src/bin/main.rs:26] y = Err(
+    Error("trailing characters", line: 4, column: 2),
+)
+[src/bin/main.rs:27] z = Err(
+    Os {
+        code: 2,
+        kind: NotFound,
+        message: "No such file or directory",
+    },
+)
 ```
 
-### anyhow
+## anyhow
 
-和thiserror库一样，也是简化定义自定义错误类型的过程。它提供了一个可以包含任何错误类型的统一错误类型 anyhow::Error，支持将所有实现了Error trait 的自定义错误类型都转换为anyhow::Error类型，可以直接使用 ? 操作符完成这个转换，不必手工转换错误类型。使用步骤
+简化了自定义错误类型的过程。anyhow提供了一个可以包含任何错误类型的统一错误类型 anyhow::Error，支持将所有实现了Error trait 的自定义错误类型都转换为anyhow::Error类型，可以直接使用 ? 操作符完成这个转换，不必手工转换错误类型。不需要让调用者关注具体的错误类型，常用于应用程序业务代码中
 
-- 在Cargo.toml添加依赖 anyhow = "1.0"
+使用方法：
+
+- 在Cargo.toml添加依赖 anyhow = "1.0.43" （下面的案例还需要 serde_derive = "1.0.160"，serde = "1.0.159"，serde_json = "1.0.72"）
 - 需要返回Result时，使用Result<T, anyhow::Error>或者等价的anyhow::Result<T>，就可以用？抛出任何类型实现了std::error::Error的错误。
 
+主要类型说明：
+
+- anyhow::Result: 在处理错误方面一个更方便的Result类型
+- anyhow::Context: 当错误被?传播时，Context用于包裹错误信息
+- anyhow::anyhow： 是一个宏，可以用它来返回一个anyhow::Error
+
 ``` rust
-use std::fs::read_to_string;
+use anyhow::{anyhow, Context, Result};
+use serde_derive::{Deserialize, Serialize};
+use std::fs;
 
-use anyhow::Result;
-
-fn main() -> Result<()> {
-    let content = get_config_content()?;
-    println!("{}", content);
-    Ok(())
+#[derive(Debug, Deserialize, Serialize)]
+struct Secrets {
+    username: String,
+    password: String,
 }
 
-// Result<String>等价于Result<String, anyhow::Error>
-fn get_config_content() -> Result<String> {
-   // 获取系统的环境变量CONFIG_FILE，可能会发生VarError错误
-   let file = std::env::var("INITDB_BIN_PATH")?;
-   // 读取文件的内容，可能会发生，可能会发生错误
-   let content = read_to_string(file)?;
-   Ok(content)
+fn get_secrets(s: &str) -> Result<Secrets> {
+    let text = fs::read_to_string(s).context("Secrets file is missing.")?;
+    let secrets: Secrets =
+        serde_json::from_str(&text).context("Problem serializing secrets.")?;
+    if secrets.password.chars().count() < 2 {
+        return Err(anyhow!("Password in secrets file is too short"));
+    }
+    Ok(secrets)
 }
+
+fn main() {
+    let a = get_secrets("secrets.json");
+    dbg!(a);
+    let b = get_secrets("secrets.jsonnn");
+    dbg!(b);
+    let c = get_secrets("invalid_json.txt");
+    dbg!(c);
+    let d = get_secrets("wrong_secrets.json");
+    dbg!(d);
+}
+
+[src/bin/main.rs:23] a = Ok(
+    Secrets {
+        username: "username",
+        password: "password",
+    },
+)
+[src/bin/main.rs:25] b = Err(
+    Error {
+        context: "Secrets file is missing.",
+        source: Os {
+            code: 2,
+            kind: NotFound,
+            message: "No such file or directory",
+        },
+    },
+)
+[src/bin/main.rs:27] c = Err(
+    Error {
+        context: "Problem serializing secrets.",
+        source: Error("missing field `username`", line: 4, column: 1),
+    },
+)
+[src/bin/main.rs:29] d = Err(
+    "Password in secrets file is too short",
+)
+
+
+huaw@huaw:~/playground/rust/tut$ cat secrets.json 
+{
+    "username": "username",
+    "password": "password"
+}
+huaw@huaw:~/playground/rust/tut$ cat wrong_secrets.json 
+{
+    "username": "username",
+    "password": "1"
+}
+huaw@huaw:~/playground/rust/tut$ cat invalid_json.txt 
+{
+    "name": "Marie",
+    "age": 2
+},
 ```
-
-### thiserror和anyhow的区别
-
-- thiserror：提供了一些宏属性（如 #[from] 和 #[error(transparent)]），用于设计自己的专用错误类型，以便给调用者提供更具体的自定义错误信息，常用于编写第三方库中
-- anyhow提供了一个可以包含任何错误类型的统一错误类型 anyhow::Error，只是简单的使用，不需要让调用者关注具体的错误类型，常用于应用程序业务代码中
 
 # 所有权
 
