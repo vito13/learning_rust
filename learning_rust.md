@@ -1586,6 +1586,7 @@ let c3 = '\u{7FFF}'; // unicode字符
 ## 类型转换
 
 Rust中类型转换分为隐式类型转换和显式类型转换。隐式类型转换是由编译器来完成的，显式类型转换是由开发者来指定的。一般，我们所说的类型转换是指显式类型转换。
+基础类型可以通过 as 关键字进行转换，如果是自定义类型，则通过 From 和 Into 进行转换。
 
 ### 原生类型间的转换
 
@@ -1671,74 +1672,9 @@ fn main() {
 
 ```
 
-### From、Into
+### 自定义类型的转换
 
-- From和Into是traits，实现了from貌似就可以不用手动实现into了
-- 在标准库中有许多类型已经具备
-- 使用Into trait通常需要指定要转换的类型，因为编译器在大多数情况下无法确定这一点。
-
-下面是一个自定义的案例
-
-``` rust
-use std::convert::From;
-
-#[derive(Debug)]
-struct Number {
-    value: i32,
-}
-
-impl From<i32> for Number {
-    fn from(item: i32) -> Self {
-        Number { value: item }
-    }
-}
-
-fn main() {
-    let num = Number::from(30);
-    println!("My number is {:?}", num);
-
-    let int = 5;
-    // Try removing the type annotation
-    let num: Number = int.into();
-    println!("My number is {:?}", num);
-}
-```
-
-### TryFrom、TryInto
-
-``` rust
-use std::convert::TryFrom;
-use std::convert::TryInto;
-
-#[derive(Debug, PartialEq)]
-struct EvenNumber(i32);
-
-impl TryFrom<i32> for EvenNumber {
-    type Error = ();
-
-    fn try_from(value: i32) -> Result<Self, Self::Error> {
-        if value % 2 == 0 {
-            Ok(EvenNumber(value))
-        } else {
-            Err(())
-        }
-    }
-}
-
-fn main() {
-    // TryFrom
-
-    assert_eq!(EvenNumber::try_from(8), Ok(EvenNumber(8)));
-    assert_eq!(EvenNumber::try_from(5), Err(()));
-
-    // TryInto
-
-    let result: Result<EvenNumber, ()> = 8i32.try_into();
-    assert_eq!(result, Ok(EvenNumber(8)));
-    let result: Result<EvenNumber, ()> = 5i32.try_into();
-    assert_eq!(result, Err(()));
-}
-```
+参考 From 和 Into 相关部分
 
 ## 打印输出
 
@@ -9149,8 +9085,8 @@ fn main() {
 
 ### 格式化输出Debug与Display
 
-- Debug trait可以开启格式化字符串中的调试格式，常用于调试上下文中以{:?}或{:#?}格式打印输出一个类型的实例。Debug可以与derive属性一起使用。
-- Display trait是以{}格式打印输出信息的，主要用于面向用户的输出。但是，Display不能与derive属性一起使用。要实现Display，需要实现fmt方法。
+- Debug trait 是调试打印用的。Debug 用 {:?}或{:#?} 来打印。
+- Display trait是以{}格式打印输出信息的，Display是给用户展示用的。但是，Display不能与derive属性一起使用。要实现Display，需要实现fmt方法。
 
 ``` rust
 use std::fmt::{Display, Formatter, Result};
@@ -9182,8 +9118,75 @@ Point {
 }
 ```
 
+### 默认值Default
+
+Default trait为类型提供默认值，通常用于为结构体提供默认值。如果结构体每个成员的类型都实现了Default，那么struct才可以derive Default。
+
+``` rust
+use std::fmt;
+// struct 可以 derive Default，但我们需要所有字段都实现了 Default
+#[derive(Clone, Debug, Default)]
+struct Developer {
+    name: String,
+    age: u8,
+    lang: Language,
+}
+
+// enum 不能 derive Default
+#[allow(dead_code)]
+#[derive(Clone, Debug)]
+enum Language {
+    Rust,
+    TypeScript,
+    Elixir,
+    Haskell,
+}
+
+// 手工实现 Default
+impl Default for Language {
+    fn default() -> Self {
+        Language::Rust
+    }
+}
+
+impl Developer {
+    pub fn new(name: &str) -> Self {
+        // 用 ..Default::default() 为剩余字段使用缺省值
+        Self {
+            name: name.to_owned(),
+            ..Default::default()
+        }
+    }
+}
+
+impl fmt::Display for Developer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}({} years old): {:?} developer",
+            self.name, self.age, self.lang
+        )
+    }
+}
+
+fn main() {
+    // 使用 T::default()
+    let dev1 = Developer::default();
+    // 使用 Default::default()，但此时类型无法通过上下文推断，需要提供类型
+    let dev2: Developer = Default::default();
+    // 使用 T::new
+    let dev3 = Developer::new("Tyr");
+    println!("dev1: {}\ndev2: {}\ndev3: {:?}", dev1, dev2, dev3);
+}
+
+dev1: (0 years old): Rust developer
+dev2: (0 years old): Rust developer
+dev3: Developer { name: "Tyr", age: 0, lang: Rust }
+```
+
 ### 等值比较Eq与PartialEq
 
+- 符号：==、!=
 - Eq trait和PartialEq trait来自数学中的等价关系和局部等价关系。两者都满足以下两个特性。
   - 对称性（Symmetric），即a == b可推导出b == a。
   - 传递性（Transitive），即a == b且b == c可推导出a == c。
@@ -9233,6 +9236,7 @@ fn main() {
 
 ### 次序比较Ord与PartialOrd
 
+- 符号：<、<=、>、>=
 - Ord trait是表示全序关系的trait，全序关系是指集合中任何一对元素都是相互可比较的。Ord应该满足以下两个特性。
     - 完全反对称性（Total and Asymmetric），即任何一对元素之间的关系只能是a < b、a == b或a > b中的其中一种。
     - 传递性（Transitive），即a < b且b < c可推导出a < c，“==”和“>”同理。
@@ -9308,30 +9312,253 @@ id: 3, name: wanwu
 struct MyStruct;
 ```
 
-### 默认值Default
 
-Default trait为类型提供有用的默认值，通常用于为结构体的字段提供默认值。如果结构体每个字段的类型都实现了Default，那么Default可以与derive属性一起使用，对每个字段的类型都使用默认值。
+### 自定义值类型之间的转换From与Into
+
+- From和Into是traits，实现了from自动实现了into
+- 在标准库中有许多类型已经具备
+- 使用Into trait通常需要指定要转换的类型，因为编译器在大多数情况下无法确定这一点。
+
+下面是一个自定义的案例
 
 ``` rust
-#[derive(Default, Debug)] // 由于Rust已经为基本数据类型实现了Default，因此可以在结构体MyStruct上标记#[derive(Default)]
-struct MyStruct {
-    foo: i32,
-    bar: f32,
+use std::convert::From;
+
+#[derive(Debug)]
+struct Number {
+    value: i32,
+}
+
+impl From<i32> for Number {
+    fn from(item: i32) -> Self {
+        Number { value: item }
+    }
 }
 
 fn main() {
-    let options1: MyStruct = Default::default(); // Default::default函数为MyStruct的所有字段提供默认值
-    let options2 = MyStruct { // 实现了自定义MyStruct的一部分字段，而其他字段使用..Default::default()设置为默认值。
-        foo: 7,
-        ..Default::default()
-    };
+    let num = Number::from(30);
+    println!("My number is {:?}", num);
 
-    println!("options1: {:?}", options1);
-    println!("options2: {:?}", options2);
+    let int = 5;
+    // Try removing the type annotation
+    let num: Number = int.into();
+    println!("My number is {:?}", num);
+}
+```
+
+另一个案例
+
+``` rust
+struct A;
+struct B;
+
+// 实现了 From 会自动实现 Into
+impl From<B> for A{
+    fn from(value: B) -> Self{
+        A
+    }  
 }
 
-options1: MyStruct { foo: 0, bar: 0.0 }
-options2: MyStruct { foo: 7, bar: 0.0 }
+fn main(){
+    {
+        let b: B = B;
+        // From：通过 b 来创建 A
+        let a: A = A::from(b);
+    }
+    {
+        let b: B = B;
+        // Into：将 b 转变为 A，还需指明类型A
+        let a: A = b.into();
+    }
+}
+```
+
+### 自定义值类型之间的转换TryFrom与TryInto
+
+还有 TryFrom 和 TryInto 特性，都是实现类型转换，但是用于转换过程中可能出错的情况，其返回值为 Result，如 impl TryFrom<B> for A ，则有 B → Result<A,Error>
+
+``` rust
+use std::convert::TryFrom;
+use std::convert::TryInto;
+
+#[derive(Debug, PartialEq)]
+struct EvenNumber(i32);
+
+impl TryFrom<i32> for EvenNumber {
+    type Error = ();
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        if value % 2 == 0 {
+            Ok(EvenNumber(value))
+        } else {
+            Err(())
+        }
+    }
+}
+
+fn main() {
+    // TryFrom
+
+    assert_eq!(EvenNumber::try_from(8), Ok(EvenNumber(8)));
+    assert_eq!(EvenNumber::try_from(5), Err(()));
+
+    // TryInto
+
+    let result: Result<EvenNumber, ()> = 8i32.try_into();
+    assert_eq!(result, Ok(EvenNumber(8)));
+    let result: Result<EvenNumber, ()> = 5i32.try_into();
+    assert_eq!(result, Err(()));
+}
+```
+
+### 与字符串的互转ToString与FromStr
+
+- 要把任何类型转换成 String，只需要实现 fmt::Display trait，它会自动提供 ToString，并且还可以用来打印类型。
+
+``` rust
+use std::fmt;
+
+struct Circle {
+    radius: i32
+}
+
+impl fmt::Display for Circle {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Circle of radius {}", self.radius)
+    }
+}
+
+fn main() {
+    let circle = Circle { radius: 6 };
+    println!("{}", circle.to_string());
+}
+
+Circle of radius 6
+```
+
+- FromStr 可以把字符串转换为指定的类型。标准库中的许多类型已经具备实现。要在一个自定义的类型上获得这个功能，只需为该类型实现FromStr特征即可
+
+``` rust
+#[derive(Debug)]
+struct People {
+    name: String,
+    age: usize,
+}
+
+impl std::str::FromStr for People {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let ss: Vec<&str> = s.split(";").collect();
+        if ss.len() == 2 {
+            match ss[1].parse::<usize>() {
+                Ok(age) => Ok(People {
+                    name: ss[0].to_string(),
+                    age: age,
+                }),
+                Err(e) => Err(()),
+            }
+        } else {
+            Err(())
+        }
+    }
+}
+
+fn main() {
+    let s = "Mr.Li;20";
+    println!("{:?}", s.parse::<People>()); // Ok(People { name: "Mr.Li", age: 20 })
+}
+
+Ok(People { name: "Mr.Li", age: 20 })
+```
+
+### 引用类型到引用类型之间的转换AsRef与AsMut
+
+AsRef<T> 和 AsMut<T> 都用于从引用到引用的转换
+
+- as_ref是转引用函数，将具有所有权对象转换成引用对象，在不改变被转换对象的基础上产生一个引用对象。as_ref并不是所有类型都默认支持，很多时候都需要自已去声明。是AsRef trait的公共接口方法，只有那些实现了as_ref公共接口方法的类型才能使用as_ref，目前有：Option, Box，Result这三种类型默认提供支持as_ref。
+- AsMut除了是可变引用之外，其他的都和AsRef一样
+
+案例：对于已经实现了AsRef的 &str和String我们可以直接使用，对于还没有实现的Language，我们需要手动实现一下。
+
+``` rust
+#[allow(dead_code)]
+enum Language {
+    Rust,
+    TypeScript,
+    Elixir,
+    Haskell,
+}
+
+impl AsRef<str> for Language {
+    fn as_ref(&self) -> &str {
+        match self {
+            Language::Rust => "Rust",
+            Language::TypeScript => "TypeScript",
+            Language::Elixir => "Elixir",
+            Language::Haskell => "Haskell",
+        }
+    }
+}
+
+fn print_ref(v: impl AsRef<str>) {
+    println!("{}", v.as_ref());
+}
+
+fn main() {
+    let lang = Language::Rust;
+    // &str 实现了 AsRef<str>
+    print_ref("Hello world!");
+    // String 实现了 AsRef<str>
+    print_ref("Hello world!".to_string());
+    // 我们自己定义的 enum 也实现了 AsRef<str>
+    print_ref(lang);
+}
+
+Hello world!
+Hello world!
+Rust
+```
+
+### 解引用Deref与DerefMut
+
+对于普通的引用，解引用很直观，因为它只有一个指向值的地址。在 Rust 里，绝大多数智能指针都实现了 Deref特征
+
+``` rust
+use std::ops::{Deref, DerefMut};
+
+#[derive(Debug)]
+struct Buffer<T>(Vec<T>);
+
+impl<T> Buffer<T> {
+    pub fn new(v: impl Into<Vec<T>>) -> Self {
+        Self(v.into())
+    }
+}
+
+impl<T> Deref for Buffer<T> {
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> DerefMut for Buffer<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+fn main() {
+    let mut buf = Buffer::new([1, 3, 2, 4]);
+    // 因为实现了 Deref 和 DerefMut，这里 buf 可以直接访问 Vec<T> 的方法
+    // 下面这句相当于：(&mut buf).deref_mut().sort()，也就是 (&mut buf.0).sort()
+    buf.sort();
+    println!("buf: {:?}", buf);
+}
+
+buf: Buffer([1, 2, 3, 4])
 ```
 
 ## 通过derive注解派⽣trait
