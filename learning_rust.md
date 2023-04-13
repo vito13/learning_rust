@@ -6279,528 +6279,50 @@ Person { name: "Jan", age: None }
 
 ## 常用方法
 
-``` rust
-/*
-and
-    如果为none则返回node，否则返回传入的参数
-    let x = Some(2);
-    let y: Option<&str> = None;
-    assert_eq!(x.and(y), None);
-    let x: Option<u32> = None;
-    let y = Some("foo");
-    assert_eq!(x.and(y), None);
-    let x = Some(2);
-    let y = Some("foo");
-    assert_eq!(x.and(y), Some("foo"));
-    let x: Option<u32> = None;
-    let y: Option<&str> = None;
-    assert_eq!(x.and(y), None);
-
-and_then
-    此为and的闭包版本
-    fn sq_then_to_string(x: u32) -> Option<String> {
-        // x.checked_mul(x)是计算x*x，如果发生溢出则返回None，map是再转为string返回
-        // x就是and_then里的some，原来是这么用的。。。
-        x.checked_mul(x).map(|sq| sq.to_string())
-    }
-    assert_eq!(Some(2).and_then(sq_then_to_string), Some(4.to_string()));
-    assert_eq!(Some(1_000_000).and_then(sq_then_to_string), None); // overflowed!
-    assert_eq!(None.and_then(sq_then_to_string), None);
-
-    常用方式：链式调用的案例
-    let arr_2d = [["A0", "A1"], ["B0", "B1"]];
-    let item_0_1 = arr_2d.get(0).and_then(|row| row.get(1));
-    assert_eq!(item_0_1, Some(&"A1")); 注意这里从二维数组取元素的引用的写法
-    let item_2_0 = arr_2d.get(2).and_then(|row| row.get(0));
-    assert_eq!(item_2_0, None);
-
-as_deref
-    对Option里的some进行解引用，将此结果再包一层Option返回。如果是none则返回none
-    fn hello(name: &String) {
-        println!("Name is {}", name);
-    }
-
-    fn greet(name: &str) {
-        println!("Name is {}", name);
-    }
-    let s = "Alice"; // &str
-    let str = s.to_owned(); // String
-    let option_name = Some(str); // Option<String>
-    let r1 = option_name.as_ref(); // Option<&String>
-    r1.map(hello); // hello的参数是&String，map调用时候会去除option包装直接传入T
-    let r2 = option_name.as_deref(); // Option<&str>
-    r2.map(greet); // 描述同上
-    // Option<&str>再unwrap得到&str
-    let r3 = r2.unwrap(); // &str
-    println!("{:?}", r3);
-    let x: Option<String> = None;
-    assert_eq!(x.as_deref(), None);
-
-as_deref_mut
-    此为as_deref的mut版本
-    let mut x: Option<String> = Some("hey".to_owned());
-    assert_eq!(x.as_deref_mut().map(|x| {
-        x.make_ascii_uppercase(); // 原地变大写
-        x
-    }), Some("HEY".to_owned().as_mut_str()));
-
-as_mut
-    用于修改mut option内部的some值，即从&mut Option<T>得到Option<&mut T>
-    let mut x = Some(2);
-    match x.as_mut() {
-        Some(v) => *v = 42,
-        None => {},
-    }
-    assert_eq!(x, Some(42));
-
-as_ref
-    用于往函数内传引用，否则不as_ref就被move到函数消耗掉了，以后就不能再用了
-    let maybe_some_string = Some(String::from("Hello, World!"));
-    let maybe_some_len = maybe_some_string.as_ref().map(|s| s.len());
-    assert_eq!(maybe_some_len, Some(13));
-    println!("{:?}", maybe_some_string); // 有上面的as_ref这里还可以使用，否则就被move到map里了
-
-cloned
-    克隆方法，可以将引用克隆为值，即Option<&T>克隆为Option<T>，
-    也支持<&mut T>克隆为Option<T> 
-    let x = 12;
-    let opt_x = Some(&x);
-    assert_eq!(opt_x, Some(&12));
-    let cloned = opt_x.cloned();
-    assert_eq!(cloned, Some(12));
-
-    let mut x = 12;
-    let opt_x = Some(&mut x);
-    assert_eq!(opt_x, Some(&mut 12));
-    let cloned = opt_x.cloned();
-    assert_eq!(cloned, Some(12));
-
-copied
-    拷贝方法，可以将引用拷贝为值，即Option<&T>拷贝为Option<T>，
-    也支持<&mut T>拷贝为Option<T> 
-    let x = 12;
-    let opt_x = Some(&x);
-    assert_eq!(opt_x, Some(&12));
-    let copied = opt_x.copied();
-    assert_eq!(copied, Some(12));
-
-    let mut x = 12;
-    let opt_x = Some(&mut x);
-    assert_eq!(opt_x, Some(&mut 12));
-    let copied = opt_x.copied();
-    assert_eq!(copied, Some(12));
-
-expect
-    如有是some则返回内部的值，否则使用给定的信息触发panic
-    let item = slice.get(0).expect("slice should not be empty");
-
-filter
-    如是none则返回none，否则将t带入闭包进行计算，得到t返回原some，得到f返回none。此方法用于过滤元素
-    fn is_even(n: &i32) -> bool {
-        n % 2 == 0
-    }
-    assert_eq!(None.filter(is_even), None);
-    assert_eq!(Some(3).filter(is_even), None);
-    assert_eq!(Some(4).filter(is_even), Some(4));
-
-flatten
-    仅能去除一层嵌套，即将Option<Option<T>>转为Option<T>
-    let x: Option<Option<u32>> = Some(Some(6));
-    assert_eq!(Some(6), x.flatten());
-    let x: Option<Option<u32>> = Some(None);
-    assert_eq!(None, x.flatten());
-    let x: Option<Option<u32>> = None;
-    assert_eq!(None, x.flatten());
-
-    需要去除多层就要多次调用
-    let x: Option<Option<Option<u32>>> = Some(Some(Some(6)));
-    assert_eq!(Some(Some(6)), x.flatten());
-    assert_eq!(Some(6), x.flatten().flatten());
-
-get_or_insert
-    如是none则更新T值并返回此T的可变引用，不是none则更新失败返回原T值的可变引用
-    let mut x = None;
-    let y: &mut u32 = x.get_or_insert(5);
-    assert_eq!(y, &5);
-    *y = 7;
-    assert_eq!(x, Some(7));
-    let y2: &mut u32 = x.get_or_insert(50); 这里更新失败，效果仅是get
-    assert_eq!(y2, &7);
-
-get_or_insert_with
-    此为get_or_insert的闭包版本
-    let mut x = None;
-    let y: &mut u32 = x.get_or_insert_with(|| 5);
-    assert_eq!(y, &5);
-    *y = 7;
-    assert_eq!(x, Some(7));
-    let y2: &mut u32 = x.get_or_insert_with(|| 50);
-    assert_eq!(y2, &7);
-
-insert
-    更新mut option的T值并返回此T的可变引用
-    let mut opt = None;
-    let val = opt.insert(1);
-    assert_eq!(*val, 1);
-    assert_eq!(opt.unwrap(), 1);
-    let val = opt.insert(2);
-    assert_eq!(*val, 2);
-    *val = 3;
-    assert_eq!(opt.unwrap(), 3);
-
-is_none 
-    没值则为T，否则为F
-    let x: Option<u32> = Some(2);
-    assert_eq!(x.is_none(), false);
-    let x: Option<u32> = None;
-    assert_eq!(x.is_none(), true);
-
-is_some 
-    有值即为T，否则为F
-    let x: Option<u32> = Some(2);
-    assert_eq!(x.is_some(), true);
-    let x: Option<u32> = None;
-    assert_eq!(x.is_some(), false);
-
-iter
-    使用迭代器的形式获取Some<&T>
-    let x = Some(4);
-    assert_eq!(x.iter().next(), Some(&4));
-    let x: Option<u32> = None;
-    assert_eq!(x.iter().next(), None);
-
-iter_mut
-    此为iter的mut版本，可以通过能改内部值的iter
-    let mut x = Some(4);
-    match x.iter_mut().next() {
-        Some(v) => *v = 42,
-        None => {},
-    }
-    assert_eq!(x, Some(42));
-    let mut x: Option<u32> = None;
-    assert_eq!(x.iter_mut().next(), None);
-
-map
-    会消耗掉（move）传入的参数，用于将T数据作为参数进行再一步的计算后并返回结果，案例同as_ref
-
-map_or
-    如果是None则返回第一个参数，否则返回闭包（第二个参数）的结果
-    let x = Some("foo");
-    assert_eq!(x.map_or(42, |v| v.len()), 3);
-    let x: Option<&str> = None;
-    assert_eq!(x.map_or(42, |v| v.len()), 42);
-
-map_or_else
-    如果是None则返回第一个闭包的结果，否则返回第二个闭包的结果
-    let k = 21;
-    let x = Some("foo");
-    assert_eq!(x.map_or_else(|| 2 * k, |v| v.len()), 3);
-    let x: Option<&str> = None;
-    assert_eq!(x.map_or_else(|| 2 * k, |v| v.len()), 42);
-
-
-ok_or
-    将Option转为Result，Some(v)->Ok(v)，None->Err(err)
-    let x = Some("foo");
-    assert_eq!(x.ok_or(0), Ok("foo"));
-    let x: Option<&str> = None;
-    assert_eq!(x.ok_or(0), Err(0));
-
-ok_or_else
-    此为ok_or的闭包版本
-    let x = Some("foo");
-    assert_eq!(x.ok_or_else(|| 0), Ok("foo"));
-    let x: Option<&str> = None;
-    assert_eq!(x.ok_or_else(|| 0), Err(0));
-
-or
-    如是some则返回some，否则返回传入的参数
-    let x = Some(2);
-    let y = None;
-    assert_eq!(x.or(y), Some(2));
-    let x = None;
-    let y = Some(100);
-    assert_eq!(x.or(y), Some(100));
-    let x = Some(2);
-    let y = Some(100);
-    assert_eq!(x.or(y), Some(2));
-    let x: Option<u32> = None;
-    let y = None;
-    assert_eq!(x.or(y), None);
-
-or_else
-    此是or的闭包版本
-    fn nobody() -> Option<&'static str> { None }
-    fn vikings() -> Option<&'static str> { Some("vikings") }
-    assert_eq!(Some("barbarians").or_else(vikings), Some("barbarians"));
-    assert_eq!(None.or_else(vikings), Some("vikings"));
-    assert_eq!(None.or_else(nobody), None);
-
-replace
-    传入新值返回老值
-    let mut x = Some(2);
-    let old = x.replace(5);
-    assert_eq!(x, Some(5));
-    assert_eq!(old, Some(2));
-    let mut x = None;
-    let old = x.replace(3);
-    assert_eq!(x, Some(3));
-    assert_eq!(old, None);
-
-take
-    如是some则将some move到外面，option置为None
-    let mut x = Some(2);
-    let y = x.take();
-    assert_eq!(x, None);
-    assert_eq!(y, Some(2));
-    let mut x: Option<u32> = None;
-    let y = x.take();
-    assert_eq!(x, None);
-    assert_eq!(y, None);
-
-transpose
-    将Result<Option>转为Option<Result>，其中None转为Ok(None)，Some(Ok(_))转为Ok(Some(_))，Some(Err(_))转为Err(_)
-    #[derive(Debug, Eq, PartialEq)]
-    struct SomeErr;
-    let x: Result<Option<i32>, SomeErr> = Ok(Some(5));
-    let y: Option<Result<i32, SomeErr>> = Some(Ok(5));
-    assert_eq!(x, y.transpose());
-
-unwrap
-    如有是some则返回内部的值，否则panic
-    let x: Option<&str> = None;
-    assert_eq!(x.unwrap(), "air"); // fails
-
-unwrap_or
-    如有是some则返回内部的值，否则返回提供的默认值
-    assert_eq!(Some("car").unwrap_or("bike"), "car");
-    assert_eq!(None.unwrap_or("bike"), "bike");
-
-unwrap_or_default
-    如有是some则返回内部的值，否则返回对应内部数据类型的默认值
-    let x: Option<u32> = None;
-    let y: Option<u32> = Some(12);
-    assert_eq!(x.unwrap_or_default(), 0);
-    assert_eq!(y.unwrap_or_default(), 12);
-
-unwrap_or_else
-    如有是some则返回内部的值，否则返回闭包结果
-    let k = 10;
-    assert_eq!(Some(4).unwrap_or_else(|| 2 * k), 4);
-    assert_eq!(None.unwrap_or_else(|| 2 * k), 20);
-
-unwrap_unchecked
-    直接unwrap，None则崩溃
-    let x = Some("air");
-    assert_eq!(unsafe { x.unwrap_unchecked() }, "air");
-    let x: Option<&str> = None;
-    assert_eq!(unsafe { x.unwrap_unchecked() }, "air"); // Undefined behavior!
-
-unzip
-    此为zip的反操作，如是some闭包则返回2个some（的闭包，外层需要再加个括号），否则返回2个none
-    let x = Some((1, "hi"));
-    let y = None::<(u8, u32)>;
-    assert_eq!(x.unzip(), (Some(1), Some("hi")));
-    assert_eq!(y.unzip(), (None, None));
-
-xor
-    2个相同返回none，2个不同则返回some
-    let x = Some(2);
-    let y: Option<u32> = None;
-    assert_eq!(x.xor(y), Some(2));
-    let x: Option<u32> = None;
-    let y = Some(2);
-    assert_eq!(x.xor(y), Some(2));
-    let x = Some(2);
-    let y = Some(2);
-    assert_eq!(x.xor(y), None);
-    let x: Option<u32> = None;
-    let y: Option<u32> = None;
-    assert_eq!(x.xor(y), None);
-
-zip
-    如xy个都是some则返回some((x,y))，即返回的是some闭包，否则返回none
-    let x = Some(1);
-    let y = Some("hi");
-    let z = None::<u8>;
-    assert_eq!(x.zip(y), Some((1, "hi")));
-    assert_eq!(x.zip(z), None);
-
-default
-    默认值是none
-    let opt: Option<u32> = Option::default();
-    assert!(opt.is_none());
-
-from
-    最简单可以用值构建option
-    let o: Option<u8> = Option::from(67);
-    assert_eq!(Some(67), o);
-
-    也可从&Option<T>构建Option<&T>
-    let s = "Hello, Rustaceans!"; // &str
-    let str = String::from(s); // String
-    let opt = Some(str); // Option<String>，此处str被move到opt里了
-    let f = Option::from(&opt); // 使用opt的引用构建Option<&String>
-    let o: Option<usize> = f.map(|ss: &String| ss.len()); // 此处map消耗的f是一个Option<&String>，原string还在opt里，所以下行还能用
-    println!("print: {s:?}, {f:?}, {opt:?}, {o:?}");
-
-    还可以从&mut Option<T>构建Option<&mut T>
-    let mut s = Some(String::from("Hello"));
-    let o: Option<&mut String> = Option::from(&mut s);
-    match o {
-        Some(t) => *t = String::from("Hello, Rustaceans!"),
-        None => (),
-    }
-    assert_eq!(s, Some(String::from("Hello, Rustaceans!")));
-
-FromIterator
-    迭代每一个元素并进行计算，如某元素结果是None则停止迭代并返回None，否则返回一个由Option包裹的T类型容器
-    let items = vec![0_u16, 1, 2];
-    let res: Option<Vec<u16>> = items
-        .iter()
-        .map(|x| x.checked_add(1)) // 如果溢出则停止迭代并返回none，否则每个元素加1
-        .collect();
-    assert_eq!(res, Some(vec![1, 2, 3]));
-
-
-    let items = vec![2_u16, 1, 0];
-    let res: Option<Vec<u16>> = items
-        .iter()
-        .map(|x| x.checked_sub(1)) // 每个元素减1，如由结果小于0的就停止迭代并返回none
-        .collect();
-    assert_eq!(res, None);
-
-    此例用于验证元素结果为none则停止迭代
-    let items = vec![3_u16, 2, 1, 10];
-    let mut shared = 0;
-    let res: Option<Vec<u16>> = items
-        .iter()
-        .map(|x| { shared += x; x.checked_sub(2) })
-        .collect();
-    assert_eq!(res, None);
-    assert_eq!(shared, 6); // 由于第三个元素1减2小于0了，所以没再继续迭代，最终shared=6（3+2+1）
-
-into_iter
-    用于将单个option转为容器，要注意容器元素的类型（未深入探究）
-    let x = Some("string");
-    let v: Vec<&str> = x.into_iter().collect(); // 此处要指定v的类型才可
-    assert_eq!(v, ["string"]);
-    let x = None;
-    let v: Vec<&str> = x.into_iter().collect();
-    assert!(v.is_empty());
-
-sum
-    迭代容器，如果元素是None，则停止迭代并返回None。否则返回所有元素的总和
-    let words = vec!["have", "a", "great", "day"]; // pos：1，0，3，1，如果有元素不含a，则total为none
-    let total: Option<usize> = words.iter().map(|w| w.find('a')).sum(); // 此处find返回pos，sum是将所有pos相加了
-    assert_eq!(total, Some(5));
-*/
-```
-
-### map
-
-Option 的 map 方法，可以将一个值映射（转换）成另一个值。其实作用就是对map前的值进行数据类型转换后再返回
-
-Option有一个内置的方法叫做map()，这是一个组合器，用于Some->Some和None->None的简单映射。多个map()的调用可以被串联起来，以获得更多的灵活性。在下面的例子中，process()取代了之前的所有函数，同时保持紧凑。
+### and
+    
+如果为none则返回none，否则返回传入的参数
 
 ``` rust
-#![allow(dead_code)]
-
-#[derive(Debug)] enum Food { Apple, Carrot, Potato }
-
-#[derive(Debug)] struct Peeled(Food);
-#[derive(Debug)] struct Chopped(Food);
-#[derive(Debug)] struct Cooked(Food);
-
-// 削皮。如果没有食物，就返回 `None`。否则返回削好皮的食物。
-fn peel(food: Option<Food>) -> Option<Peeled> {
-    match food {
-        Some(food) => Some(Peeled(food)),
-        None       => None,
-    }
-}
-
-// 切食物。如果没有食物，就返回 `None`。否则返回切好的食物。
-fn chop(peeled: Option<Peeled>) -> Option<Chopped> {
-    match peeled {
-        Some(Peeled(food)) => Some(Chopped(food)),
-        None               => None,
-    }
-}
-
-// 烹饪食物。这里，我们使用 `map()` 来替代 `match` 以处理各种情况。
-fn cook(chopped: Option<Chopped>) -> Option<Cooked> {
-    chopped.map(|Chopped(food)| Cooked(food))
-}
-
-// 这个函数会完成削皮切块烹饪一条龙。我们把 `map()` 串起来，以简化代码。
-fn process(food: Option<Food>) -> Option<Cooked> {
-    food.map(|f| Peeled(f))
-        .map(|Peeled(f)| Chopped(f))
-        .map(|Chopped(f)| Cooked(f))
-}
-
-// 在尝试吃食物之前确认食物是否存在是非常重要的！
-fn eat(food: Option<Cooked>) {
-    match food {
-        Some(food) => println!("Mmm. I love {:?}", food),
-        None       => println!("Oh no! It wasn't edible."),
-    }
-}
-
-fn main() {
-    let apple = Some(Food::Apple);
-    let carrot = Some(Food::Carrot);
-    let potato = None;
-
-    let cooked_apple = cook(chop(peel(apple)));
-    let cooked_carrot = cook(chop(peel(carrot)));
-
-    // 现在让我们试试看起来更简单的 `process()`。
-    let cooked_potato = process(potato);
-
-    eat(cooked_apple);
-    eat(cooked_carrot);
-    eat(cooked_potato);
-}
-
-Mmm. I love Cooked(Apple)
-Mmm. I love Cooked(Carrot)
-Oh no! It wasn't edible.
-```
-
-简单的案例
-
-``` rust
-fn find(haystack: &str, needle: char) -> Option<usize> {
-    for (offset, c) in haystack.char_indices() {
-        if c == needle {
-            return Some(offset);
-        }
-    }
-    None
-}
-
-fn main() {
-    match extension("foo.rs") {
-        None => println!("no extension"),
-        Some(ext) => assert_eq!(ext, "rs"),
-    }
-}
-
-// 使用map去掉match
-fn extension(file_name: &str) -> Option<&str> {
-    // 如果find返回的不是none（即Some(T)）则将结果作为参数i调用闭包进行计算后再返回，反之直接返回None。
-    find(file_name, '.').map(|i| &file_name[i + 1..])
-}
-
+let x = Some(2);
+let y: Option<&str> = None;
+assert_eq!(x.and(y), None);
+let x: Option<u32> = None;
+let y = Some("foo");
+assert_eq!(x.and(y), None);
+let x = Some(2);
+let y = Some("foo");
+assert_eq!(x.and(y), Some("foo"));
+let x: Option<u32> = None;
+let y: Option<&str> = None;
+assert_eq!(x.and(y), None);
 ```
 
 ### and_then
 
-map() 以链式调用的方式来简化 match 语句。然而，如果以返回类型是 Option<T> 的函数作为 map() 的参数，会导致出现嵌套形式 Option<Option<T>>。这样多层串联 调用就会变得混乱。所以有必要引入 and_then()，在某些语言中它叫做 flatmap。
+此为and的闭包版本
 
-如果and_then之前的结果是 None 则返回 None ，否则执行and_then指定的函数再返回结果。可以理解为如初步计算结果有值则继续后面的再次计算
+``` rust
+fn sq_then_to_string(x: u32) -> Option<String> {
+    // x.checked_mul(x)是计算x*x，如果发生溢出则返回None，map是再转为string返回
+    // x就是and_then里的some，原来是这么用的。。。
+    x.checked_mul(x).map(|sq| sq.to_string())
+}
+assert_eq!(Some(2).and_then(sq_then_to_string), Some(4.to_string()));
+assert_eq!(Some(1_000_000).and_then(sq_then_to_string), None); // overflowed!
+assert_eq!(None.and_then(sq_then_to_string), None);
+
+```
+
+常用方式：链式调用的案例
+
+``` rust
+let arr_2d = [["A0", "A1"], ["B0", "B1"]];
+let item_0_1 = arr_2d.get(0).and_then(|row| row.get(1));
+assert_eq!(item_0_1, Some(&"A1")); 注意这里从二维数组取元素的引用的写法
+let item_2_0 = arr_2d.get(2).and_then(|row| row.get(0));
+assert_eq!(item_2_0, None);
+```
 
 案例：and_then代替处理多层match，函数v2与v1的作用是一样的
 
@@ -6876,11 +6398,391 @@ fn main() {
 Some(7)
 ```
 
-### or、or_else
+### as_deref
 
-- 当option是none时候会使用or的参数做右值。or()是可级联调用的，参数会被move，如下面的例子所示传递给or的变量被移动走了，后面再使用就会报错了
-- 如果or的参数是函数或闭包则要使用or_else
-- or与or_else不会改变当前option的值
+对Option里的some进行解引用，将此结果再包一层Option返回。如果是none则返回none
+
+``` rust
+fn hello(name: &String) {
+    println!("Name is {}", name);
+}
+fn greet(name: &str) {
+    println!("Name is {}", name);
+}
+let s = "Alice"; // &str
+let str = s.to_owned(); // String
+let option_name = Some(str); // Option<String>
+let r1 = option_name.as_ref(); // Option<&String>
+r1.map(hello); // hello的参数是&String，map调用时候会去除option包装直接传入T
+let r2 = option_name.as_deref(); // Option<&str>
+r2.map(greet); // 描述同上
+// Option<&str>再unwrap得到&str
+let r3 = r2.unwrap(); // &str
+println!("{:?}", r3);
+let x: Option<String> = None;
+assert_eq!(x.as_deref(), None);
+```
+
+### as_deref_mut
+
+此为as_deref的mut版本
+
+``` rust
+let mut x: Option<String> = Some("hey".to_owned());
+assert_eq!(x.as_deref_mut().map(|x| {
+    x.make_ascii_uppercase(); // 原地变大写
+    x
+}), Some("HEY".to_owned().as_mut_str()));
+```
+
+### as_mut
+
+用于修改mut option内部的some值，即从&mut Option<T>得到Option<&mut T>
+
+``` rust
+let mut x = Some(2);
+match x.as_mut() {
+    Some(v) => *v = 42,
+    None => {},
+}
+assert_eq!(x, Some(42));
+```
+
+### as_ref
+
+用于往函数内传引用，否则不as_ref就被move到函数消耗掉了，以后就不能再用了
+
+``` rust
+let maybe_some_string = Some(String::from("Hello, World!"));
+let maybe_some_len = maybe_some_string.as_ref().map(|s| s.len());
+assert_eq!(maybe_some_len, Some(13));
+println!("{:?}", maybe_some_string); // 有上面的as_ref这里还可以使用，否则就被move到map里了
+```
+
+### cloned
+
+克隆方法，可以将引用克隆为值，即Option<&T>克隆为Option<T>，也支持<&mut T>克隆为Option<T>
+
+``` rust
+let x = 12;
+let opt_x = Some(&x);
+assert_eq!(opt_x, Some(&12));
+let cloned = opt_x.cloned();
+assert_eq!(cloned, Some(12));
+let mut x = 12;
+let opt_x = Some(&mut x);
+assert_eq!(opt_x, Some(&mut 12));
+let cloned = opt_x.cloned();
+assert_eq!(cloned, Some(12));
+```
+
+### copied
+
+拷贝方法，可以将引用拷贝为值，即Option<&T>拷贝为Option<T>，也支持<&mut T>拷贝为Option<T> 
+
+``` rust
+let x = 12;
+let opt_x = Some(&x);
+assert_eq!(opt_x, Some(&12));
+let copied = opt_x.copied();
+assert_eq!(copied, Some(12));
+let mut x = 12;
+let opt_x = Some(&mut x);
+assert_eq!(opt_x, Some(&mut 12));
+let copied = opt_x.copied();
+assert_eq!(copied, Some(12));
+```
+
+### expect
+
+如有是some则返回内部的值，否则使用给定的信息触发panic
+
+``` rust
+let item = slice.get(0).expect("slice should not be empty");
+```
+
+### filter
+
+如是none则返回none，否则将t带入闭包进行计算，得到t返回原some，得到f返回none。此方法用于过滤元素
+``` rust
+fn is_even(n: &i32) -> bool {
+    n % 2 == 0
+}
+assert_eq!(None.filter(is_even), None);
+assert_eq!(Some(3).filter(is_even), None);
+assert_eq!(Some(4).filter(is_even), Some(4));
+```
+
+### flatten
+
+仅能去除一层嵌套，即将Option<Option<T>>转为Option<T>
+
+``` rust
+let x: Option<Option<u32>> = Some(Some(6));
+assert_eq!(Some(6), x.flatten());
+let x: Option<Option<u32>> = Some(None);
+assert_eq!(None, x.flatten());
+let x: Option<Option<u32>> = None;
+assert_eq!(None, x.flatten());
+
+需要去除多层就要多次调用
+let x: Option<Option<Option<u32>>> = Some(Some(Some(6)));
+assert_eq!(Some(Some(6)), x.flatten());
+assert_eq!(Some(6), x.flatten().flatten());
+```
+
+### get_or_insert
+
+如是none则更新T值并返回此T的可变引用，不是none则更新失败返回原T值的可变引用
+
+``` rust
+let mut x = None;
+let y: &mut u32 = x.get_or_insert(5);
+assert_eq!(y, &5);
+*y = 7;
+assert_eq!(x, Some(7));
+let y2: &mut u32 = x.get_or_insert(50); 这里更新失败，效果仅是get
+assert_eq!(y2, &7);
+```
+
+### get_or_insert_with
+
+此为get_or_insert的闭包版本
+
+``` rust
+let mut x = None;
+let y: &mut u32 = x.get_or_insert_with(|| 5);
+assert_eq!(y, &5);
+*y = 7;
+assert_eq!(x, Some(7));
+let y2: &mut u32 = x.get_or_insert_with(|| 50);
+assert_eq!(y2, &7);
+```
+
+### insert
+
+更新mut option的T值并返回此T的可变引用
+
+``` rust
+let mut opt = None;
+let val = opt.insert(1);
+assert_eq!(*val, 1);
+assert_eq!(opt.unwrap(), 1);
+let val = opt.insert(2);
+assert_eq!(*val, 2);
+*val = 3;
+assert_eq!(opt.unwrap(), 3);
+```
+
+### is_none 
+
+没值则为T，否则为F
+
+``` rust
+let x: Option<u32> = Some(2);
+assert_eq!(x.is_none(), false);
+let x: Option<u32> = None;
+assert_eq!(x.is_none(), true);
+```
+
+### is_some 
+
+有值即为T，否则为F
+
+``` rust
+let x: Option<u32> = Some(2);
+assert_eq!(x.is_some(), true);
+let x: Option<u32> = None;
+assert_eq!(x.is_some(), false);
+```
+
+### iter
+
+使用迭代器的形式获取Some<&T>
+
+``` rust
+let x = Some(4);
+assert_eq!(x.iter().next(), Some(&4));
+let x: Option<u32> = None;
+assert_eq!(x.iter().next(), None);
+```
+
+### iter_mut
+
+此为iter的mut版本，可以通过能改内部值的iter
+
+``` rust
+let mut x = Some(4);
+match x.iter_mut().next() {
+    Some(v) => *v = 42,
+    None => {},
+}
+assert_eq!(x, Some(42));
+let mut x: Option<u32> = None;
+assert_eq!(x.iter_mut().next(), None);
+```
+
+### map
+
+会消耗掉（move）传入的参数，用于将T数据作为参数进行再一步的计算后并返回其它类型结果。map() 以链式调用的方式来简化 match 语句。然而，如果以返回类型是 Option<T> 的函数作为 map() 的参数，会导致出现嵌套形式 Option<Option<T>>。这样多层串联 调用就会变得混乱。此时可以使用and_then()
+
+简单的案例同as_ref的案例，下面看一个复杂的案例：
+
+``` rust
+#![allow(dead_code)]
+#[derive(Debug)] enum Food { Apple, Carrot, Potato }
+#[derive(Debug)] struct Peeled(Food);
+#[derive(Debug)] struct Chopped(Food);
+#[derive(Debug)] struct Cooked(Food);
+
+// 削皮。如果没有食物，就返回 `None`。否则返回削好皮的食物。
+fn peel(food: Option<Food>) -> Option<Peeled> {
+    match food {
+        Some(food) => Some(Peeled(food)),
+        None       => None,
+    }
+}
+
+// 切食物。如果没有食物，就返回 `None`。否则返回切好的食物。
+fn chop(peeled: Option<Peeled>) -> Option<Chopped> {
+    match peeled {
+        Some(Peeled(food)) => Some(Chopped(food)),
+        None               => None,
+    }
+}
+
+// 烹饪食物。这里，我们使用 `map()` 来替代 `match` 以处理各种情况。
+fn cook(chopped: Option<Chopped>) -> Option<Cooked> {
+    chopped.map(|Chopped(food)| Cooked(food))
+}
+
+// 这个函数会完成削皮切块烹饪一条龙。我们把 `map()` 串起来，以简化代码。
+fn process(food: Option<Food>) -> Option<Cooked> {
+    food.map(|f| Peeled(f))
+        .map(|Peeled(f)| Chopped(f))
+        .map(|Chopped(f)| Cooked(f))
+}
+
+// 在尝试吃食物之前确认食物是否存在是非常重要的！
+fn eat(food: Option<Cooked>) {
+    match food {
+        Some(food) => println!("Mmm. I love {:?}", food),
+        None       => println!("Oh no! It wasn't edible."),
+    }
+}
+
+fn main() {
+    let apple = Some(Food::Apple);
+    let carrot = Some(Food::Carrot);
+    let potato = None;
+
+    let cooked_apple = cook(chop(peel(apple)));
+    let cooked_carrot = cook(chop(peel(carrot)));
+
+    // 现在让我们试试看起来更简单的 `process()`。
+    let cooked_potato = process(potato);
+
+    eat(cooked_apple);
+    eat(cooked_carrot);
+    eat(cooked_potato);
+}
+
+Mmm. I love Cooked(Apple)
+Mmm. I love Cooked(Carrot)
+Oh no! It wasn't edible.
+```
+
+另一个案例
+
+``` rust
+fn find(haystack: &str, needle: char) -> Option<usize> {
+    for (offset, c) in haystack.char_indices() {
+        if c == needle {
+            return Some(offset);
+        }
+    }
+    None
+}
+
+fn main() {
+    match extension("foo.rs") {
+        None => println!("no extension"),
+        Some(ext) => assert_eq!(ext, "rs"),
+    }
+}
+
+// 使用map去掉match
+fn extension(file_name: &str) -> Option<&str> {
+    // 如果find返回的不是none（即Some(T)）则将结果作为参数i调用闭包进行计算后再返回，反之直接返回None。
+    find(file_name, '.').map(|i| &file_name[i + 1..])
+}
+```
+
+### map_or
+
+如果是None则返回第一个参数，否则返回闭包（第二个参数）的结果
+
+``` rust
+let x = Some("foo");
+assert_eq!(x.map_or(42, |v| v.len()), 3);
+let x: Option<&str> = None;
+assert_eq!(x.map_or(42, |v| v.len()), 42);
+```
+
+### map_or_else
+
+如果是None则返回第一个闭包的结果，否则返回第二个闭包的结果
+
+``` rust
+let k = 21;
+let x = Some("foo");
+assert_eq!(x.map_or_else(|| 2 * k, |v| v.len()), 3);
+let x: Option<&str> = None;
+assert_eq!(x.map_or_else(|| 2 * k, |v| v.len()), 42);
+```
+
+### ok_or
+
+将Option转为Result，Some(v)->Ok(v)，None->Err(err)
+
+``` rust
+let x = Some("foo");
+assert_eq!(x.ok_or(0), Ok("foo"));
+let x: Option<&str> = None;
+assert_eq!(x.ok_or(0), Err(0));
+```
+
+### ok_or_else
+
+此为ok_or的闭包版本
+
+``` rust
+let x = Some("foo");
+assert_eq!(x.ok_or_else(|| 0), Ok("foo"));
+let x: Option<&str> = None;
+assert_eq!(x.ok_or_else(|| 0), Err(0));
+```
+
+### or
+
+如是some则返回some，否则返回传入的参数。or()是可级联调用的，参数会被move
+
+``` rust
+let x = Some(2);
+let y = None;
+assert_eq!(x.or(y), Some(2));
+let x = None;
+let y = Some(100);
+assert_eq!(x.or(y), Some(100));
+let x = Some(2);
+let y = Some(100);
+assert_eq!(x.or(y), Some(2));
+let x: Option<u32> = None;
+let y = None;
+assert_eq!(x.or(y), None);
+```
+
+案例：演示被move
 
 ``` rust
 #[derive(Debug)] 
@@ -6898,6 +6800,20 @@ fn main() {
     // println!("The variable apple has been moved, so this line cannot be compiled: {:?}", apple); // TODO: Decomment the above line to see the compiler error.
 }
 ```
+
+### or_else
+
+此是or的闭包版本
+
+``` rust
+fn nobody() -> Option<&'static str> { None }
+fn vikings() -> Option<&'static str> { Some("vikings") }
+assert_eq!(Some("barbarians").or_else(vikings), Some("barbarians"));
+assert_eq!(None.or_else(vikings), Some("vikings"));
+assert_eq!(None.or_else(nobody), None);
+```
+
+另一个案例
 
 ``` rust
 #[derive(Debug)] 
@@ -6924,66 +6840,67 @@ fn main() {
 }
 ```
 
-### get_or_insert、get_or_insert_with
+### replace
 
-这2个与or、or_else的区别在于会改变当前option的值。相当于如果自身是none则先给自身赋值，然后再用自己给其它变量赋值
+传入新值返回老值
 
 ``` rust
-#[derive(Debug)]
-enum Fruit { Apple, Orange, Banana, Kiwi, Lemon }
-
-fn main() {
-    let mut my_fruit: Option<Fruit> = None;
-    let apple = Fruit::Apple;
-    let first_available_fruit = my_fruit.get_or_insert(apple);
-    println!("first_available_fruit is: {:?}", first_available_fruit);
-    println!("my_fruit is: {:?}", my_fruit);
-    // first_available_fruit is: Apple
-    // my_fruit is: Some(Apple)
-    //println!("Variable named `apple` is moved: {:?}", apple);
-    // TODO: uncomment the line above to see the compiler error
-}
-
-first_available_fruit is: Apple
-my_fruit is: Some(Apple)
+let mut x = Some(2);
+let old = x.replace(5);
+assert_eq!(x, Some(5));
+assert_eq!(old, Some(2));
+let mut x = None;
+let old = x.replace(3);
+assert_eq!(x, Some(3));
+assert_eq!(old, None);
 ```
 
+### take
+
+如是some则将some move到外面，option置为None
+
 ``` rust
-#[derive(Debug)] 
-enum Fruit { Apple, Orange, Banana, Kiwi, Lemon }
+let mut x = Some(2);
+let y = x.take();
+assert_eq!(x, None);
+assert_eq!(y, Some(2));
+let mut x: Option<u32> = None;
+let y = x.take();
+assert_eq!(x, None);
+assert_eq!(y, None);
+```
 
-fn main() {
-    let mut my_fruit: Option<Fruit> = None;
-    let get_lemon_as_fallback = || {
-        println!("Providing lemon as fallback");
-        Fruit::Lemon
-    };
-    let first_available_fruit = my_fruit
-        .get_or_insert_with(get_lemon_as_fallback);
-    println!("first_available_fruit is: {:?}", first_available_fruit);
-    println!("my_fruit is: {:?}", my_fruit);
-    // Providing lemon as fallback
-    // first_available_fruit is: Lemon
-    // my_fruit is: Some(Lemon)
+### transpose
 
-    // If the Option has a value, it is left unchanged, and the closure is not invoked
-    let mut my_apple = Some(Fruit::Apple);
-    let should_be_apple = my_apple.get_or_insert_with(get_lemon_as_fallback);
-    println!("should_be_apple is: {:?}", should_be_apple);
-    println!("my_apple is unchanged: {:?}", my_apple);
-    // The output is a follows. Note that the closure `get_lemon_as_fallback` is not invoked
-    // should_be_apple is: Apple
-    // my_apple is unchanged: Some(Apple)
-}
+将Result<Option>转为Option<Result>，其中None转为Ok(None)，Some(Ok(_))转为Ok(Some(_))，Some(Err(_))转为Err(_)
 
-Providing lemon as fallback
-first_available_fruit is: Lemon
-my_fruit is: Some(Lemon)
-should_be_apple is: Apple
-my_apple is unchanged: Some(Apple)
+``` rust
+#[derive(Debug, Eq, PartialEq)]
+struct SomeErr;
+let x: Result<Option<i32>, SomeErr> = Ok(Some(5));
+let y: Option<Result<i32, SomeErr>> = Some(Ok(5));
+assert_eq!(x, y.transpose());
+```
+
+### unwrap
+
+如有是some则返回内部的值，否则panic
+
+``` rust
+let x: Option<&str> = None;
+assert_eq!(x.unwrap(), "air"); // fails
 ```
 
 ### unwrap_or
+
+如有是some则返回内部的值，否则返回提供的默认值
+
+``` rust
+assert_eq!(Some("car").unwrap_or("bike"), "car");
+assert_eq!(None.unwrap_or("bike"), "bike");
+```
+
+另一个案例
 
 ``` rust
 fn find(haystack: &str, needle: char) -> Option<usize> {
@@ -7009,6 +6926,172 @@ fn extension(file_name: &str) -> Option<&str> {
 
 ```
 
+### unwrap_or_default
+
+如有是some则返回内部的值，否则返回对应内部数据类型的默认值
+
+``` rust
+let x: Option<u32> = None;
+let y: Option<u32> = Some(12);
+assert_eq!(x.unwrap_or_default(), 0);
+assert_eq!(y.unwrap_or_default(), 12);
+```
+
+### unwrap_or_else
+
+如有是some则返回内部的值，否则返回闭包结果
+
+``` rust
+let k = 10;
+assert_eq!(Some(4).unwrap_or_else(|| 2 * k), 4);
+assert_eq!(None.unwrap_or_else(|| 2 * k), 20);
+```
+
+### unwrap_unchecked
+
+直接unwrap，None则崩溃
+
+``` rust
+let x = Some("air");
+assert_eq!(unsafe { x.unwrap_unchecked() }, "air");
+let x: Option<&str> = None;
+assert_eq!(unsafe { x.unwrap_unchecked() }, "air"); // Undefined behavior!
+```
+
+### unzip
+
+此为zip的反操作，如是some闭包则返回2个some（的闭包，外层需要再加个括号），否则返回2个none
+
+``` rust
+let x = Some((1, "hi"));
+let y = None::<(u8, u32)>;
+assert_eq!(x.unzip(), (Some(1), Some("hi")));
+assert_eq!(y.unzip(), (None, None));
+```
+
+### xor
+
+2个相同返回none，2个不同则返回some
+
+``` rust
+let x = Some(2);
+let y: Option<u32> = None;
+assert_eq!(x.xor(y), Some(2));
+let x: Option<u32> = None;
+let y = Some(2);
+assert_eq!(x.xor(y), Some(2));
+let x = Some(2);
+let y = Some(2);
+assert_eq!(x.xor(y), None);
+let x: Option<u32> = None;
+let y: Option<u32> = None;
+assert_eq!(x.xor(y), None);
+```
+
+### zip
+
+如xy个都是some则返回some((x,y))，即返回的是some闭包，否则返回none
+
+``` rust
+let x = Some(1);
+let y = Some("hi");
+let z = None::<u8>;
+assert_eq!(x.zip(y), Some((1, "hi")));
+assert_eq!(x.zip(z), None);
+```
+
+### default
+
+默认值是none
+
+``` rust
+let opt: Option<u32> = Option::default();
+assert!(opt.is_none());
+```
+
+### from
+
+最简单可以用值构建option
+
+``` rust
+let o: Option<u8> = Option::from(67);
+assert_eq!(Some(67), o);
+也可从&Option<T>构建Option<&T>
+let s = "Hello, Rustaceans!"; // &str
+let str = String::from(s); // String
+let opt = Some(str); // Option<String>，此处str被move到opt里了
+let f = Option::from(&opt); // 使用opt的引用构建Option<&String>
+let o: Option<usize> = f.map(|ss: &String| ss.len()); // 此处map消耗的f是一个Option<&String>，原string还在opt里，所以下行还能用
+println!("print: {s:?}, {f:?}, {opt:?}, {o:?}");
+```
+
+还可以从&mut Option<T>构建Option<&mut T>
+
+``` rust
+let mut s = Some(String::from("Hello"));
+let o: Option<&mut String> = Option::from(&mut s);
+match o {
+    Some(t) => *t = String::from("Hello, Rustaceans!"),
+    None => (),
+}
+assert_eq!(s, Some(String::from("Hello, Rustaceans!")));
+```
+
+### FromIterator
+
+迭代每一个元素并进行计算，如某元素结果是None则停止迭代并返回None，否则返回一个由Option包裹的T类型容器
+
+``` rust
+let items = vec![0_u16, 1, 2];
+let res: Option<Vec<u16>> = items
+    .iter()
+    .map(|x| x.checked_add(1)) // 如果溢出则停止迭代并返回none，否则每个元素加1
+    .collect();
+assert_eq!(res, Some(vec![1, 2, 3]));
+let items = vec![2_u16, 1, 0];
+let res: Option<Vec<u16>> = items
+    .iter()
+    .map(|x| x.checked_sub(1)) // 每个元素减1，如由结果小于0的就停止迭代并返回none
+    .collect();
+assert_eq!(res, None);
+```
+
+此例用于验证元素结果为none则停止迭代
+
+``` rust
+let items = vec![3_u16, 2, 1, 10];
+let mut shared = 0;
+let res: Option<Vec<u16>> = items
+    .iter()
+    .map(|x| { shared += x; x.checked_sub(2) })
+    .collect();
+assert_eq!(res, None);
+assert_eq!(shared, 6); // 由于第三个元素1减2小于0了，所以没再继续迭代，最终shared=6（3+2+1）
+```
+
+### into_iter
+
+into_iter返回的是T类型的值的迭代器，从option里获取到的只能是一个some值或是none
+
+``` rust
+let x = Some("string");
+let v: Vec<&str> = x.into_iter().collect(); // 此处要指定v的类型才可
+assert_eq!(v, ["string"]);
+let x = None;
+let v: Vec<&str> = x.into_iter().collect();
+assert!(v.is_empty());
+```
+
+### sum
+
+迭代容器，如果元素是None，则停止迭代并返回None。否则返回所有元素的总和
+
+``` rust
+let words = vec!["have", "a", "great", "day"]; // pos：1，0，3，1，如果有元素不含a，则total为none
+let total: Option<usize> = words.iter().map(|w| w.find('a')).sum(); // 此处find返回pos，sum是将所有pos相加了
+assert_eq!(total, Some(5));
+```
+
 # Result
 
 一种可能成功或失败的泛型枚举类型
@@ -7022,397 +7105,491 @@ pub enum Result<T, E> {
 
 ## 常用方法
 
+### and、and_then
+
+- and：如是OK则返回传入的参数，否则返回自身的Err值
+
 ``` rust
-fn ok_err() {
-    println!("--------- ok(), err()");
-    // ok(self) -> Option<T>: 从 Result<T, E> 转换为 Option<T>，Ok(T)转为Some(T)，err(E)会转为None
-    // err(self) -> Option<E>: 从 Result<T, E> 转换为 Option<E>，ok(T)转换为none，err(E)转为Some(E)
-    let x: Result<u32, &str> = Ok(2);
-    assert_eq!(x.ok(), Some(2));
-    assert_eq!(x.err(), None);
-    println!("{:?}", x.ok());   // Some(2)
-    println!("{:?}", x.err());   // None
-    let x: Result<u32, &str> = Err("Nothing here");
-    assert_eq!(x.ok(), None);
-    assert_eq!(x.err(), Some("Nothing here"));
-    println!("{:?}", x.ok());   // None
-    println!("{:?}", x.err());   // Some("Nothing here")
+let x: Result<u32, &str> = Ok(2);
+let y: Result<&str, &str> = Err("late error");
+println!("{:?}", x.and(y)); // Err("late error")
+assert_eq!(x.and(y), Err("late error"));
+let x: Result<u32, &str> = Err("early error");
+let y: Result<&str, &str> = Ok("foo");
+println!("{:?}", x.and(y)); // Err("early error")
+assert_eq!(x.and(y), Err("early error"));
+let x: Result<u32, &str> = Err("not a 2");
+let y: Result<&str, &str> = Err("late error");
+println!("{:?}", x.and(y)); // Err("not a 2")
+assert_eq!(x.and(y), Err("not a 2"));
+let x: Result<u32, &str> = Ok(2);
+let y: Result<&str, &str> = Ok("different result type");
+println!("{:?}", x.and(y)); // Ok("different result type")
+assert_eq!(x.and(y), Ok("different result type"));
+```
+
+- and_then：如是OK则返回闭包的结果，否则返回自身的Err值
+
+``` rust
+fn sq(x: u32) -> Result<u32, u32> { Ok(x * x) } // 注意这里result的2个类型参数都是u32
+fn err(x: u32) -> Result<u32, u32> { Err(x) } // 下面的err参数就可以使用数字了
+assert_eq!(Ok(2).and_then(sq).and_then(sq), Ok(16));
+assert_eq!(Ok(2).and_then(sq).and_then(err), Err(4));
+assert_eq!(Ok(2).and_then(err).and_then(sq), Err(2));
+assert_eq!(Err(3).and_then(sq).and_then(sq), Err(3));
+```
+
+### as_deref、as_deref_mut
+
+- as_deref：原result不变，返回一个将T和E都变为对应引用的Result，类似as_ref不产生move
+
+``` rust
+// Converts from Result<T, E> (or &Result<T, E>) to Result<&<T as Deref>::Target, &E>
+let result: Result<String, &str> = Ok(String::from("hello"));
+assert_eq!(result.as_deref(), Ok("hello"));
+print_type_of(&result); // core::result::Result<alloc::string::String, &str>
+print_type_of(&result.as_deref()); // core::result::Result<&str, &&str>
+println!("{:?}", result); // Ok("hello") 
+
+let x: Result<String, u32> = Ok("hello".to_string());
+let y: Result<&str, &u32> = Ok("hello");
+assert_eq!(x.as_deref(), y);
+let x: Result<String, u32> = Err(42);
+let y: Result<&str, &u32> = Err(&42);
+assert_eq!(x.as_deref(), y);
+```
+
+- as_deref_mut 此未细致研究
+
+``` rust
+// Converts from Result<T, E> (or &mut Result<T, E>) to Result<&mut <T as DerefMut>::Target, &mut E>.
+let mut s = "HELLO".to_string();
+let mut x: Result<String, u32> = Ok("hello".to_string());
+let y: Result<&mut str, &mut u32> = Ok(&mut s);
+assert_eq!(x.as_deref_mut().map(|x| { x.make_ascii_uppercase(); x }), y);
+
+let mut i = 42;
+let mut x: Result<String, u32> = Err(42);
+let y: Result<&mut str, &mut u32> = Err(&mut i);
+assert_eq!(x.as_deref_mut().map(|x| { x.make_ascii_uppercase(); x }), y);
+```
+
+### as_ref、as_mut
+
+- as_ref：将具有所有权对象转换成引用对象，其实就是对T创建个引用，此引用当作函数参数，这样就不会被move了，函数执行完T依然有所有权
+
+``` rust
+// Converts from &Result<T, E> to Result<&T, &E>.
+let result: Result<String, &str> = Ok(String::from("hello"));
+let size = result.map(|s| s.len()); // String的所有权被move了，下面会失败
+// println!("{}",result.unwrap());
+let result: Result<String, &str> = Ok(String::from("hello"));
+let size = result.as_ref().map(|s| s.len()); // 这里是引用，string不被move，所以下面有所有权
+println!("{}",result.unwrap()); // hello
+```
+
+- as_mut: 通过as_mut方法可以改变mut变量内部所包含的数据的值
+
+``` rust
+// Converts from &mut Result<T, E> to Result<&mut T, &mut E>.
+fn mutate(r: &mut Result<i32, i32>) {
+    match r.as_mut() {
+        Ok(v) => *v = 42,
+        Err(e) => *e = 0,
+    }
 }
+let mut x: Result<i32, i32> = Ok(2);
+mutate(&mut x);
+println!("{:?}", x); // Ok(42)
+assert_eq!(x.unwrap(), 42); 
 
-fn isok_iserr() {
-    println!("--------- is_ok(), is_err()");
-    // is_ok(&self) -> bool: 如果结果为 Ok，则返回 true。
-    // is_err(&self) -> bool: 如果结果为 Err，则返回 true。
-    let x: Result<i32, &str> = Ok(-3);
-    assert_eq!(x.is_ok(), true);
-    assert_eq!(x.is_err(), false);
-    println!("{:?}", x.is_ok());    // true
-    println!("{:?}", x.is_err());    // false
-    let x: Result<i32, &str> = Err("Some error message");
-    assert_eq!(x.is_ok(), false);
-    assert_eq!(x.is_err(), true);
-    println!("{:?}", x.is_ok());    // false
-    println!("{:?}", x.is_err());    // true
+let mut x: Result<i32, i32> = Err(13);
+mutate(&mut x);
+println!("{:?}", x); // Err(0)
+assert_eq!(x.unwrap_err(), 0);
+```
+
+### copied、cloned
+
+- copied：通过复制Ok部分的内容，将一个<&T, E>或<&mut T, E>转换为一个<T, E>
+
+``` rust
+let val = 12;
+let x: Result<&i32, i32> = Ok(&val);
+assert_eq!(x, Ok(&12));
+let copied = x.copied();
+assert_eq!(copied, Ok(12));
+let mut val = 12;
+let x: Result<&mut i32, i32> = Ok(&mut val);
+assert_eq!(x, Ok(&mut 12));
+let copied = x.copied();
+assert_eq!(copied, Ok(12));
+```
+
+- cloned：当处理资源时，默认的行为是在赋值或函数调用的同时将它们转移。但是我们有时候也需要把资源复制一份。通过克隆Ok部分的内容，将一个<&T, E>或<&mut T, E>映射到一个<T, E>
+
+``` rust
+let val = 12;
+let x: Result<&i32, i32> = Ok(&val);
+assert_eq!(x, Ok(&12));
+let cloned = x.cloned();
+assert_eq!(cloned, Ok(12));
+let mut val = 12;
+let x: Result<&mut i32, i32> = Ok(&mut val);
+assert_eq!(x, Ok(&mut 12));
+let cloned = x.cloned();
+assert_eq!(cloned, Ok(12));
+```
+
+### expect、expect_err
+
+- expect：ok则直接返回被move出来的T，err则触发带有自定义信息的panic
+- expect_err：如果ok则触发自定义信息的panic，与expect正相反
+
+``` rust
+// expect(self, msg: &str) -> T
+let x: Result<u32, &str> = Err("emergency failure");
+// x.expect("Testing expect"); // 此处会触发自定义信息的panics
+println!("--------- expect_err()");
+// expect_err(self, msg: &str) -> E
+// let x: Result<u32, &str> = Ok(10); // 取消这句则下面panic
+x.expect_err("Testing expect_err");
+```
+
+### is_ok、is_err
+
+- is_ok：如是Ok返回true
+- is_err：如是Err返回true
+
+``` rust
+let x: Result<i32, &str> = Ok(-3);
+assert_eq!(x.is_ok(), true);
+assert_eq!(x.is_err(), false);
+println!("{:?}", x.is_ok());    // true
+println!("{:?}", x.is_err());    // false
+let x: Result<i32, &str> = Err("Some error message");
+assert_eq!(x.is_ok(), false);
+assert_eq!(x.is_err(), true);
+println!("{:?}", x.is_ok());    // false
+println!("{:?}", x.is_err());    // true
+```
+
+### iter、iter_mut
+
+- iter：返回不可变的迭代器。如果x是ok则可取到有值的iter，见下面的打印输出。再通过next获取iter内的值。如是err返回none
+
+``` rust
+let x: Result<u32, &str> = Ok(7);
+let v = x.iter().next();
+println!("{:?}", x.iter()); // Iter { inner: Some(7) }
+println!("{:?}", v);    // Some(7)
+assert_eq!(v, Some(&7));
+let x: Result<u32, &str> = Err("nothing!");
+let v = x.iter().next();
+println!("{:?}", x.iter()); // Iter { inner: None }
+println!("{:?}", v);    // None
+assert_eq!(v, None);
+```
+
+- iter_mut：返回可变的迭代器，其余同iter
+
+``` rust
+let mut x: Result<u32, &str> = Ok(7);
+let mut v = x.iter_mut();
+println!("{:?}", v); // IterMut { inner: Some(7) }
+println!("{:?}", v.next()); // Some(7) 
+match x.iter_mut().next() {
+    Some(v) => *v = 40, // 修改变量x
+    None => {},
 }
+assert_eq!(x, Ok(40)); // 通过iter_mut改值
+let mut x: Result<u32, &str> = Err("nothing!");
+let mut v = x.iter_mut();
+println!("{:?}", v); // IterMut { inner: None }
+println!("{:?}", v.next()); // None
+assert_eq!(x.iter_mut().next(), None);
+```
 
+### map、map_err、map_or、map_or_else
 
+- 先来总结，后看细节
 
-/* 总结
-map<U, F>(self, op: F) -> Result<U, E>：            U:原ok类型，F:闭包，E：err类型
-map_or<U, F>(self, default: U, f: F) -> U           U:原ok类型，F:闭包，仅返回U
-map_or_else<U, D, F>(self, default: D, f: F) -> U   U:原ok类型，D:默认闭包参数，F：闭包，仅返回U
-map_err<F, O>(self, op: O) -> Result<T, F>          O:闭包，作用将老err（E类型，这里没有体现出来）换为新err类型（F类型）
+|  函数         | result为ok  |  result为err   | 返回值类型  |
+|  ----         | ----  |  ----  | ----  |
+| map           | 执行闭包 | 返回err  | Result<U, E> |
+| map_or        | 同map | 返回提供的默认值  | U |
+| map_or_else   | 同map | 执行另一个闭包  | U |
+| map_err       | 返回ok | 执行另一个闭包  | Result<T, F> |
 
-    result为ok时候：                      result为err时候：
-    map：将ok值代入闭包返回计算结果         直接返回err
-    map_or：同map                         返回提供的默认值   
-    map_or_else：同map                    执行另一个返回ok类型的闭包
-    map_err：直接返回ok                   执行另一个返回err类型的闭包
-*/
-fn map_fn(){
-    println!("--------- map()");
-    // map: 如果map前的result为err则直接err，否则取ok值带入map的闭包进行计算后再返回result
-    let result: Result<i32, &str> = Ok(44);
-    println!("{:?}", result.map(|e| e / 4)); // Ok(11)
-    let result: Result<i32, &str> = Err("Some error message");
-    println!("{:?}", result.map(|e| e / 4)); // Err("Some error message")
-    
-    // 使用match：如果map前的result为err则直接match此err，否则取ok值带入map的闭包进行计算后再match结果
-    let line = "1\n2\nA\nB\n3";
-    for num in line.lines() {
-        match num.parse::<i32>().map(|i| i * 2) {
-            Ok(n) => println!("num={}, Ok: {}", num, n),
-            Err(e) => {
-                println!("num={}, Err: {}", num, e);
-            }
+- map: 如result为err则直接返回err，否则取ok值带入map的闭包进行计算后再返回result
+
+``` rust
+// Result<T, E> to Result<U, E>
+let result: Result<i32, &str> = Ok(44);
+println!("{:?}", result.map(|e| e / 4)); // Ok(11)
+let result: Result<i32, &str> = Err("Some error message");
+println!("{:?}", result.map(|e| e / 4)); // Err("Some error message")
+```
+
+案例：使用match与map
+
+``` rust
+let line = "1\n2\nA\nB\n3";
+for num in line.lines() {
+    match num.parse::<i32>().map(|i| i * 2) {
+        Ok(n) => println!("num={}, Ok: {}", num, n),
+        Err(e) => {
+            println!("num={}, Err: {}", num, e);
         }
     }
-
-    println!("--------- map_or()");
-    // 如果x是ok则将x带入闭包返回计算结果，否则直接返回提供的默认值（即42）
-    let x: Result<_, &str> = Ok("foo");
-    let u = x.map_or(42, |v| v.len());  // x有值，返回"foo".len=3
-    assert_eq!(u, 3);
-    println!("{:?}", u);
-    let x: Result<&str, _> = Err("bar");
-    let u = x.map_or(42, |v| v.len()); // x为err，直接返回42
-    assert_eq!(u, 42);
-    println!("{:?}", u);
-
-    println!("--------- map_or_else()");
-    // 如果x是ok则将x带入第二个闭包，否则执行第一个闭包，返回值是ok的类型
-    let k = 21;
-    let x : Result<_, &str> = Ok("foo");
-    let u = x.map_or_else(|_| k * 2, |v| v.len()); // 这里的_代表x是none，闭包也没有可用的参数了
-    assert_eq!(u, 3);
-    println!("{:?}", u);
-    let x : Result<&str, _> = Err("bar");
-    let u = x.map_or_else(|_| k * 2, |v| v.len());
-    assert_eq!(u, 42);
-    println!("{:?}", u);
-    
-
-    println!("--------- map_err()");
-    // 如果x为ok则直接返回x，否则(即x为err)另一种err类型（用于从Aerr换为bErr类型）另外stringify也可是闭包形式
-    fn stringify(x: u32) -> String { format!("error code: {}", x) }
-    let x: Result<u32, u32> = Ok(2);
-    let u = x.map_err(stringify);
-    assert_eq!(u, Ok(2));
-    println!("{:?}", u);
-    let x: Result<u32, u32> = Err(13);
-    let u = x.map_err(stringify);
-    assert_eq!(u, Err("error code: 13".to_string()));
-    println!("{:?}", u);
-
 }
+```
 
-fn iter_fn() {
-    println!("--------- iter()");
-    // 返回不可变的迭代器。如果x是ok则可取到有值的iter，见下面的打印输出。
-    // 再通过next获取iter内的值
-    let x: Result<u32, &str> = Ok(7);
-    let v = x.iter().next();
-    println!("{:?}", x.iter()); // Iter { inner: Some(7) }
-    println!("{:?}", v);    // Some(7)
-    assert_eq!(v, Some(&7));
-    let x: Result<u32, &str> = Err("nothing!");
-    let v = x.iter().next();
-    println!("{:?}", x.iter()); // Iter { inner: None }
-    println!("{:?}", v);    // None
-    assert_eq!(v, None);
+- map_or：如result为err则直接返回提供的默认值（即第一个参数），否则返回闭包（第二个参数）的结果。此2参数类型需要一致才可。
 
+``` rust
+let x: Result<_, &str> = Ok("foo");
+let u = x.map_or(42, |v| v.len());  // x有值，返回"foo".len=3
+assert_eq!(u, 3);
+println!("{:?}", u);
+let x: Result<&str, _> = Err("bar");
+let u = x.map_or(42, |v| v.len()); // x为err，直接返回42
+assert_eq!(u, 42);
+println!("{:?}", u);
+```
 
-    println!("--------- iter_mut()");
-    // 返回可变的迭代器，其余同iter
-    let mut x: Result<u32, &str> = Ok(7);
-    let mut v = x.iter_mut();
-    println!("{:?}", v); // IterMut { inner: Some(7) }
-    println!("{:?}", v.next()); // Some(7) 
-    match x.iter_mut().next() {
-        Some(v) => *v = 40, // 修改变量x
-        None => {},
-    }
-    assert_eq!(x, Ok(40)); // 通过iter_mut改值
+- map_or_else：如result为err则返回第一个闭包的结果，否则返回第二个闭包的结果。此2闭包返回类型需要一致才可。多用于对不同结果做各自的处理
 
-    let mut x: Result<u32, &str> = Err("nothing!");
-    let mut v = x.iter_mut();
-    println!("{:?}", v); // IterMut { inner: None }
-    println!("{:?}", v.next()); // None
-    assert_eq!(x.iter_mut().next(), None);
-}
+``` rust
+let k = 21;
+let x : Result<_, &str> = Ok("foo");
+let u = x.map_or_else(|_| k * 2, |v| v.len()); // 这里的_代表x是none，闭包也没有可用参数了
+assert_eq!(u, 3);
+println!("{:?}", u);
+let x : Result<&str, _> = Err("bar");
+let u = x.map_or_else(|_| k * 2, |v| v.len());
+assert_eq!(u, 42);
+println!("{:?}", u);
+```
 
+- map_err: 如result为err则执行闭包（用于改变err包裹的类型）并返回新的result（err包裹的类型已改变），否则直接返回ok。
 
-fn and_or() {
-    // and<U>(self, res: Result<U, E>) -> Result<U, E>
-    // 如果x是Ok则返回y(是个值); 否则返回x（即Err）
-    println!("--------- and()");
-    let x: Result<u32, &str> = Ok(2);
-    let y: Result<&str, &str> = Err("late error");
-    println!("{:?}", x.and(y)); // Err("late error")
-    assert_eq!(x.and(y), Err("late error"));
+``` rust
+fn stringify(x: u32) -> String { format!("error code: {}", x) }
+let x: Result<u32, u32> = Ok(2);
+let u = x.map_err(stringify);
+assert_eq!(u, Ok(2));
+println!("{:?}", u);
+let x: Result<u32, u32> = Err(13);
+let u = x.map_err(stringify); // stringify里会将原err:u32变为err:string
+assert_eq!(u, Err("error code: 13".to_string()));
+println!("{:?}", u);
+```
 
-    let x: Result<u32, &str> = Err("early error");
-    let y: Result<&str, &str> = Ok("foo");
-    println!("{:?}", x.and(y)); // Err("early error")
-    assert_eq!(x.and(y), Err("early error"));
+### ok、err
 
-    let x: Result<u32, &str> = Err("not a 2");
-    let y: Result<&str, &str> = Err("late error");
-    println!("{:?}", x.and(y)); // Err("not a 2")
-    assert_eq!(x.and(y), Err("not a 2"));
+将Result转为Option
 
-    let x: Result<u32, &str> = Ok(2);
-    let y: Result<&str, &str> = Ok("different result type");
-    println!("{:?}", x.and(y)); // Ok("different result type")
-    assert_eq!(x.and(y), Ok("different result type"));
+``` rust
+let o: Result<u32, &str> = Ok(2);
+let e: Result<u32, &str> = Err("Nothing here");
+// Converts from Result<T, E> to Option<T>.
+// ok：如result是err则转为none，否则为some（some内包裹原ok的值）
+println!("{:?}", o.ok());   // Some(2)
+println!("{:?}", e.ok());   // None
+// Converts from Result<T, E> to Option<E>.
+// err：如result是some则转为none，否则为some（some内包裹原err的值）
+println!("{:?}", o.err());   // None
+println!("{:?}", e.err());   // Some("Nothing here")
+```
 
-    println!("--------- and_then()");
-    // and_then<U, F>(self, op: F) -> Result<U, E>
-    // 如果是Ok则执行闭包(或是函数，返回result类型)，否则直接Err
-    {
-        fn sq(x: u32) -> Result<u32, u32> { Ok(x * x) } // 注意这里result的2个类型参数都是u32
-        fn err(x: u32) -> Result<u32, u32> { Err(x) } // 下面的err参数就可以使用数字了
-        assert_eq!(Ok(2).and_then(sq).and_then(sq), Ok(16));
-        assert_eq!(Ok(2).and_then(sq).and_then(err), Err(4));
-        assert_eq!(Ok(2).and_then(err).and_then(sq), Err(2));
-        assert_eq!(Err(3).and_then(sq).and_then(sq), Err(3));
-    }
+### or、or_else
 
-    println!("--------- or()");
-    // or<F>(self, res: Result<T, F>) -> Result<T, F>
-    // 如果x是ok则返回ok，否则返回y（y是值类型）
-    let x: Result<u32, &str> = Ok(2);
-    let y: Result<u32, &str> = Err("late error");
-    assert_eq!(x.or(y), Ok(2));
-    let x: Result<u32, &str> = Err("early error");
-    let y: Result<u32, &str> = Ok(2);
-    assert_eq!(x.or(y), Ok(2));
-    let x: Result<u32, &str> = Err("not a 2");
-    let y: Result<u32, &str> = Err("late error");
-    assert_eq!(x.or(y), Err("late error"));
-    let x: Result<u32, &str> = Ok(2);
-    let y: Result<u32, &str> = Ok(100);
-    assert_eq!(x.or(y), Ok(2));
+- or：如是Ok则返回Ok，否则返回传入的参数
 
-    println!("--------- or_else()");
-    // or_else<F, O>(self, op: O) -> Result<T, F>
-    // 如果x是err则执行闭包，否则返回ok
-    {
-        fn sq(x: u32) -> Result<u32, u32> { Ok(x * x) }
-        fn err(x: u32) -> Result<u32, u32> { Err(x) }
-        assert_eq!(Ok(2).or_else(sq).or_else(sq), Ok(2));
-        assert_eq!(Ok(2).or_else(err).or_else(sq), Ok(2));
-        assert_eq!(Err(3).or_else(sq).or_else(err), Ok(9));
-        assert_eq!(Err(3).or_else(err).or_else(err), Err(3));
-    }
-}
+``` rust
+let x: Result<u32, &str> = Ok(2);
+let y: Result<u32, &str> = Err("late error");
+assert_eq!(x.or(y), Ok(2));
+let x: Result<u32, &str> = Err("early error");
+let y: Result<u32, &str> = Ok(2);
+assert_eq!(x.or(y), Ok(2));
+let x: Result<u32, &str> = Err("not a 2");
+let y: Result<u32, &str> = Err("late error");
+assert_eq!(x.or(y), Err("late error"));
+let x: Result<u32, &str> = Ok(2);
+let y: Result<u32, &str> = Ok(100);
+assert_eq!(x.or(y), Ok(2));
+```
 
+- or_else：如是Ok则返回Ok，否则返回闭包的结果
 
-fn unwrap_fn() {
-    println!("--------- unwrap()");
-    // or_else<F, O>(self, op: O) -> Result<T, F>
-    // 返回Ok值或panic
-    let x: Result<u32, &str> = Ok(2);
-    assert_eq!(x.unwrap(), 2);
-    let x: Result<u32, &str> = Err("emergency failure");
-    // x.unwrap(); // 触发panics
+``` rust
+fn sq(x: u32) -> Result<u32, u32> { Ok(x * x) }
+fn err(x: u32) -> Result<u32, u32> { Err(x) }
+assert_eq!(Ok(2).or_else(sq).or_else(sq), Ok(2));
+assert_eq!(Ok(2).or_else(err).or_else(sq), Ok(2));
+assert_eq!(Err(3).or_else(sq).or_else(err), Ok(9));
+assert_eq!(Err(3).or_else(err).or_else(err), Err(3));
+```
 
-    println!("--------- unwrap_or()");
-    // unwrap_or(self, default: T) -> T
-    // x是ok则返回ok的值，否则返回默认值
-    let default = 2;
-    let x: Result<u32, &str> = Ok(9);
-    assert_eq!(x.unwrap_or(default), 9);
-    let x: Result<u32, &str> = Err("error");
-    assert_eq!(x.unwrap_or(default), default);
+### transpose
 
-    println!("--------- unwrap_or_else()");
-    // unwrap_or_else<F>(self, op: F) -> T
-    // x是ok则返回ok的值，否则返回闭包的值
-    fn count(x: &str) -> usize { x.len() }
-    assert_eq!(Ok(2).unwrap_or_else(count), 2);
-    assert_eq!(Err("foo").unwrap_or_else(count), 3);
+将Result<Option>转置为Option<Result>，Ok(None)变为None, Ok(Some(_))变为Some(Ok(_)), Err(_)变为Some(Err(_))
 
-    println!("--------- unwrap_unchecked()");
-    // unwrap_unchecked(self) -> T
-    // 直接按ok返回数值，或者崩溃
-    let x: Result<u32, &str> = Ok(2);
-    assert_eq!(unsafe { x.unwrap_unchecked() }, 2);
-    let x: Result<u32, &str> = Err("emergency failure");
-    // unsafe { x.unwrap_unchecked(); } // 崩溃，未定义的行为！
+``` rust
+#[derive(Debug, Eq, PartialEq)]
+struct SomeErr;
+let x: Result<Option<i32>, SomeErr> = Ok(Some(5));
+let y: Option<Result<i32, SomeErr>> = Some(Ok(5));
+assert_eq!(x.transpose(), y);
+```
 
-    println!("--------- unwrap_err_unchecked()");
-    // unwrap_err_unchecked(self) -> E
-    // 直接按err返回，或者崩溃
-    let x: Result<u32, &str> = Ok(2);
-    // unsafe { x.unwrap_err_unchecked() }; // 崩溃，未定义的行为！
-    let x: Result<u32, &str> = Err("emergency failure");
-    assert_eq!(unsafe { x.unwrap_err_unchecked() }, "emergency failure");
+### unwrap、unwrap_or_default、unwrap_err、unwrap_or、unwrap_or_else、unwrap_unchecked、unwrap_err_unchecked
 
+- 总结
 
-    println!("--------- unwrap_or_default()");
-    // unwrap_or_default(self) -> T
-    // 如果ok则返回包含的值，如果Err则返回该类型值的默认值
-    let good_year_from_input = "1909";
-    let bad_year_from_input = "190blarg"; // 这里在下面会返回数字0
-    let good_year = good_year_from_input.parse().unwrap_or_default();
-    let bad_year = bad_year_from_input.parse().unwrap_or_default();
-    let r = bad_year_from_input.parse::<i32>();
-    println!("{:?}", r); // Err(ParseIntError { kind: InvalidDigit })
-    println!("{:?}", r.unwrap_or_default()); // 0，这里验证了上面的说明
-    assert_eq!(1909, good_year);
-    assert_eq!(0, bad_year);
+|  函数                 | result为ok     |  result为err      | 返回值类型 |
+|  ----                 | ----          |  ----             | ----      |
+| unwrap                |返回move出来的T | panic             | T          |
+| unwrap_or_default     |返回move出来的T | 返回T类型的默认值  | T          |
+| unwrap_or             |返回move出来的T | 返回提供的默认值   | T          |
+| unwrap_or_else        |返回move出来的T | 返回闭包          | T          |
+| unwrap_err            |panic          | 返回move出来的Err值| E          |
+| unwrap_unchecked      |-|-|按ok返回被move出的T值，或者崩溃|
+| unwrap_err_unchecked  |-|-|按err返回被move出的err值，或者崩溃|
 
-    println!("--------- unwrap_err()");
-    // unwrap_err(self) -> E
-    // 如是Ok则panic，否则返回err内的值
-    let x: Result<u32, &str> = Ok(2);
-    // x.unwrap_err(); // `2` 的 panics
-    let x: Result<u32, &str> = Err("emergency failure");
-    let s = x.unwrap_err(); // 此处返回的是&str，见上一行定义
-    println!("{:?}", s);
-    assert_eq!(s, "emergency failure");
-}
+- unwrap：ok则返回被move出来的T，否则panic
 
-fn expect_fn() {
-    println!("--------- expect()");
-    // expect(self, msg: &str) -> T
-    // 如果ok则返回值，否则触发自定义信息的panic
-    let x: Result<u32, &str> = Err("emergency failure");
-    // x.expect("Testing expect"); // 此处会触发自定义信息的panics
+``` rust
+let x: Result<u32, &str> = Ok(2);
+let t1 = x.unwrap();
+let t2 = x.unwrap(); // u32是基础类型move出来的是拷贝
+let x: Result<String, &str> = Ok("s".to_string());
+let t1 = x.unwrap();
+// let t2 = x.unwrap(); 这里不能再使用了，因为String被move出来了
+let x: Result<u32, &str> = Err("emergency failure");
+// x.unwrap(); // 触发panics
+```
 
-    println!("--------- expect_err()");
-    // expect_err(self, msg: &str) -> E
-    // 如果ok则否则触发自定义信息的panic，与expect正相反
-    // let x: Result<u32, &str> = Ok(10); // 取消这句则下面panic
-    x.expect_err("Testing expect_err");
-}
+- unwrap_or_default：ok则返回被move出来的T，否则返回该类型值的默认值
 
+``` rust
+let good_year_from_input = "1909";
+let bad_year_from_input = "190blarg"; // 这里在下面会返回数字0
+let good_year = good_year_from_input.parse().unwrap_or_default();
+let bad_year = bad_year_from_input.parse().unwrap_or_default();
+let r = bad_year_from_input.parse::<i32>();
+println!("{:?}", r); // Err(ParseIntError { kind: InvalidDigit })
+println!("{:?}", r.unwrap_or_default()); // 0，这里验证了上面的说明
+assert_eq!(1909, good_year);
+assert_eq!(0, bad_year);
+```
 
-fn as_fn() {
-    // as_mut(&mut self) -> Result<&mut T, &mut E>
-    // 通过as_mut方法可以改变mut变量内部所包含的数据的值
-    // 即从 &mut Result<T, E> 转换为 Result<&mut T, &mut E>。
-    fn mutate(r: &mut Result<i32, i32>) {
-        match r.as_mut() {
-            Ok(v) => *v = 42,
-            Err(e) => *e = 0,
-        }
-    }
+- unwrap_err：如是Ok则panic，否则返回被move出来的err值
 
-    let mut x: Result<i32, i32> = Ok(2);
-    mutate(&mut x);
-    println!("{:?}", x); // Ok(42)
-    assert_eq!(x.unwrap(), 42);
-    
-    let mut x: Result<i32, i32> = Err(13);
-    mutate(&mut x);
-    println!("{:?}", x); // Err(0)
-    assert_eq!(x.unwrap_err(), 0);
+``` rust
+let x: Result<u32, &str> = Ok(2);
+// x.unwrap_err(); // `2` 的 panics
+let x: Result<u32, &str> = Err("emergency failure");
+let s = x.unwrap_err(); // 此处返回的是&str，见上一行定义
+println!("{:?}", s);
+assert_eq!(s, "emergency failure");
+let s = "s".to_string();
+let x: Result<u32, String> = Err(s);
+let s1 = x.unwrap_err();
+// let s2 = x.unwrap_err(); 已在上句move走
+```
 
-    // as_ref(&self) -> Result<&T, &E>
-    // 将具有所有权对象转换成引用对象，其实就是对T创建个引用，此引用当作函数参数，这样就不会被move了，函数执行完T依然有所有权
-    let result: Result<String, &str> = Ok(String::from("hello"));
-    let size = result.map(|s| s.len()); // String的所有权被move了，下面会失败
-    // println!("{}",result.unwrap());
-    let result: Result<String, &str> = Ok(String::from("hello"));
-    let size = result.as_ref().map(|s| s.len()); // 这里是引用，string不被move，所以下面还有所有权
-    println!("{}",result.unwrap()); // hello
+- unwrap_or：ok则返回move出的T，否则返回默认值
 
+``` rust
+let default = 2;
+let x: Result<u32, &str> = Ok(9);
+assert_eq!(x.unwrap_or(default), 9);
+let x: Result<u32, &str> = Err("error");
+assert_eq!(x.unwrap_or(default), default);
+```
 
-    // as_deref(&self) -> Result<&<T as Deref>::Target, &E>
-    // 原result不变，返回一个将T和E都变为对应引用的Result，类似as_ref不产生move
-    let result: Result<String, &str> = Ok(String::from("hello"));
-    assert_eq!(result.as_deref(), Ok("hello"));
-    print_type_of(&result); // core::result::Result<alloc::string::String, &str>
-    print_type_of(&result.as_deref()); // core::result::Result<&str, &&str>
-    println!("{:?}", result); // Ok("hello") 
+- unwrap_or_else：ok则返回move出的T，否则返回闭包
 
-    let x: Result<String, u32> = Ok("hello".to_string());
-    let y: Result<&str, &u32> = Ok("hello");
-    assert_eq!(x.as_deref(), y);
-    let x: Result<String, u32> = Err(42);
-    let y: Result<&str, &u32> = Err(&42);
-    assert_eq!(x.as_deref(), y);
-}
+``` rust
+fn count(x: &str) -> usize { x.len() }
+assert_eq!(Ok(2).unwrap_or_else(count), 2);
+assert_eq!(Err("foo").unwrap_or_else(count), 3);
+```
 
-fn cloned_copied(){
-    // cloned(self) -> Result<T, E>
-    // 当处理资源时，默认的行为是在赋值或函数调用的同时将它们转移。但是我们有时候也需要把资源复制一份。
-    // 通过克隆Ok部分的内容，将一个<&T, E>或<&mut T, E>映射到一个<T, E>
-    let val = 12;
-    let x: Result<&i32, i32> = Ok(&val);
-    assert_eq!(x, Ok(&12));
-    let cloned = x.cloned();
-    assert_eq!(cloned, Ok(12));
+- unwrap_unchecked：直接按ok返回被move出的T，或者崩溃
 
-    let mut val = 12;
-    let x: Result<&mut i32, i32> = Ok(&mut val);
-    assert_eq!(x, Ok(&mut 12));
-    let cloned = x.cloned();
-    assert_eq!(cloned, Ok(12));
+``` rust
+let x: Result<u32, &str> = Ok(2);
+assert_eq!(unsafe { x.unwrap_unchecked() }, 2);
+let x: Result<u32, &str> = Err("emergency failure");
+// unsafe { x.unwrap_unchecked(); } // 崩溃，未定义的行为！
+```
 
+- unwrap_err_unchecked：直接按err返回被move出的err值，或者崩溃
 
-    // 通过复制Ok部分的内容，将一个<&T, E>或<&mut T, E>转换为一个<T, E>
-    let val = 12;
-    let x: Result<&i32, i32> = Ok(&val);
-    assert_eq!(x, Ok(&12));
-    let copied = x.copied();
-    assert_eq!(copied, Ok(12));
+``` rust
+let x: Result<u32, &str> = Ok(2);
+// unsafe { x.unwrap_err_unchecked() }; // 崩溃，未定义的行为！
+let x: Result<u32, &str> = Err("emergency failure");
+assert_eq!(unsafe { x.unwrap_err_unchecked() }, "emergency failure");
+```
 
-    let mut val = 12;
-    let x: Result<&mut i32, i32> = Ok(&mut val);
-    assert_eq!(x, Ok(&mut 12));
-    let copied = x.copied();
-    assert_eq!(copied, Ok(12));
-}
+### FromIterator
 
-fn transpose(){
-    #[derive(Debug, Eq, PartialEq)]
-    struct SomeErr;
-    // 将Result<Option>转置为Option<Result>
-    // Ok(None)->None, Ok(Some(_))->Some(Ok(_)), Err(_)->Some(Err(_))
-    let x: Result<Option<i32>, SomeErr> = Ok(Some(5));
-    let y: Option<Result<i32, SomeErr>> = Some(Ok(5));
-    assert_eq!(x.transpose(), y);
-}
+迭代每一个元素并进行计算，如某元素结果是Err则停止迭代并返回Err，否则返回一个由Result包裹的T类型容器
 
-fn print_type_of<T>(_: &T) {
-    println!("{}", std::any::type_name::<T>())
-}
+``` rust
+let v = vec![1, 2];
+let res: Result<Vec<u32>, &'static str> = v.iter().map(|x: &u32|
+    x.checked_add(1).ok_or("Overflow!") // 如果溢出则停止迭代并返回err，否则每个元素加1
+).collect();
+assert_eq!(res, Ok(vec![2, 3]));
+let v = vec![1, 2, 0];
+let res: Result<Vec<u32>, &'static str> = v.iter().map(|x: &u32|
+    x.checked_sub(1).ok_or("Underflow!") // 每个元素减1，如由结果小于0的就停止迭代并返回err
+).collect();
+assert_eq!(res, Err("Underflow!"));
+// 此例用于验证元素结果为err则停止迭代
+let v = vec![3, 2, 1, 10];
+let mut shared = 0;
+let res: Result<Vec<u32>, &'static str> = v.iter().map(|x: &u32| {
+    shared += x;
+    x.checked_sub(2).ok_or("Underflow!")
+}).collect();
+assert_eq!(res, Err("Underflow!"));
+assert_eq!(shared, 6); // 由于第三个元素1减2小于0了，所以没再继续迭代，最终shared=6（3+21）
+```
 
-fn main() {
-    ok_err();
-    isok_iserr();
-    map_fn();
-    iter_fn();
-    and_or();
-    unwrap_fn();
-    expect_fn();
-    as_fn();
-    cloned_copied();
-    transpose();
-}
+### into_iter
+
+into_iter返回的是T类型的值的迭代器，从result里获取到的只能是一个ok值或是err值
+
+``` rust
+let x: Result<u32, &str> = Ok(5);
+let it = x.into_iter(); // IntoIter<u32>
+let v: Vec<u32> = it.collect(); // 这里被消耗掉了，下面不能再使用了
+// println!("{it:?}");
+assert_eq!(v, [5]);
+
+let x: Result<u32, &str> = Err("nothing!");
+let v: Vec<u32> = x.into_iter().collect();
+assert_eq!(v, []);
+```
+
+### sum
+
+迭代容器，如果元素是Err，则停止迭代并返回Err。否则返回所有元素的总和
+
+``` rust
+let v = vec![1, 2];
+let res: Result<i32, &'static str> = v.iter().map(|&x: &i32|
+    if x < 0 { Err("Negative element found") }
+    else { Ok(x) }
+).sum();
+assert_eq!(res, Ok(3));
 ```
 
 ## Result与Option的组合
