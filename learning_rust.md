@@ -1451,7 +1451,7 @@ fn main() {
 ```
 
 
-## 基本数据类型
+## 基本数据类型scalar
 
 ### 整数
 
@@ -1588,7 +1588,7 @@ let c3 = '\u{7FFF}'; // unicode字符
 Rust中类型转换分为隐式类型转换和显式类型转换。隐式类型转换是由编译器来完成的，显式类型转换是由开发者来指定的。一般，我们所说的类型转换是指显式类型转换。
 基础类型可以通过 as 关键字进行转换，如果是自定义类型，则通过 From 和 Into 进行转换。
 
-### 原生类型间的转换
+### 原生类型间的转换 as
 
 - as关键字用于Rust中原生数据类型间的转换。需要注意的是，短类型转换为长类型是没有问题的，但是长类型转换为短类型会被截断处理。此外，当有符号类型向无符号类型转换时，不适合使用as关键字。
 - 与 C 和 C++ 不同，Rust 几乎不进行隐式数值类型转换。如果函数接收 f64 参数，传入 i32 值就会导致错误。事实上，Rust 甚至都不会隐式地将 i16 值转换为 i32 值，即使每个 i16 值也是 i32 值。不过，可以通过as操作符将bool类型转换为数字0和1。但要注意，Rust并不支持将数字转换为bool类型。
@@ -1817,117 +1817,6 @@ FF
     "test2",
 )
 x y y
-```
-
-### fmt::Debug
-
-- 所有类型都可以派生（自动创建）fmt::Debug实现。
-- 虽然很方便但不能自定义格式
-
-另见案例[打印结构体](##打印结构体)。
-
-``` rust
-// Derive the `fmt::Debug` implementation for `Structure`. `Structure`
-// is a structure which contains a single `i32`.
-#[derive(Debug)]
-struct Structure(i32);
-
-// Put a `Structure` inside of the structure `Deep`. Make it printable
-// also.
-#[derive(Debug)]
-struct Deep(Structure);
-
-fn main() {
-    // Printing with `{:?}` is similar to with `{}`.
-    println!("{:?} months in a year.", 12);
-    println!("{1:?} {0:?} is the {actor:?} name.",
-             "Slater",
-             "Christian",
-             actor="actor's");
-
-    // `Structure` is printable!
-    println!("Now {:?} will print!", Structure(3));
-
-    // The problem with `derive` is there is no control over how
-    // the results look. What if I want this to just show a `7`?
-    println!("Now {:?} will print!", Deep(Structure(7)));
-}
-
-12 months in a year.
-"Christian" "Slater" is the "actor's" name.
-Now Structure(3) will print!
-Now Deep(Structure(7)) will print!
-```
-
-### fmt::Display
-
-可以通过手动实现fmt::Display进行自定义的打印输出。
-
-案例对debug与display进行了对比的输出
-
-``` rust
-use std::fmt; // Import `fmt`
-
-// A structure holding two numbers. `Debug` will be derived so the results can
-// be contrasted with `Display`.
-#[derive(Debug)]
-struct MinMax(i64, i64);
-
-// Implement `Display` for `MinMax`.
-impl fmt::Display for MinMax {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // Use `self.number` to refer to each positional data point.
-        write!(f, "({}, {})", self.0, self.1)
-    }
-}
-
-// Define a structure where the fields are nameable for comparison.
-#[derive(Debug)]
-struct Point2D {
-    x: f64,
-    y: f64,
-}
-
-// Similarly, implement `Display` for `Point2D`.
-impl fmt::Display for Point2D {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // Customize so only `x` and `y` are denoted.
-        write!(f, "x: {}, y: {}", self.x, self.y)
-    }
-}
-
-fn main() {
-    let minmax = MinMax(0, 14);
-
-    println!("Compare structures:");
-    println!("Display: {}", minmax);
-    println!("Debug: {:?}", minmax);
-
-    let big_range =   MinMax(-300, 300);
-    let small_range = MinMax(-3, 3);
-
-    println!("The big range is {big} and the small is {small}",
-             small = small_range,
-             big = big_range);
-
-    let point = Point2D { x: 3.3, y: 7.2 };
-
-    println!("Compare points:");
-    println!("Display: {}", point);
-    println!("Debug: {:?}", point);
-
-    // Error. Both `Debug` and `Display` were implemented, but `{:b}`
-    // requires `fmt::Binary` to be implemented. This will not work.
-    // println!("What does Point2D look like in binary: {:b}?", point);
-}
-
-Compare structures:
-Display: (0, 14)
-Debug: MinMax(0, 14)
-The big range is (-300, 300) and the small is (-3, 3)
-Compare points:
-Display: x: 3.3, y: 7.2
-Debug: Point2D { x: 3.3, y: 7.2 }
 ```
 
 ## 变量（可变变量和不可变变量）
@@ -9085,8 +8974,8 @@ fn main() {
 
 ### 格式化输出Debug与Display
 
-- Debug trait 是调试打印用的。Debug 用 {:?}或{:#?} 来打印。
-- Display trait是以{}格式打印输出信息的，Display是给用户展示用的。但是，Display不能与derive属性一起使用。要实现Display，需要实现fmt方法。
+- Debug trait 是调试打印用的。Debug 用 {:?}或{:#?} 来打印。虽然很方便但不能自定义格式
+- Display trait是以{}格式打印输出信息的，Display是给用户展示用的。但是，Display不能与derive属性一起使用。要实现Display，需要实现fmt方法。可以通过手动实现fmt::Display进行自定义的打印输出。
 
 ``` rust
 use std::fmt::{Display, Formatter, Result};
@@ -9116,6 +9005,108 @@ Point {
     x: 0,
     y: 0,
 }
+```
+
+另见案例[打印结构体](##打印结构体)。
+
+``` rust
+// Derive the `fmt::Debug` implementation for `Structure`. `Structure`
+// is a structure which contains a single `i32`.
+#[derive(Debug)]
+struct Structure(i32);
+
+// Put a `Structure` inside of the structure `Deep`. Make it printable
+// also.
+#[derive(Debug)]
+struct Deep(Structure);
+
+fn main() {
+    // Printing with `{:?}` is similar to with `{}`.
+    println!("{:?} months in a year.", 12);
+    println!("{1:?} {0:?} is the {actor:?} name.",
+             "Slater",
+             "Christian",
+             actor="actor's");
+
+    // `Structure` is printable!
+    println!("Now {:?} will print!", Structure(3));
+
+    // The problem with `derive` is there is no control over how
+    // the results look. What if I want this to just show a `7`?
+    println!("Now {:?} will print!", Deep(Structure(7)));
+}
+
+12 months in a year.
+"Christian" "Slater" is the "actor's" name.
+Now Structure(3) will print!
+Now Deep(Structure(7)) will print!
+```
+
+案例对debug与display进行了对比的输出
+
+``` rust
+use std::fmt; // Import `fmt`
+
+// A structure holding two numbers. `Debug` will be derived so the results can
+// be contrasted with `Display`.
+#[derive(Debug)]
+struct MinMax(i64, i64);
+
+// Implement `Display` for `MinMax`.
+impl fmt::Display for MinMax {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // Use `self.number` to refer to each positional data point.
+        write!(f, "({}, {})", self.0, self.1)
+    }
+}
+
+// Define a structure where the fields are nameable for comparison.
+#[derive(Debug)]
+struct Point2D {
+    x: f64,
+    y: f64,
+}
+
+// Similarly, implement `Display` for `Point2D`.
+impl fmt::Display for Point2D {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // Customize so only `x` and `y` are denoted.
+        write!(f, "x: {}, y: {}", self.x, self.y)
+    }
+}
+
+fn main() {
+    let minmax = MinMax(0, 14);
+
+    println!("Compare structures:");
+    println!("Display: {}", minmax);
+    println!("Debug: {:?}", minmax);
+
+    let big_range =   MinMax(-300, 300);
+    let small_range = MinMax(-3, 3);
+
+    println!("The big range is {big} and the small is {small}",
+             small = small_range,
+             big = big_range);
+
+    let point = Point2D { x: 3.3, y: 7.2 };
+
+    println!("Compare points:");
+    println!("Display: {}", point);
+    println!("Debug: {:?}", point);
+
+    // Error. Both `Debug` and `Display` were implemented, but `{:b}`
+    // requires `fmt::Binary` to be implemented. This will not work.
+    // println!("What does Point2D look like in binary: {:b}?", point);
+}
+
+Compare structures:
+Display: (0, 14)
+Debug: MinMax(0, 14)
+The big range is (-300, 300) and the small is (-3, 3)
+Compare points:
+Display: x: 3.3, y: 7.2
+Debug: Point2D { x: 3.3, y: 7.2 }
 ```
 
 ### 默认值Default
@@ -9300,18 +9291,186 @@ id: 3, name: wanwu
 
 ```
 
-### 复制值Clone与Copy
+### Copy、Clone与to_owned
 
-- Clone trait用于标记可以对值进行深复制的类型，即对栈上和堆上的数据一起复制。要实现Clone，需要实现clone方法。如果要使用#[derive(Clone)]语法标记结构体或枚举，要求结构体的每个字段或枚举的每个值都可调用clone方法，意味着所有字段或值的类型都必须实现Clone。
-- Copy trait用于标记可以按位复制其值的类型，即复制栈上的数据。Copy继承自Clone，这意味着要实现Copy的类型，必须实现Clone的clone方法。如果想让一个类型实现Copy，就必须同时实现Clone，会比较烦琐且累赘，所以Rust提供了方便的derive属性来完成这项重复的工作
-- Rust为数字类型、字符类型、布尔类型、单元值等实现了Copy，但并非所有类型都可以实现Copy。对于结构体来说，必须所有字段都实现了Copy，这个结构体才能实现Copy。
-- Copy是一个隐式行为。开发者不能重载Copy行为，它永远是简单的位复制。Copy的隐式行为常发生在执行变量绑定、函数参数传递、函数返回等场景中。与Copy不同的是，Clone是一个显式行为。任何类型都可以实现Clone，开发者可以按需实现clone方法。
+- copy是浅赋值
+- clone也许会深复制
+- clone()与to_owned()主要差异是应用在引用类型中。如&str,&[i8],&[u32]
+
+#### copy
+
+- 一旦某种数据类型拥有了 Copy trait，它的变量就可以在赋值，传参的时候，值会自动按位拷贝（就是浅拷贝），而没有move，因为move是默认的规则
+- Copy语义：当移动时，支持Copy的就Copy，不支持的就Move了。如果不希望值的所有权被转移，又无法使用Copy语义，那就是”借用“的概念了。。。
+- 基本数据类型（scalar，即整数、浮点、布尔、字符）以及由其组成的tuple或数组或结构，函数，不可变引用和裸指针都有copy
+- 可变引用没有实现Copy。（<&mut String>），非固定大小的结构，没有实现Copy。如：vec， hash。
+- 如果一种类型本身或者这种类型的任意成员实现了 Drop trait，那么 Rust 就不允许其实现 Copy trait。尝试在给某个需要在离开作用域时执行特殊指令（即实现了drop）的类型实现 Copy 这种 trait 会导致编译时错误。
+
+#### clone
+
+- clone也许会深复制
+- 如果需要struct支持clone则要满足：（1）所有元素是可clone的（2）在struct上面添加 #[derive(Clone)]
+- clone试图从引用产生的新值让其拥有所有权，但不一定成功（如从无法确定容量的&[T]进行克隆得到的依然是&[T]）
 
 ``` rust
-#[derive(Copy, Clone)]
-struct MyStruct;
+    #[derive(Clone)]
+    struct MyObject {
+        first_name: String,
+        last_name: String,
+        age: u8,
+    }
+
+    impl MyObject {
+        pub const fn new() -> MyObject {
+            MyObject {
+                first_name: String::new(),
+                last_name: String::new(),
+                age: 0,
+            }
+        }
+    }
+
+    // &str和&[u8]使用.clone()将分别生成&str和&[u8]
+    let str = "a"; // type &str 
+    let cloned_str = str.clone(); // type &str
+    println!("{cloned_str:?}");
+    let array:&[u8] = &[1, 2, 3]; // type &[u8]
+    let cloned_array = array.clone(); //type &[u8]
+    println!("{cloned_array:?}");
+
+    // 所有简单类型都支持clone，如str, i8,u8, char,array, bool等
+    let str = "a";
+    let cloned_str = str.clone();
+    let number: u8 = 10;
+    let cloned_number = number.clone();
+    let borrowed_number:&u8 = &10;
+    let cloned_borrowed_number = borrowed_number.clone();
+    let array: [&str; 3] = ["a", "b", "c"];
+    let cloned_array = array.clone();
+    let borrowed_array: &[&str; 3] = &["a", "b", "c"];
+    let cloned_borrowed_array = borrowed_array.clone();
+    let string: String = String::from("Hello, world!");
+    let cloned_string = string.to_owned();
+
+    // 克隆struct
+    let my_object = MyObject::new();
+    let cloned_my_object = my_object.clone(); // this will work!
+
+    /*
+    clone()生成一个T类型的复制体，如
+    u8克隆出的对象将是u8
+    String克隆出的对象将是一个String
+    &[&str]克隆出的对象是&[&str]
+    MyObject克隆出的将是MyObject
+    */
+    let number:u8 = 10; // type u8
+    let cloned_number = number.clone(); // type u8
+    let array: &[&str] = &["a", "b", "c"]; // type &[&str]
+    let cloned_array = array.clone(); // type &[&str]
+    let string: String = String::from("Hello, world!"); // type String
+    let cloned_string = string.to_owned(); // type String
+    let my_object = MyObject::new(); // type MyObject
+    let cloned_my_object = my_object.clone(); // type MyObject
+
+    // 在编译期如果知道被引用的对象的size，则可以克隆出非引用的对象
+    let borrowed_number: &u8 = &10; // type &u8
+    let cloned_borrowed_number = borrowed_number.clone(); // type u8
+    let borrowed_array: &[&str; 3] = &["a", "b", "c"]; // type &[&str; 3]
+    let cloned_borrowed_array = borrowed_array.clone(); // type [&str; 3]
+    let string: &String = &String::from("Hello, world!"); // type &String
+    let cloned_string = string.clone(); // type String
+
+    // 对于scalar（整数、浮点、布尔、字符）与元组可以从&T克隆出T
+    let integer: &u8 = &1; // type is &u8
+    let cloned_integer = integer.clone(); // type is u8
+    let floating_number = &2.3; // type is &f64
+    let cloned_floating_number = floating_number.clone(); // type is f64
+    let boolean = &true; // type is &boolean
+    let cloned_boolean = boolean.clone(); // type is boolean
+    let character = &'a'; // type is &char
+    let cloned_character = character.clone(); // type is char
+
+    // 当原数组有所有权时，.clone()方法可以复制数组，即从[T]到[T]：
+    let owned_array: [i32; 3] = [1, 2, 3];
+    let cloned_owned_array = owned_array.clone(); // type is [i32; 3]
+    // 只要数组容量确定的时候clone()也可以从&[T]到[T]
+    let borrowed_array: &[i32; 3] = &[1, 2, 3];
+    let cloned_borrowed_array = borrowed_array.clone(); // type is [i32; 3]
+    // 这样定义数组也能隐含的知道容量，还是从&[T]到[T]：
+    let borrowed_array = &[1, 2, 3]; // it will implicitly define the type as &[i32; 3]
+    let cloned_borrowed_array = borrowed_array.clone(); // type is [i32; 3]
+
+    // 如果数组无法确定容量则只能从&[T]克隆出&[T]
+    let numbers: &[i32] = &[1, 2, 3];
+    let cloned_numbers = numbers.clone(); // type is [&i32]
+    let strs: &[&str] = &["asfa", "saf", "asfas"];
+    let cloned_strs = strs.clone(); // type is &[&str]
 ```
 
+#### to_owned
+
+to_owned确保新值具有所有权，即使类型发生转变也无所谓（如&str->String或&[u8]->Vec<u8>）
+
+``` rust
+    // &[u8]使用to_owned()会生成Vec<u8>,&str使用to_owned()会生成String
+    let s = str.to_owned(); // String
+    println!("{s:?}");
+    let array:&[u8] = &[1, 2, 3];
+    let cloned_array = array.to_owned(); //  Vec<u8>
+    println!("{cloned_array:?}");
+
+    // 在T上应用.to_owned()，将得到一个新的T
+    let number:u8 = 10; // type u8
+    let to_owned_number = number.to_owned(); // type u8
+    let string: String = String::from("Hello, world!"); // type String
+    let to_owned_string = string.to_owned(); // type String
+    let my_object = MyObject::new(); // type MyObject
+    let to_owned_my_object = my_object.to_owned(); // type MyObject
+
+    // 在&T上应用.to_owned()，将得到一个新的T
+    let number: &u8 = &10; // type u8
+    let cloned_number = number.to_owned(); // type u8
+    let string: &String = &String::from("Hello, world!"); // type &String
+    let cloned_string = string.to_owned(); // type String
+    let my_object: &MyObject = &MyObject::new(); // type &MyObject
+    let cloned_my_object = my_object.to_owned(); // type MyObject
+
+    // 在&str上使用则不同于其它类型
+    let s = "sss";
+    let s2 = s.to_owned(); // 对&str to_owned得到的是string
+
+    /* .to_owned()方法从一个未定义容量的引用数组生成一个向量
+    &[i8] -> Vec<i8>
+    &[i16] -> Vec<i16>
+    &[i32] -> Vec<i32>
+    &[i64] -> Vec<i64>
+    &[i128] -> Vec<i128>
+    &[u8] -> Vec<u8>
+    &[u16] -> Vec<u16>
+    &[u32] -> Vec<u32>
+    &[u64] -> Vec<u64>
+    &[u128] -> Vec<u128>
+    */
+    let array_i8: &[i8] = &[1, 2, 3];
+    let cloned_array_i8 = array_i8.to_owned(); // type is Vec<i8>
+    let array_i16: &[i16] = &[1, 2, 3];
+    let cloned_array_i16 = array_i16.to_owned(); // type is Vec<i16>
+    let array_i32: &[i32] = &[1, 2, 3];
+    let cloned_array_i32 = array_i32.to_owned(); // type is Vec<i32>
+    let array_i64: &[i64] = &[1, 2, 3];
+    let cloned_array_i64 = array_i64.to_owned(); // type is Vec<i64>
+    let array_i128: &[i128] = &[1, 2, 3];
+    let cloned_array_i128 = array_i128.to_owned(); // type is Vec<i128>
+    let array_u8: &[u8] = &[1, 2, 3];
+    let cloned_array_u8 = array_u8.to_owned(); // type is Vec<u8>
+    let array_u16: &[u16] = &[1, 2, 3];
+    let cloned_array_u16 = array_u16.to_owned(); // type is Vec<u16>
+    let array_u32: &[u32] = &[1, 2, 3];
+    let cloned_array_u32 = array_u32.to_owned(); // type is Vec<u32>
+    let array_u64: &[u64] = &[1, 2, 3];
+    let cloned_array_u64 = array_u64.to_owned(); // type is Vec<u64>
+    let array_u128: &[u128] = &[1, 2, 3];
+    let cloned_array_u128 = array_u128.to_owned(); // type is Vec<u128>
+```
 
 ### 自定义值类型之间的转换From与Into
 
