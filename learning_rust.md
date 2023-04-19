@@ -2057,9 +2057,8 @@ Rust 提供了多种类型的指针，包括
 ## 静态变量
 
 - 用static声明的变量的生命周期是整个程序，从启动到退出。static变量的生命周期永远是'static，它占用的内存空间也不会在执行过程中回收。这也是Rust中唯一的声明全局变量的方法。
-- 全局变量必须在声明的时候马上初始化
-- 全局变量的初始化必须是编译期可确定的常量，不能包括执行期才能确定的表达式、语句和函数调用；
-- 带有mut修饰的全局变量，在使用的时候必须使用unsafe关键字。
+
+下面的案例中的全局变量展示的不够完美，仅当静态变量使用，更好的案例见[全局变量](##全局变量)
 
 ``` rust
 fn main() {
@@ -2105,6 +2104,71 @@ static vec : Vec<i32> = { let mut v = Vec::new(); v.push(1); v };
 fn main() {
 use std::sync::atomic::AtomicBool;
 static FLAG: AtomicBool = AtomicBool::new(true);
+}
+```
+
+## 全局变量
+
+- 全局变量必须在声明的时候马上初始化
+- 全局变量的初始化必须是编译期可确定的常量，不能包括执行期才能确定的表达式、语句和函数调用；
+- 带有mut修饰的全局变量，在使用的时候必须使用unsafe关键字。
+
+案例：使用Lazy::new初始化全局变量
+
+``` rust
+once_cell = "1.17.1" 
+chrono = "0.4.24"
+
+
+use once_cell::sync::Lazy; // 效果相当于“异步的支持延迟初始化的单例模式”
+use chrono::Utc;
+static GLOBAL_DATA: Lazy<String> = Lazy::new(||Utc::now().to_string());
+fn main() {
+    println!("{}", *GLOBAL_DATA);
+}
+
+// 另外一些初始化演示，如：
+static mut BGWORKER: Lazy<BgWorker> = Lazy::new(|| { BgWorker::new() });
+
+static UNIX_SOCKET_DIR: Lazy<String> = Lazy::new(|| {
+	unsafe {
+		let opt_name = std::ffi::CString::new("unix_socket_directories").unwrap();
+		let cvalue = pgx::pg_sys::GetConfigOption(opt_name.as_ptr(), false, false);
+		let value = std::ffi::CStr::from_ptr(cvalue);
+		let svalue = value.to_str().unwrap();
+		svalue.to_owned()
+	}
+});
+
+static SQL_PORT: Lazy<i32> = Lazy::new(|| {
+	unsafe {
+		let opt_name = std::ffi::CString::new("port").unwrap();
+		let cvalue = pgx::pg_sys::GetConfigOption(opt_name.as_ptr(), false, false);
+		let value = std::ffi::CStr::from_ptr(cvalue);
+		let svalue = value.to_str().unwrap();
+		i32::from_str_radix(svalue, 10).unwrap()
+	}
+});
+
+```
+
+案例：使用lazy_static初始化全局变量
+
+``` rust
+chrono = "0.4.24"
+lazy_static = "1.4.0"
+
+
+#[macro_use]
+extern crate lazy_static; 
+use chrono::Utc;
+
+lazy_static!(
+    static ref GLOBAL_DATA: String = Utc::now().to_string();
+);
+
+fn main() {
+    println!("{}", *GLOBAL_DATA);
 }
 ```
 
@@ -3435,6 +3499,7 @@ fn main() {
 
 // 访问元素，注意下面两种都是取引用（使⽤&与[]），取值会导致所有权的移动
 // get⽅法则会返回⼀个Option<&T>
+// get_mut可以获取可变引用，如：let mut timeline = new_tenant.timelines.get_mut(0).unwrap();
 
     let mut nums: Vec<u32> = Vec::new();
     nums.push(10);
@@ -3534,6 +3599,8 @@ fn main() {
     let idx = s.binary_search(&num).unwrap_or_else(|x| x);
     s.insert(idx, num);
     assert_eq!(s, [0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 42, 55]);
+
+// 去重，如：changed_nodes.dedup();
 }
   
 ```
@@ -3677,7 +3744,7 @@ fn main() {
     }
     println!("{:?}", map);
 
-
+// get_mut 获取可变引用
     // 在已经确定有某个键的情况下如果想直接修改对应的值，有更快的办法
     // 如果有k存在则更新v
     let mut map = HashMap::new();
@@ -3686,6 +3753,12 @@ fn main() {
         *x = "bbb";
     }
     println!("{:?}", map);
+
+// 检测有此K
+    let mut map = HashMap::new();
+    map.insert(1, "a");
+    assert_eq!(map.contains_key(&1), true);
+    assert_eq!(map.contains_key(&2), false);
 }
 
 ```
@@ -4201,7 +4274,316 @@ fn main(){
 }
 ```
 
-# 宏 macro_rules
+# 宏
+
+https://blog.logrocket.com/macros-in-rust-a-tutorial-with-examples/
+
+- 宏看起来和函数很像，只不过名称末尾有一个感叹号!。
+- 和C的宏不同，Rust宏会展开为抽象语法树（AST，abstract syntax tree），而不是字符串替换，这样就不会产生无法预料的优先权错误。
+- 宏是通过 macro_rules! 宏来创建的。
+
+## 语法
+### 捕获（Captures）
+
+匹配式（Patterns） 可以包含捕获。这样就可以根据概括性的语法类型匹配输入，将结果捕获到一个变量中，然后将该变量替换到输出中。捕获以美元符 ($) 开始，跟着一个标识符，一个冒号 (:)，最后是捕捉类型，必须是以下类型之一：
+
+- item: 例如 函数、结构、模块等等
+- block: 代码块 （即语句块和/或表达式，用大括号括起来）
+- stmt: 语句
+- pat: 匹配式
+- expr: 表达式
+- ty: 类型
+- ident: 标识符
+- path: 路径 (例如， foo, ::std::mem::replace, transmute::<_, int>, …)
+- meta: 元项目;在 #[...] 和 #![...] 属性里的东西。
+- tt: 单个 token tree
+
+``` rust
+macro_rules! create_function {
+    // 此宏接受一个 `ident` 指示符表示的参数，并创建一个名为 `$func_name` 的函数。
+    // `ident` 指示符用于变量名或函数名
+    ($func_name:ident) => (
+        fn $func_name() {
+            // `stringify!` 宏把 `ident` 转换成字符串。
+            println!("You called {:?}()",
+                     stringify!($func_name))
+        }
+    )
+}
+
+// 借助上述宏来创建名为 `foo` 和 `bar` 的函数。
+create_function!(foo);
+create_function!(bar);
+
+macro_rules! print_result {
+    // 此宏接受一个 `expr` 类型的表达式，并将它作为字符串，连同其结果一起
+    // 打印出来。
+    // `expr` 指示符表示表达式。
+    ($expression:expr) => (
+        // `stringify!` 把表达式*原样*转换成一个字符串。
+        println!("{:?} = {:?}",
+                 stringify!($expression),
+                 $expression)
+    )
+}
+
+fn main() {
+    foo();
+    bar();
+
+    print_result!(1u32 + 1);
+
+    // 回想一下，代码块也是表达式！
+    print_result!({
+        let x = 1u32;
+
+        x * x + 2 * x - 1
+    });
+}
+
+You called "foo"()
+You called "bar"()
+"1u32 + 1" = 2
+"{ let x = 1u32; x * x + 2 * x - 1 }" = 2
+```
+
+也可以在一个匹配式中有多个捕获：
+
+``` rust
+macro_rules! multiply_add {
+    ($a:expr, $b:expr, $c:expr) => {$a * ($b + $c)};
+}
+```
+### 重载
+
+宏可以重载，从而接受不同的参数组合。在这方面，macro_rules! 的作用类似于匹配（match）代码块：
+
+``` rust
+// 根据你调用它的方式，`test!` 将以不同的方式来比较 `$left` 和 `$right`。
+macro_rules! test {
+    // 参数不需要使用逗号隔开。
+    // 参数可以任意组合！
+    ($left:expr; and $right:expr) => (
+        println!("{:?} and {:?} is {:?}",
+                 stringify!($left),
+                 stringify!($right),
+                 $left && $right)
+    );
+    // ^ 每个分支都必须以分号结束。
+    ($left:expr; or $right:expr) => (
+        println!("{:?} or {:?} is {:?}",
+                 stringify!($left),
+                 stringify!($right),
+                 $left || $right)
+    );
+}
+
+fn main() {
+    test!(1i32 + 1 == 2i32; and 2i32 * 2 == 4i32);
+    test!(true; or false);
+}
+
+"1i32 + 1 == 2i32" and "2i32 * 2 == 4i32" is true
+"true" or "false" is true
+```
+
+### 重复
+
+宏在参数列表中可以使用 + 来表示一个参数可能出现一次或多次，使用 * 来表示该参数可能出现零次或多次。
+
+在下面例子中，“$($y:expr),+” 就可以匹配一个或多个用逗号隔开的表达式。另外注意到，宏定义的最后一个分支可以不用分号作为结束。
+
+``` rust
+// `min!` 将求出任意数量的参数的最小值。
+macro_rules! find_min {
+    // 基本情形：
+    ($x:expr) => ($x);
+    // `$x` 后面跟着至少一个 `$y,`
+    ($x:expr, $($y:expr),+) => (
+        // 对 `$x` 后面的 `$y` 们调用 `find_min!` 
+        std::cmp::min($x, find_min!($($y),+))
+    )
+}
+
+fn main() {
+    println!("{}", find_min!(1u32));
+    println!("{}", find_min!(1u32 + 2 , 2u32));
+    println!("{}", find_min!(5u32, 2u32 * 3, 4u32));
+}
+
+1
+2
+4
+```
+
+下面的案例将每个元素格式化为一个字符串。它匹配零个或多个用逗号分隔的表达式，并展开为构造vector 的表达式。
+
+``` rust
+macro_rules! vec_strs {
+    (
+        // Start a repetition:
+        $(
+            // Each repeat must contain an expression...
+            $element:expr
+        )
+        // ...separated by commas...
+        ,
+        // ...zero or more times.
+        *
+    ) => {
+        // Enclose the expansion in a block so that we can use
+        // multiple statements.
+        {
+            let mut v = Vec::new();
+
+            // Start a repetition:
+            $(
+                // Each repeat will contain the following statement, with
+                // $element replaced with the corresponding expression.
+                v.push(format!("{}", $element));
+            )*
+
+            v
+        }
+    };
+}
+
+fn main() {
+    let s = vec_strs![1, "a", true, 3.14159f32];
+    assert_eq!(&*s, &["1", "a", "true", "3.14159"]);
+}
+
+```
+
+## DRY (不写重复代码)
+
+通过提取函数或测试集的公共部分，宏可以让你写出 DRY 的代码（DRY 是 Don't Repeat Yourself 的缩写，意思为 “不要写重复代码”）。这里给出一个例子，对 Vec<T> 实现并测试了关于 +=、*= 和 -= 等运算符。
+
+注意使用cargo test启动此案例
+
+``` rust
+use std::ops::{Add, Mul, Sub};
+
+macro_rules! assert_equal_len {
+    // `tt`（token tree，标记树）指示符表示运算符和标记。
+    ($a:ident, $b: ident, $func:ident, $op:tt) => (
+        assert!($a.len() == $b.len(),
+                "{:?}: dimension mismatch: {:?} {:?} {:?}",
+                stringify!($func),
+                ($a.len(),),
+                stringify!($op),
+                ($b.len(),));
+    )
+}
+
+macro_rules! op {
+    ($func:ident, $bound:ident, $op:tt, $method:ident) => (
+        fn $func<T: $bound<T, Output=T> + Copy>(xs: &mut Vec<T>, ys: &Vec<T>) {
+            assert_equal_len!(xs, ys, $func, $op);
+
+            for (x, y) in xs.iter_mut().zip(ys.iter()) {
+                *x = $bound::$method(*x, *y);
+                // *x = x.$method(*y);
+            }
+        }
+    )
+}
+
+// 实现 `add_assign`、`mul_assign` 和 `sub_assign` 等函数。
+op!(add_assign, Add, +=, add);
+op!(mul_assign, Mul, *=, mul);
+op!(sub_assign, Sub, -=, sub);
+
+mod test {
+    use std::iter;
+    macro_rules! test {
+        ($func: ident, $x:expr, $y:expr, $z:expr) => {
+            #[test]
+            fn $func() {
+                for size in 0usize..10 {
+                    let mut x: Vec<_> = iter::repeat($x).take(size).collect();
+                    let y: Vec<_> = iter::repeat($y).take(size).collect();
+                    let z: Vec<_> = iter::repeat($z).take(size).collect();
+
+                    super::$func(&mut x, &y);
+
+                    assert_eq!(x, z);
+                }
+            }
+        }
+    }
+
+    // 测试 `add_assign`、`mul_assign` 和 `sub_assign`
+    test!(add_assign, 1u32, 2u32, 3u32);
+    test!(mul_assign, 2u32, 3u32, 6u32);
+    test!(sub_assign, 3u32, 2u32, 1u32);
+}
+
+```
+
+## DSL（领域专用语言）
+
+DSL 是 Rust 的宏中集成的微型 “语言”。这种语言是完全合法的，因为宏系统会把它转换成普通的 Rust 语法树，它只不过看起来像是另一种语言而已。这就允许你为一些特定功能创造一套简洁直观的语法（当然是有限制的）。
+
+比如说我想要定义一套小的计算器 API，可以传给它表达式，它会把结果打印到控制台上。
+
+``` rust
+macro_rules! calculate {
+    (eval $e:expr) => {{
+        {
+            let val: usize = $e; // 强制类型为整型
+            println!("{} = {}", stringify!{$e}, val);
+        }
+    }};
+}
+
+fn main() {
+    calculate! {
+        eval 1 + 2 // 看到了吧，`eval` 可并不是 Rust 的关键字！
+    }
+
+    calculate! {
+        eval (1 + 2) * (3 / 4)
+    }
+}
+1 + 2 = 3
+(1 + 2) * (3 / 4) = 0
+```
+
+## 可变参数接口
+
+可变参数接口可以接受任意数目的参数。比如说 println 就可以，其参数的数目是由格式化字符串指定的。
+
+我们可以把之前的 calculate! 宏改写成可变参数接口：
+
+``` rust
+macro_rules! calculate {
+    // 单个 `eval` 的模式
+    (eval $e:expr) => {{
+        {
+            let val: usize = $e; // Force types to be integers
+            println!("{} = {}", stringify!{$e}, val);
+        }
+    }};
+
+    // 递归地拆解多重的 `eval`
+    (eval $e:expr, $(eval $es:expr),+) => {{
+        calculate! { eval $e }
+        calculate! { $(eval $es),+ }
+    }};
+}
+
+fn main() {
+    calculate! { // 妈妈快看，可变参数的 `calculate!`！
+        eval 1 + 2,
+        eval 3 + 4,
+        eval (2 * 3) + 1
+    }
+}
+1 + 2 = 3
+3 + 4 = 7
+(2 * 3) + 1 = 7
+```
 
 # 流程控制
 
@@ -5899,40 +6281,36 @@ panic!的使用准则：
 
 ## thiserror
 
-thiserror：提供了一些宏属性（如 #[from] 和 #[error(transparent)]），用于设计自己的专用错误类型，以便给调用者提供更具体的自定义错误信息，常用于编写第三方库中
+thiserror：可以给调用者提供更具体的自定义错误信息，常用于编写第三方库中
 
 提供了一个派生宏来简化自定义错误类型的过程，使用步骤：
 
 - Cargo.toml添加依赖 thiserror = "1.0"
-- 通过派生宏#[derive(thiserror::Error)]来定义自定义错误类型MyCustomError [error]属性：提供了错误消息的格式化功能
-- [from]属性：实现错误类型的转换，#[from] std::io::Error即表示IOError是从std::io::Error转换而来
-- transparent：表示错误类型是一个透明类型，透明类型是指错误类型与实际错误原因相同
+- 使用 #[derive(thiserror::Error)] 来自定义错误类型
 
 ``` rust
-use std::fs::read_to_string;
+use thiserror::Error;
 
-#[derive(thiserror::Error, Debug)]
-enum MyCustomError {
-    #[error("环境变量不存在")]
-    EnvironmentVariableNotFound(#[from] std::env::VarError),
-    #[error(transparent)]
-    IOError(#[from] std::io::Error), 
+// 自定义错误
+#[derive(Error, Debug)]
+pub enum SettingError {
+	#[error("can't read settings: {0}")]
+	FileReadError(std::io::Error), // 带一个参数
+	#[error("settings parse failed by {0}")]
+	ParseFailed(String), // 带1个参数
+	#[error("settings version is not matched: expected {expected_version} but {real_version}")]
+	NotMatchedVersion{expected_version: u64, real_version: u64}, // 带2个参数
 }
 
-// 方法里可能会发生VarError或std::io::Error错误，都是通过?操作符，转换成MyCustomError错误返回
-fn get_config_content() -> Result<String, MyCustomError> {
-   // 获取系统的环境变量CONFIG_FILE，变量不存在会发生VarError错误
-   let file = std::env::var("CONFIG_FILE")?;
-   // 读取文件的内容，文件不存在会发生错误
-   let content = read_to_string(file)?;
-   Ok(content)
+if !config_path.exists() {
+    let e = std::io::Error::new(std::io::ErrorKind::NotFound, SETTING_FILE_NAME);
+	return Err(SettingError::FileReadError(e).into());
 }
 
-fn main() -> Result<(), MyCustomError> {
-    let content = get_config_content()?;
-    println!("{}", content);
-    Ok(())
+if seg_hash.contains_key(k_name) {
+    return Err(SettingError::ParseFailed(format!("duplicated key {}", k_name)).into());
 }
+
 ```
 
 # Option
