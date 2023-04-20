@@ -2282,6 +2282,37 @@ huaw@test:~/playground/rust/tut$ cargo run > output.txt
 Problem parsing arguments: No such file or directory (os error 2)
 ```
 
+## type 别名
+
+可以使用type重新取别名
+
+``` rust
+use std::num::ParseIntError;
+
+// Define a generic alias for a `Result` with the error type `ParseIntError`.
+type AliasedResult<T> = Result<T, ParseIntError>;
+
+// Use the above alias to refer to our specific `Result` type.
+fn multiply(first_number_str: &str, second_number_str: &str) -> AliasedResult<i32> {
+    first_number_str.parse::<i32>().and_then(|first_number| {
+        second_number_str.parse::<i32>().map(|second_number| first_number * second_number)
+    })
+}
+
+// Here, the alias again allows us to save some space.
+fn print(result: AliasedResult<i32>) {
+    match result {
+        Ok(n)  => println!("n is {}", n),
+        Err(e) => println!("Error: {}", e),
+    }
+}
+
+fn main() {
+    print(multiply("10", "2"));
+    print(multiply("t", "2"));
+}
+```
+
 ## exit
 
 ``` rust
@@ -7857,37 +7888,6 @@ The first doubled is Ok(None)
 The first doubled is Err(ParseIntError { kind: InvalidDigit })
 ```
 
-## Result别名
-
-也可以使用type重新取别名
-
-``` rust
-use std::num::ParseIntError;
-
-// Define a generic alias for a `Result` with the error type `ParseIntError`.
-type AliasedResult<T> = Result<T, ParseIntError>;
-
-// Use the above alias to refer to our specific `Result` type.
-fn multiply(first_number_str: &str, second_number_str: &str) -> AliasedResult<i32> {
-    first_number_str.parse::<i32>().and_then(|first_number| {
-        second_number_str.parse::<i32>().map(|second_number| first_number * second_number)
-    })
-}
-
-// Here, the alias again allows us to save some space.
-fn print(result: AliasedResult<i32>) {
-    match result {
-        Ok(n)  => println!("n is {}", n),
-        Err(e) => println!("Error: {}", e),
-    }
-}
-
-fn main() {
-    print(multiply("10", "2"));
-    print(multiply("t", "2"));
-}
-```
-
 ## main函数返回Result
 
 ``` rust
@@ -13116,7 +13116,7 @@ Dropping Custom with data: hello world!
 - 共享所有权
 - Rust提供了Rc<T>智能指针来引用计数。Rc<T>允许一个值有多个所有者，引用计数确保了只要还存在所有者，该值就保持有效。每当值共享一个所有权时，计数就会增加一次。只有当计数为零，也就是当所有共享变量离开作用域时，该变量才会被析构。
 - 引用计数智能指针Rc<T>可以共享所有权，用于希望堆上分配的数据可以供程序的多个部分读取，并且无法在编译时确定哪个部分是最后使用者的场景。
-- Rc<T>是单线程引用计数指针，不是线程安全的类型，不允许将引用计数传递或共享给别的线程。
+- Rc<T>是单线程引用计数指针，不是线程安全的类型，不允许将引用计数传递或共享给别的线程。即Rc是没有实现Send trait
 
 ``` rust
 use std::rc::Rc; // use语句将Rc<T>引入作用域
@@ -13197,6 +13197,19 @@ Reference Count of rc_a: 1
 --- rc_a is dropped out of scope ---
 ```
 
+案例：Rc没有Send trait，所以不能move所有权到线程中
+
+``` rust
+use std::rc::Rc;
+use std::thread;
+
+let a = Rc::new(1);
+let a2 = a.clone();
+thread::spawn(|| {
+  a2; // 报错，Rc<i32>不能在线程之间安全地发送
+});
+```
+
 ## cell
 
 - 只适用于单线程场景。
@@ -13220,7 +13233,6 @@ Cell { value: 20 }
 
 - RefCell用于改变非mut引用的对象内的元素值
 - 具备内部可变性的RefCell<T>可以对不可变的结构体字段进行修改，以满足实际应用中的特定需求
-- RefCell<T>只适用于单线程场景。
 
 ``` rust
 use std::cell::RefCell;
@@ -13295,6 +13307,20 @@ fn main() {
 ```
 
 - RefCell<T>常配合Rc<T>来使用。Rc<T>允许数据有多个所有者，但只能提供数据的不可变访问。如果两者结合使用，Rc<RefCell<T>>表面上是不可变的，但利用RefCell<T>的内部可变性可以在需要时修改数据。
+
+- RefCell<T>只适用于单线程场景。即未实现Sync trait，见下案例
+
+``` rust
+use std::cell::RefCell;
+use std::thread;
+
+fn main() {
+    let a = RefCell::new(1);
+    thread::spawn(|| {
+        a.borrow_mut(); // 报错，RefCell<i32>不能在线程之间安全共享
+    });
+}
+```
 
 # 进程
 
@@ -13592,6 +13618,67 @@ fn main() {
 }
 ```
 
+# 日期与时间
+
+## 日期、星期几
+
+- DateTime<Local> 支持比较大小
+
+``` rust
+chrono = "0.4.24"
+
+use chrono::prelude::*;
+use chrono::{DateTime, Local};
+
+fn main() {
+    // 打印当前日期时间
+    let now: DateTime<Local> = Local::now();
+    let w = [
+        "星期一",
+        "星期二",
+        "星期三",
+        "星期四",
+        "星期五",
+        "星期六",
+        "星期日",
+    ];
+    println!(
+        "今天是{}{} {}",
+        now.format("%Y年%m月%e日"),
+        w[now.weekday().num_days_from_monday() as usize],
+        now.format("%T")
+    );
+
+    println!("{:?}", now);
+    // 输出格式化
+    let fmt = "%Y-%m-%d %H:%M:%S";
+    let dft = now.format(fmt);
+    println!("{:?}", dft.to_string());
+    // 转时间戳
+    println!("{:?}", now.timestamp_millis());
+    // 字符串转时间对象
+    let t = NaiveDateTime::parse_from_str("2022-02-10 00:00:00", fmt).unwrap();
+    println!("{:?}", t);
+    println!("{:?}", t.date());
+}
+
+今天是2023年04月20日星期四 03:41:04
+2023-04-20T03:41:04.804972685+00:00
+"2023-04-20 03:41:04"
+1681962064804
+2022-02-10T00:00:00
+2022-02-10
+```
+
+案例：比较大小
+
+``` rust
+if Local::now() > channel.deadline {
+	locked_channels.remove(&message_no);
+	return Err(ProtocolError::ReceviedTimeoutedMessage(format!("{:?}", response)).into());
+}
+```
+
 # FFI
 
 见github "Rust FFI Examples"
@@ -13625,7 +13712,7 @@ fn main() {
 ### 启动线程
 
 - spawn生成的线程，默认没有名称，并且其栈大小默认为2MB
-- thread::spawn的返回值类型是⼀个⾃持有所有权的JoinHandle，调⽤它的join⽅法可以阻塞当前线程直到对应的新线程运⾏结束。
+- thread::spawn的返回值类型是⼀个⾃持有所有权的JoinHandle（即线程句柄），调⽤它的join⽅法可以阻塞当前线程直到对应的新线程运⾏结束。
 - 在线程句柄上调⽤join函数会阻塞当前线程，直到句柄代表的线程结束
 - spawn的参数是一个通过值捕获变量的闭包（moving closure）。
 
@@ -13938,6 +14025,25 @@ processed segment 7, result=177
 Final sum result: 1342
 ```
 
+### Send与Sync
+
+- 为什么要有Send和Sync
+
+理论上，不同线程拥有同一个变量的不可变引用（共享读）是安全的，将一个对象move给另一个线程也是安全的（只有一个线程拥有它）。问题出在内部可变性上，有关RefCell与Rc。Rust想要通过所有权控制资源访问，但表达能力不足，所以标准库需要使用unsafe实现的东西来打破所有权的规则，而没有加锁的Rc和RefCell等在单线程下没问题，多线程有问题，为他们加锁是一种方法，但是对于单线程来说又是一种不必要的开销，所以又引入了Send和Sync用来标明哪些可以单线程中用，哪些可以多线程中用。
+
+- Send trait允许线程间转移所有权（即同一变量可以在不同线程间move所有权，则必须实现Sned）
+
+只有实现了Send trait的类型才可以安全地在线程间转移所有权，除了Rc<T>等极少数的类型，几乎所有的Rust类型都实现了Send trait。如果我们将克隆后的Rc<T>值的所有权转移到了另外一个线程中，那么两个线程就有可能同时更新引用计数值并进而导致计数错误。
+
+- Sync trait 允许多线程同时访问（即不同线程都可以获取与修改同一变量值，则必须实现Sync）
+
+只在线程中传递是不够的的，还需要我们在线程中能够对数据进行访问，只有实现了Sync trait的类型才可以安全地被多个线程引用，类型Mutex<T>是Sync的，可以被多个线程共享访问，类型RefCell<T>不满足Sync约束，实现的运行时借用检查并没有提供有关线程安全的保证。
+
+
+- 手动实现Send和Sync是不安全的
+
+当某个类型完全由实现了Send与Sync的类型组成时，它就会自动实现Send与Sync。我们并不需要手动地为此种类型实现相关trait。这两个被称作”标签trait“，Send与Sync其实并没有任何可供实现的方法。它们仅仅被用来标识并发相关的不可变性。
+
 ### 共享引用计数 Arc
 
 当线程之间所有权需要共享时，可以使用Arc（共享引用计数，Atomic Reference Counted 缩写）可以使用。这个结构通过 Clone 实现可以为内存堆中的值的位置创建一个引用指针，同时增加引用计数器。由于它在线程之间共享所有权，因此当指向某个值的最后一个引用指针退出作用域时，该变量将被删除。
@@ -13990,6 +14096,49 @@ fn main() {
 }
 ```
 
+### 数据争用的产生(data race)
+
+下面案例中“R += 1;”非原子操作也不是加锁的操作，所以最终断言会失败
+
+``` rust
+use std::thread::{self, JoinHandle};
+
+const N_TIMES: u64 = 1000;
+const N_THREADS: usize = 10;
+static mut R: u64 = 0; // 全域静态变量R是可变的
+
+fn reset() {
+    unsafe {
+        R = 0;
+    }
+}
+
+fn add_n_times(n: u64) -> JoinHandle<()> { // 返回线程句柄JoinHandle
+    thread::spawn(move || {
+        for _ in 0..n {
+            unsafe {
+                R += 1;
+            }
+        }
+    })
+}
+
+fn main() {
+    loop {
+        reset(); // 每次迭代会将R设为0
+        let mut threads = Vec::with_capacity(N_THREADS);    // 创建出N_THREADS个线程
+        for _ in 0..N_THREADS {
+            threads.push(add_n_times(N_TIMES)); // 每个线程都会运行N_TIMES次的R += 1
+        }
+        for thread in threads {
+            thread.join().unwrap();
+        }
+        assert_eq!(N_TIMES * N_THREADS as u64, unsafe { R });
+    }
+}
+
+```
+
 ### 互斥体 Mutex
 
 互斥体（mutex）是英⽂mutual exclusion的缩写。也就是说，⼀个互斥体在任意时刻只允许⼀个线程访问数据。为了访问互斥体中的数据，线程必须⾸先发出信号来获取互斥体的锁（lock）。锁是互斥体的⼀部分，这种数据结构被⽤来记录当前谁拥有数据的唯⼀访问权。通过锁机制，互斥体守护（guarding）了它所持有的数据。
@@ -13998,6 +14147,54 @@ fn main() {
 
 - 必须在使⽤数据前尝试获取锁。
 - 必须在使⽤完互斥体守护的数据后释放锁，这样其他线程才能继续完成获取锁的操作。
+
+案例：使用mutex修复“数据争用的产生(data race)”中有问题的案例。
+利用互斥锁形成的临界区段(Critical Section)，来使R += 1程序叙述在同一时间只能够被一个线程来运行。不过功能强大的互斥锁会需要耗费不少额外的运算资源。另外还可以参考“原子操作”中更节省资源的修改方式
+
+``` rust
+use std::thread::{self, JoinHandle};
+use std::sync::{Mutex, Arc};
+
+const N_TIMES: u64 = 1000;
+const N_THREADS: usize = 10;
+static mut R: u64 = 0; // 全域静态变量R是可变的
+
+fn reset() {
+    unsafe {
+        R = 0;
+    }
+}
+
+fn add_n_times(n: u64, mutex: Arc<Mutex<()>>) -> JoinHandle<()> { // 返回线程句柄JoinHandle
+    thread::spawn(move || {
+        for _ in 0..n {
+            // 临界区段 critical section START
+            let lock = mutex.lock().unwrap();
+            unsafe {
+                R += 1;
+            }
+            // 临界区段 critical section END
+            drop(lock);
+        }
+    })
+}
+
+fn main() {
+    let mutex = Arc::new(Mutex::new(()));
+    loop 
+    {
+        reset(); // 每次迭代会将R设为0
+        let mut threads = Vec::with_capacity(N_THREADS);    // 创建出N_THREADS个线程
+        for _ in 0..N_THREADS {
+            threads.push(add_n_times(N_TIMES, mutex.clone())); // 每个线程都会运行N_TIMES次的R += 1
+        }
+        for thread in threads {
+            thread.join().unwrap();
+        }
+        assert_eq!(N_TIMES * N_THREADS as u64, unsafe { R });
+    }
+}
+```
 
 案例：使⽤（atomically reference counted）原⼦引⽤计数Arc<T>包裹Mutex<T>来实现多线程共享所有权
 
@@ -14090,7 +14287,70 @@ final value: RwLock { data: 0, poisoned: false, .. }
 
 ### 原子操作 Atomic
 
-Rust标准库还为我们提供了一系列的“原子操作”数据类型，它们在std：：sync：：atomic模块里面。它们都是符合Sync的，可以在多线程之间共享。
+所谓的原子是指一系列不可被上下文交换(Context Switch)的机器指令，这些机器指令组成的操作又称为原子操作(Atomic Operation)。在多CPU内核的环境下，当某个CPU内核开始运行原子操作时，就会先暂停其它CPU内核对内存的操作，以保证在原子操作运行的过程中，内存内容不会受到其它CPU内核干扰。所以原子操作若用得好，就不需要去使用会拖累程序性能的互斥锁(Mutex)或是消息传递(message passing)机制。只不过依靠原子操作来解决同步问题的话，会牵扯到编译器优化以及CPU架构的问题
+
+- Rust 的原子类型包括 AtomicBool、AtomicIsize、AtomicUsize、AtomicPtr 等。这些类型的实现都使用了底层的原子操作指令，保证了它们的读写操作是原子的，不会被其他线程中断。
+- 在std：：sync：：atomic模块里面。它们都是符合Sync的，可以在多线程之间共享。该模块提供了一系列原子操作函数，包括：
+    - load：原子读取一个原子类型的值。
+    - store：原子写入一个原子类型的值。
+    - swap：原子交换一个原子类型的值。
+    - compare_and_swap：原子比较并交换一个原子类型的值。
+    - fetch_add、fetch_sub、fetch_and、fetch_or、fetch_xor 等：原子地对一个原子类型进行加减、位运算等操作。
+- 需要注意的是，原子操作并不是万能的，不能完全避免所有的数据竞争问题。例如，如果多个线程都对同一个原子类型进行操作，就有可能出现ABA问题。为了避免这种问题，Rust 还提供了 std::sync::Arc、std::sync::Mutex、std::sync::RwLock 等同步原语，可以更好地保证线程安全。
+
+#### load 和 store
+
+- load 和 store 是原子类型的两个基本操作函数。load 函数用于原子地读取一个原子类型的值，而 store 函数用于原子地写入一个原子类型的值。Ordering 参数见“原子操作与内存顺序”的描述
+
+``` rust
+use std::sync::atomic::{AtomicI32, Ordering};
+fn main() {
+    // 创建一个原子整数类型，并设置初始值为 42
+    let counter = AtomicI32::new(42);
+    // 原子地读取计数器的值
+    let value = counter.load(Ordering::Relaxed);
+    println!("counter value: {}", value);
+    // 原子地将计数器的值增加 10
+    counter.store(value + 10, Ordering::Relaxed);
+    // 原子地读取计数器的新值
+    let new_value = counter.load(Ordering::Relaxed);
+    println!("new counter value: {}", new_value);
+}
+
+counter value: 42
+new counter value: 52
+```
+
+案例：使用 AtomicBool实现通知线程停止
+
+``` rust
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::thread;
+fn main() {
+    // 创建一个原子布尔类型，并设置初始值为 false
+    let running = Arc::new(AtomicBool::new(true));
+    // 创建一个新线程，用于执行耗时的操作
+    let running_clone = Arc::clone(&running);
+    let handle = thread::spawn(move || {
+        loop {
+            // 检查是否需要停止运行
+            if !running_clone.load(Ordering::Relaxed) {
+                break;
+            }
+            // 执行耗时的操作
+            println!("working...");
+            // 模拟耗时操作
+            thread::sleep(std::time::Duration::from_secs(1));
+        }
+    });
+    // 等待一段时间后通知线程停止运行
+    thread::sleep(std::time::Duration::from_secs(5));
+    running.store(false, Ordering::Relaxed);
+    // 等待线程执行完毕
+    handle.join().unwrap();
+}
+```
 
 案例：两个线程修改同一个整数，一个线程对它进行多次加1，另外一个线程对它多次减1。这次我们发现，使用了Atomic类型后，我们可以保证最后的执行结果一定会回到0。
 
@@ -14121,6 +14381,199 @@ fn main() {
 
 final value: 0
 ```
+
+案例：使用原子操作完善“数据争用的产生”章节中有问题的案例。使用AtomicU64来替换原本的u64，我们甚至还可以把全域静态变量R的mut关键字拿掉，因为原子类型的值就算不使用mut也还是可变的，这点和被Mutex类型包裹的值一样。
+
+``` rust
+use std::thread::{self, JoinHandle};
+use std::sync::atomic::{Ordering, AtomicU64};
+
+const N_TIMES: u64 = 1000;
+const N_THREADS: usize = 10;
+static R: AtomicU64 = AtomicU64::new(0);
+
+fn reset() {
+    R.store(0, Ordering::Relaxed);
+}
+
+fn add_n_times(n: u64) -> JoinHandle<()> { // 返回线程句柄JoinHandle
+    thread::spawn(move || {
+        for _ in 0..n {
+            R.fetch_add(1, Ordering::Relaxed);
+        }
+    })
+}
+
+fn main() {
+    loop 
+    {
+        reset(); // 每次迭代会将R设为0
+        let mut threads = Vec::with_capacity(N_THREADS);    // 创建出N_THREADS个线程
+        for _ in 0..N_THREADS {
+            threads.push(add_n_times(N_TIMES)); // 每个线程都会运行N_TIMES次的R += 1
+        }
+        for thread in threads {
+            thread.join().unwrap();
+        }
+        assert_eq!(N_TIMES * N_THREADS as u64, R.load(Ordering::Relaxed));
+    }
+}
+```
+
+#### 内存顺序 Ordering
+
+内存顺序是指CPU在访问内存时的顺序，这个顺序不单纯是程序叙述的撰写顺序，可能还会因编译器优化，在编译阶段发生改变(reordering)，也可能在运行阶段时，因CPU的缓存机制而被打乱顺序。
+
+#### 原子操作与内存顺序
+
+在使用原子类型提供的原子操作时，需要额外传入一个Ordering枚举的变体实体。这个Ordering枚举可不是std::cmp这个模块下用来比大小的Ordering哦！而是位于std::sync::atomic模块下的Ordering枚举。用于指定原子操作的内存顺序，可以控制不同线程之间的操作顺序，以及对其他共享变量的影响。具体来说，Ordering 参数有以下几种取值：
+
+- Relaxed：只会进行单纯的原子操作，并不会对内存顺序进行任何限制。换句话说，它可以最大幅度地保留编译器优化的程度，不过如果想要在多个原子操作间实现跨线程的同步机制，就得采用其它的内存顺序的限制方式了。
+
+案例：下面的代码在x86架构下（强有序）不太会出问题，ARM（弱有序）就可能会有问题
+
+``` rust
+use std::thread::{self, JoinHandle};
+
+static mut DATA: u64 = 0;
+static mut READY: bool = false;
+
+fn reset() {
+    unsafe {
+        DATA = 0;
+        READY = false;
+    }
+}
+
+fn producer() -> JoinHandle<()> {
+    thread::spawn(move || {
+        unsafe {
+            DATA = 100; // A
+            READY = true; // B
+        }
+    })
+}
+
+fn consumer() -> JoinHandle<()> {
+    thread::spawn(move || {
+        unsafe {
+            while !READY {} // C
+
+            assert_eq!(100, DATA); // D
+        }
+    })
+}
+
+fn main() {
+    loop {
+        reset();
+
+        let t_producer = producer();
+        let t_consumer = consumer();
+
+        t_producer.join().unwrap();
+        t_consumer.join().unwrap();
+    }
+}
+```
+
+即使使用原子类型搭配Relaxed内存顺序限制来修改，在ARM上的问题也是依旧存在的
+
+``` rust
+use std::thread::{self, JoinHandle};
+use std::sync::atomic::{Ordering, AtomicBool};
+
+static mut DATA: u64 = 0;
+static READY: AtomicBool = AtomicBool::new(false);
+
+fn reset() {
+    unsafe {
+        DATA = 0;
+    }
+    READY.store(false, Ordering::Relaxed);
+}
+
+fn producer() -> JoinHandle<()> {
+    thread::spawn(move || {
+        unsafe {
+            DATA = 100; // A
+        }
+        READY.store(true, Ordering::Relaxed);   // B
+    })
+}
+
+fn consumer() -> JoinHandle<()> {
+    thread::spawn(move || {
+        unsafe {
+            while !READY.load(Ordering::Relaxed) {}         // C
+            assert_eq!(100, DATA); // D
+        }
+    })
+}
+
+fn main() {
+    loop {
+        reset();
+
+        let t_producer = producer();
+        let t_consumer = consumer();
+
+        t_producer.join().unwrap();
+        t_consumer.join().unwrap();
+    }
+}
+```
+
+
+- Acquire、Release：Acquire用于读取，Release用于写入。但是由于有些原子操作同时拥有读取和写入的功能，此时就需要使用AcqRel来设置内存顺序了。在内存屏障中被写入的数据，都可以被其它线程读取到，不会有CPU缓存的问题。
+- AcqRel：借由Acquire和Release这两个内存顺序的限制，可以构筑出一对内存屏障(Memory Barrier)，或称内存栅栏(Memory Fence)，防止编译器和CPU将屏障前(Release)和屏障后(Acquire)中的数据操作重新排在屏障围成的范围之外。
+
+``` rust
+use std::thread::{self, JoinHandle};
+use std::sync::atomic::{Ordering, AtomicBool};
+
+static mut DATA: u64 = 0;
+static READY: AtomicBool = AtomicBool::new(false);
+
+fn reset() {
+    unsafe {
+        DATA = 0;
+    }
+    READY.store(false, Ordering::Relaxed);
+}
+
+fn producer() -> JoinHandle<()> {
+    thread::spawn(move || {
+        unsafe {
+            DATA = 100; // A
+        }
+        READY.store(true, Ordering::Release);           // B: memory fence ↑
+    })
+}
+
+fn consumer() -> JoinHandle<()> {
+    thread::spawn(move || {
+        unsafe {
+            while !READY.load(Ordering::Acquire) {}         // C: memory fence ↓
+            assert_eq!(100, DATA); // D
+        }
+    })
+}
+
+fn main() {
+    loop {
+        reset();
+
+        let t_producer = producer();
+        let t_consumer = consumer();
+
+        t_producer.join().unwrap();
+        t_consumer.join().unwrap();
+    }
+}
+```
+
+- SeqCst：SeqCst就像是AcqRel的加强版，它不管原子操作是属于读取还是写入的操作，只要某个线程有用到SeqCst的原子操作，线程中该SeqCst操作前的数据操作绝对不会被重新排在该SeqCst操作之后，且该SeqCst操作后的数据操作也绝对不会被重新排在SeqCst操作前。另外，Acquire、Release和AcqRel等也可以与SeqCst搭配使用，来构筑出一对内存屏障。
 
 ### 栅栏 Barrier
 
