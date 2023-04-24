@@ -15142,6 +15142,446 @@ huaw@huaw:~/playground/rust/tut$ ./target/debug/main 1 2 3 --name aaa --verbose
 Cli { a: 1, b: 2, c: -3, name: "aaa", verbose: true }
 ```
 
+## 多级菜单案例
+
+``` rust
+use clap::Parser;
+use serde_derive::{Deserialize, Serialize};
+
+// 主菜单，包含一个必备选项与一打子命令
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    ///server ip address which will execute command line request
+    #[arg(short, long)]
+    ipport: String,
+
+    #[command(subcommand)]
+    sub_cli: Option<SubCli>,
+}
+
+// 第一级子命令
+#[derive(clap::Subcommand)]
+enum SubCli {
+    ///list meta settings
+    Show {
+        #[command(subcommand)]
+        on: ShowCli,
+    },
+    ///get one meta setting
+    Get {
+        #[command(subcommand)]
+        on: GetCli,
+    },
+    ///add new meta setting
+    Insert {
+        #[command(subcommand)]
+        on: InsertCli,
+    },
+    ///remove meta setting
+    Delete {
+        #[command(subcommand)]
+        on: GetCli,
+    },
+    ///update meta setting
+    Update {
+        #[command(subcommand)]
+        on: UpdateCli,
+    },
+    ///get meta version
+    Info,
+}
+
+#[derive(clap::Subcommand)]
+enum ShowCli {
+    All,
+    PC,
+    DataPart,
+    CalcNode,
+    DiskNode,
+    SystemUser,
+}
+
+#[derive(clap::Subcommand)]
+enum GetCli {
+    PC {
+        #[arg(long)]
+        name: String,
+    },
+    DataPart {
+        #[arg(long)]
+        name: String,
+    },
+    CalcNode {
+        #[arg(long)]
+        name: String,
+    },
+    DiskNode {
+        #[arg(long)]
+        name: String,
+    },
+    SystemUser {
+        #[arg(long)]
+        name: String,
+    },
+    Branch {
+        #[arg(long)]
+        tenant: String,
+        #[arg(long)]
+        name: String,
+    },
+}
+
+// 第二级子命令，由第一级子命令add触发，
+#[derive(clap::Subcommand)]
+enum InsertCli {
+    PC {
+        // 每个子命令下是其的选项
+        #[arg(long)]
+        name: String,
+        #[arg(long)]
+        peer_addr: String,
+    },
+    DataPart {
+        #[arg(long)]
+        name: String,
+        //optional set the copy count of slice
+        #[arg(long)]
+        copy_count: Option<u32>,
+        ///optional set slice copy will be stored on which node, if set the count should equal to `copy_count`
+        #[arg(long)]
+        storage_nodes: Vec<String>,
+        ///optional set the tenant who the slice will be added to, tenant and timeline should be set together
+        #[arg(long)]
+        tenant: Option<String>,
+        ///optional set the timeline which the slice will be added to, tenant and timeline should be set together
+        #[arg(long)]
+        timeline: Option<String>,
+
+        #[command(flatten)]
+        db_param: Option<MyOptions>,
+    },
+    CalcNode {
+        #[arg(long)]
+        name: String,
+        #[arg(long)]
+        host: String,
+        #[arg(long)]
+        peer_addr: String,
+        #[arg(long)]
+        data_dir: String,
+        #[arg(long)]
+        slice: String,
+        #[arg(long)]
+        sql_addr: String,
+        #[arg(long)]
+        is_pcs: Option<bool>,
+    },
+    DiskNode {
+        #[arg(long)]
+        name: String,
+        #[arg(long)]
+        host: String,
+        #[arg(long)]
+        peer_addr: String,
+        #[arg(long)]
+        data_dir: String,
+        #[arg(long)]
+        slices: Vec<String>,
+        #[arg(long)]
+        is_voter: Option<bool>,
+    },
+    SystemUser {
+        #[arg(long)]
+        name: String,
+        ///optional set the slot count of default timeline
+        #[arg(long)]
+        slot_count: Option<u32>,
+        ///optional customer slice for tenant, if not set will auto create new slices
+        #[arg(long)]
+        slices: Vec<String>,
+        #[arg(long)]
+        ///optional the slices count which is used to auto create new slices
+        slice_count: Option<u32>,
+
+        #[command(flatten)]
+        db_param: Option<MyOptions>,
+    },
+    Branch {
+        #[arg(long)]
+        tenant: String,
+        #[arg(long)]
+        name: String,
+        ///optional set the slot count of new timeline
+        #[arg(long)]
+        slot_count: Option<u32>,
+        ///optional customer slice for tenant, if not set will create new slices
+        #[arg(long)]
+        slices: Vec<String>,
+        #[arg(long)]
+        ///optional the slices count which is used to create new slices
+        slice_count: Option<u32>,
+
+        #[command(flatten)]
+        db_param: Option<MyOptions>,
+    },
+}
+
+#[derive(clap::Subcommand)]
+enum UpdateCli {
+    PC {
+        ///the host name which will be updated
+        #[arg(long)]
+        old_name: String,
+        #[arg(long)]
+        name: String,
+    },
+    DataPart {
+        ///the slice name which will be updated
+        #[arg(long)]
+        old_name: String,
+        #[arg(long)]
+        name: String,
+    },
+    CalcNode {
+        ///the node name which will be updated
+        #[arg(long)]
+        old_name: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        host: Option<String>,
+        #[arg(long)]
+        peer_addr: Option<String>,
+        #[arg(long)]
+        slice: Option<String>,
+        #[arg(long)]
+        sql_addr: Option<String>,
+        #[arg(long)]
+        is_pcs: Option<bool>,
+    },
+    DiskNode {
+        ///the node name which will be updated
+        #[arg(long)]
+        old_name: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        host: Option<String>,
+        #[arg(long)]
+        peer_addr: Option<String>,
+        ///add new slices to node
+        #[arg(long)]
+        add_slices: Option<Vec<String>>,
+        ///remove slices to node
+        #[arg(long)]
+        remove_slices: Option<Vec<String>>,
+        #[arg(long)]
+        is_voter: Option<bool>,
+    },
+    Branch {
+        #[arg(long)]
+        tenant: String,
+        ///the timeline name which will be updated
+        #[arg(long)]
+        old_name: String,
+        #[arg(long)]
+        name: Option<String>,
+        ///add new slices to timeline
+        #[arg(long)]
+        add_slices: Option<Vec<String>>,
+        ///remove slices to timeline
+        #[arg(long)]
+        remove_slices: Option<Vec<String>>,
+    },
+}
+
+// 用于复用的选项，放到子命令的选项里使用即可
+#[derive(clap::Args, Debug, Serialize, Deserialize)]
+struct MyOptions {
+    ///optional set the data
+    #[arg(long)]
+    data: Option<String>,
+    ///optional set the ncoding
+    #[arg(long)]
+    encoding: Option<String>,
+}
+
+impl MyOptions {
+    pub fn pack(&self) -> Option<String> {
+        serde_json::to_string(&self).ok()
+    }
+}
+
+fn main() {
+    let args = Cli::parse();
+    match args.sub_cli {
+        Some(sub) => {
+            println!("server_addr： {}", &args.ipport);
+
+            match sub {
+                SubCli::Show { on } => deal_list_cli(on),
+                SubCli::Get { on } => deal_get_cli(on),
+                SubCli::Insert { on } => deal_add_cli(on),
+                SubCli::Delete { on } => deal_remove_cli(on),
+                SubCli::Update { on } => deal_update_cli(on),
+                SubCli::Info => deal_meta_version_cli(),
+            }
+        }
+        None => {}
+    }
+}
+
+fn deal_meta_version_cli() {}
+
+fn deal_list_cli(on: ShowCli) {
+    match on {
+        ShowCli::All => {
+            println!("ListCli::All");
+        }
+        ShowCli::PC => {
+            println!("ListCli::PC");
+        }
+        ShowCli::DataPart => {
+            println!("ListCli::DataPart");
+        }
+        ShowCli::CalcNode => {
+            println!("ListCli::CalcNode");
+        }
+        ShowCli::DiskNode => {
+            println!("ListCli::DiskNode");
+        }
+        ShowCli::SystemUser => {
+            println!("ListCli::SystemUser");
+        }
+    }
+}
+
+fn deal_get_cli(on: GetCli) {
+    match on {
+        GetCli::PC { name } => {
+            println!("IDCli::PC");
+        }
+        GetCli::DataPart { name } => {
+            println!("IDCli::DataPart ");
+        }
+        GetCli::CalcNode { name } => {
+            println!("IDCli::CalcNode ");
+        }
+        GetCli::DiskNode { name } => {
+            println!("IDCli::DiskNode");
+        }
+        GetCli::SystemUser { name } => {
+            println!("IDCli::SystemUser ");
+        }
+        GetCli::Branch { tenant, name } => {
+            println!("IDCli::Branch ");
+        }
+    }
+}
+
+fn deal_add_cli(on: InsertCli) {
+    let rsl = match on {
+        InsertCli::PC { name, peer_addr } => {}
+        InsertCli::DataPart {
+            name,
+            copy_count,
+            storage_nodes,
+            tenant,
+            timeline,
+            db_param,
+        } => {
+            println!("{}", name);
+        }
+        InsertCli::CalcNode {
+            name,
+            host: host_name,
+            peer_addr,
+            data_dir,
+            slice: slice_name,
+            sql_addr,
+            is_pcs,
+        } => {
+            let pcs_value = match is_pcs {
+                Some(b) => b,
+                None => false,
+            };
+        }
+        InsertCli::DiskNode {
+            name,
+            host: host_name,
+            peer_addr,
+            data_dir,
+            slices,
+            is_voter,
+        } => {
+            let is_voter_value = match is_voter {
+                Some(b) => b,
+                None => false,
+            };
+        }
+        InsertCli::SystemUser {
+            name,
+            slot_count,
+            slices,
+            slice_count,
+            db_param,
+        } => {}
+        InsertCli::Branch {
+            tenant,
+            name,
+            slot_count,
+            slices,
+            slice_count,
+            db_param,
+        } => {}
+    };
+}
+
+fn deal_remove_cli(on: GetCli) {
+    let rsl = match on {
+        GetCli::PC { name } => {}
+        GetCli::DataPart { name } => {}
+        GetCli::CalcNode { name } => {}
+        GetCli::DiskNode { name } => {}
+        GetCli::SystemUser { name } => {}
+        GetCli::Branch { tenant, name } => {}
+    };
+}
+
+fn deal_update_cli(on: UpdateCli) {
+    let rsl = match on {
+        UpdateCli::PC { old_name, name } => {}
+        UpdateCli::DataPart { old_name, name } => {}
+        UpdateCli::CalcNode {
+            old_name,
+            name,
+            host: host_name,
+            peer_addr,
+            slice: slice_name,
+            sql_addr,
+            is_pcs,
+        } => {}
+        UpdateCli::DiskNode {
+            old_name,
+            name,
+            host: host_name,
+            peer_addr,
+            add_slices,
+            remove_slices,
+            is_voter,
+        } => {}
+        UpdateCli::Branch {
+            tenant,
+            old_name,
+            name,
+            add_slices,
+            remove_slices,
+        } => {}
+    };
+}
+```
+
 # FFI
 
 见github "Rust FFI Examples"
