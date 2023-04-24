@@ -616,6 +616,7 @@ structopt = "0.3"
 
 指定版本号的时候，可以使用模糊匹配的方式:
 
+- pgx = "=0.7.2" 代表明确指定版本号
 - ^符号，如^1.2.3代表1.2.3<=version<2.0.0；
 - ~符号，如~1.2.3代表1.2.3<=version<1.3.0；
 - *符号，如1.*代表1.0.0<=version<2.0.0；
@@ -2190,6 +2191,8 @@ fn main() {
 
 ## 命令行参数
 
+### std::env::args
+
 命令行参数可使用 std::env::args 进行接收，这将返回一个迭代器，该迭代器会对 每个参数举出一个字符串。
 
 - 使用cargo run方式输入命令行参数
@@ -2233,7 +2236,7 @@ My path is target/debug/main.
 I got 2 arguments: ["p1", "p2"].
 ```
 
-- 使用vscode方式输入命令行参数
+### 使用vscode方式输入命令行参数
 
     打开许久未碰的 launch.json ，找到 "args": []，这里可以设置运行时的参数，我们将它写成 "args": ["first", "second"] ，然后保存、再次运行，注意这里的运行需要在gui上点击debug按钮才可
 
@@ -13618,6 +13621,1220 @@ fn main() {
 }
 ```
 
+# Serde
+
+```
+serde = "1.0.159"
+serde_json = "1.0.72"
+serde_derive = "1.0.160"
+```
+
+## JSON转Value
+
+案例：演示读json文件与从字符串读取json格式的数据
+
+``` rust
+use serde_derive::{Deserialize, Serialize};
+use std::fs::File;
+
+fn main(){
+    let f = File::open("./secrets.json").unwrap();
+    let values:serde_json::Value = serde_json::from_reader(f).unwrap();
+    println!("整个字符串：{:?}",values);
+
+    println!("name:{}",values["name"]);
+    println!("age:{}",values["age"]);
+    println!("address-city:{}",values["address"]["city"]);
+    println!("address-street:{}",values["address"]["street"]);
+    println!("phones-0:{}",values["phones"][0]);
+    println!("phones-1:{}",values["phones"][1]);
+
+    // 解析为脏类型
+    println!("{:?}", values["name"].as_str().unwrap());
+    println!("{:?}", values["age"].as_i64().unwrap());
+
+    // 下面是json字符串
+    let data = r#"
+    {
+        "name": "JiangBo",
+        "age": 44,
+        "languages": [
+            "Rust",
+            "Java"
+        ]
+    }"#;
+    let value: serde_json::Value = serde_json::from_str(data).unwrap();
+    println!(
+        "{}, {} years old, like {}",
+        value["name"], value["age"], value["languages"][0]
+    );
+
+}
+
+整个字符串：Object {"address": Object {"city": String("London"), "street": String("10 Downing Street")}, "age": Number(43), "name": String("John Doe"), "phones": Array [String("+44 1234567"), String("+44 2345678")]}
+name:"John Doe"
+age:43
+address-city:"London"
+address-street:"10 Downing Street"
+phones-0:"+44 1234567"
+phones-1:"+44 2345678"
+"John Doe"
+43
+"JiangBo", 44 years old, like "Rust"
+
+
+
+huaw@huaw:~/playground/rust/tut$ cat secrets.json 
+{
+    "name": "John Doe",
+    "age": 43,
+    "address": {
+        "street": "10 Downing Street",
+        "city": "London"
+    },
+    "phones": [
+        "+44 1234567",
+        "+44 2345678"
+    ]
+}
+```
+
+## 构造 JSON Value 
+
+使用 serde 将一个字符串转为 Value 对象，并且从里面获取了想要的值。
+
+``` rust
+use serde_derive::{Deserialize, Serialize};
+use serde_json::Value;
+use serde_json::json;
+
+fn main() {
+    let name = "JiangBo";
+    let rust = "Rust";
+    let value = json!(
+    {
+        "name": name,
+        "age": 44,
+        "languages": [
+            rust,
+            "Java"
+        ]
+    });
+
+    println!(
+        "{}, {} years old, like {}",
+        value["name"], value["age"], value["languages"][0]
+    );
+}
+
+"JiangBo", 44 years old, like "Rust"
+```
+
+## Value去除双引号
+
+转换出来的 Value 对象，获取值的时候，有双引号，将其去掉。
+
+``` rust
+use serde_derive::{Deserialize, Serialize};
+use std::fs::File;
+use serde_json::Value;
+
+fn main() {
+    let data = r#"
+    {
+        "name": "JiangBo",
+        "age": 44,
+        "languages": [
+            "Rust",
+            "Java"
+        ]
+    }"#;
+
+    let value: Value = serde_json::from_str(data).unwrap();
+    println!(
+        "{}, {} years old, like {}",
+        value["name"].as_str().unwrap(),
+        value["age"],
+        value["languages"][0].as_str().unwrap()
+    );
+}
+
+JiangBo, 44 years old, like Rust
+```
+
+## 元组和 JSON
+
+serde 会将元组转换成 JSON 中数组的形式。
+
+案例：使用 serde 将一个元组转换成 JSON，再将其转换回来。
+
+``` rust
+use serde_derive::{Deserialize, Serialize};
+use serde_json::Value;
+
+fn main() {
+    let tup = ("JiangBo", 44);
+
+    let json = serde_json::to_string(&tup).unwrap();
+    println!("{}", json);
+
+    let tup: (String, u16) = serde_json::from_str(&json).unwrap();
+    println!("{:?}", tup);
+}
+
+["JiangBo",44]
+("JiangBo", 44)
+```
+
+## 字段别名 
+
+使用 serde 进行序列化和反序列化时，可以设置字段的别名。
+
+``` rust
+use serde_derive::{Deserialize, Serialize};
+use serde_json::Value;
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Person {
+    #[serde(alias = "person_name")]
+    name: String,
+    age: u16,
+}
+
+fn main() {
+    let json = r#"
+        {
+            "person_name": "JiangBo",
+            "age": 44
+        }"#;
+
+    let p: Person = serde_json::from_str(json).unwrap();
+    println!("{:?}", p);
+}
+
+Person { name: "JiangBo", age: 44 }
+```
+
+## 重命名 
+
+使用 serde 进行序列化和反序列化时，对 JSON 中的字段进行重命名。
+
+- #[serde(rename = "xxxx")] 针对序列化和反序列化同名
+- #[serde(rename(serialize = "xxxx"))] 针对序列化
+- #[serde(rename(deserialize = "xxxx"))] 针对反序列化
+- #[serde(rename(serialize = "xxxx", deserialize = "yyyy"))] 针对不同名
+- 其它的属性宏也有类似的命名约定。
+
+``` rust
+use serde_derive::{Deserialize, Serialize};
+use std::fmt;
+use std::collections::BTreeMap as Map;
+
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Person {
+    #[serde(rename = "my_name")]
+    name: String,
+    age: u16,
+}
+
+fn main() {
+    let person = Person {
+        name: "JiangBo".to_owned(),
+        age: 44,
+    };
+
+    let json = serde_json::to_string(&person).unwrap();
+    println!("{}", json);
+
+    let p: Person = serde_json::from_str(&json).unwrap();
+    println!("{:?}", p);
+}
+
+{"my_name":"JiangBo","age":44}
+Person { name: "JiangBo", age: 44 }
+```
+
+## 字段默认值
+
+案例：演示使用 serde 反序列化时，怎么对缺失的字段设置默认值。
+
+``` rust
+use serde_derive::{Deserialize, Serialize};
+use serde_json::Value;
+
+#[derive(Deserialize, Debug)]
+struct Request {
+    // 调用默认函数
+    #[serde(default = "default_resource")]
+    resource: String,
+
+    #[serde(default = "default_resource_num")]
+    resource_num: i32,
+
+    // 调用 default 函数
+    #[serde(default)]
+    timeout: Timeout,
+    
+
+    // 默认枚举值
+    #[serde(default = "Priority::lowest")]
+    priority: Priority,
+}
+
+fn default_resource() -> String {
+    "/".to_string()
+}
+
+
+fn default_resource_num() -> i32 {
+    404
+}
+
+
+/// Timeout in seconds.
+#[derive(Deserialize, Debug)]
+struct Timeout(u32);
+impl Default for Timeout {
+    fn default() -> Self {
+        Timeout(30)
+    }
+}
+
+#[derive(Deserialize, Debug)]
+enum Priority { ExtraHigh, High, Normal, Low, ExtraLow }
+impl Priority {
+    fn lowest() -> Self { Priority::ExtraLow }
+}
+
+fn main() {
+    let json = r#"
+        [
+        {
+            "timeout":3
+        },
+          {
+            "timeout": 5,
+            "priority": "High"
+          }
+        ]
+    "#;
+
+    let requests: Vec<Request> = serde_json::from_str(json).unwrap();
+    println!("{:#?}", requests);
+}
+
+[
+    Request {
+        resource: "/",
+        resource_num: 404,
+        timeout: Timeout(
+            3,
+        ),
+        priority: ExtraLow,
+    },
+    Request {
+        resource: "/",
+        resource_num: 404,
+        timeout: Timeout(
+            5,
+        ),
+        priority: High,
+    },
+]
+```
+
+## 序列化为驼峰 
+
+使用 serde 序列化时，可以使用属性宏修改命名的策略。
+
+``` rust
+use serde_derive::{Deserialize, Serialize};
+use serde_json::Value;
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Person {
+    first_name: String,
+    last_name: String,
+}
+
+fn main() {
+    let person = Person {
+        first_name: "Graydon".to_string(),
+        last_name: "Hoare".to_string(),
+    };
+
+    let json = serde_json::to_string_pretty(&person).unwrap();
+    println!("{}", json);
+}
+
+{
+  "firstName": "Graydon",
+  "lastName": "Hoare"
+}
+```
+
+## 拒绝未知字段 
+
+使用 serde 进行反序列化时，可以设置拒绝未知的字段。
+
+``` rust
+use serde_derive::{Deserialize, Serialize};
+use serde_json::Value;
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
+struct Person {
+    name: String,
+}
+
+fn main() {
+    let json = r#"
+        {
+            "name": "JiangBo",
+            "age": 44
+        }"#;
+
+    // 报错 "unknown field `xxxx`, expected `yyyy`"
+    let p: Person = serde_json::from_str(json).unwrap();
+    println!("{:?}", p);
+}
+```
+
+
+## JSON转结构体
+
+案例：演示了json字符串转struct，以及读json文件到结构中，并将结构转为json字符串
+
+``` rust
+use serde_derive::{Deserialize, Serialize};
+use std::fs::File;
+
+fn fromstring() {
+    #[derive(Deserialize)]
+    struct Person {
+        name: String,
+        age: u16,
+        languages: Vec<String>,
+    }
+
+    let data = r#"
+    {
+        "name": "JiangBo",
+        "age": 44,
+        "languages": [
+            "Rust",
+            "Java"
+        ]
+    }"#;
+
+    let person: Person = serde_json::from_str(data).unwrap();
+    println!(
+        "{}, {} years old, like {}",
+        person.name, person.age, person.languages[0]
+    );
+}
+
+fn fromfile() {
+    #[derive(Debug, Serialize, Deserialize)]
+    struct Address {
+        street: String,
+        city: String,
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    struct Person {
+        name: String,
+        age: u8,
+        address: Address,
+        phones: Vec<String>,
+    }
+
+    impl Person {
+        fn default() -> Self {
+            Person{
+                name: "zhangsan".to_string(),
+                age: 18u8,
+                address:Address{
+                    street: "East nanjing road".to_string(),
+                    city: "shanghai".to_string(),
+                },
+                phones:vec!["13562958755".to_string(),"15963695569".to_string()],
+            }
+        }
+    }
+
+    let f = File::open("./secrets.json").unwrap();
+    let values:Person = serde_json::from_reader(f).unwrap();
+    println!("强类型解析输出：{:?}",values);
+    let name = &values.name;
+    let age = &values.age;
+    let city = &values.address.city;
+    let phones = &values.phones;
+    println!("== name =={}",name);
+    println!("== age =={}",age);
+    println!("== city =={}",city);
+    println!("== phones =={:?}",phones);
+    println!("==address-street=={}",&values.address.street);
+
+    let person = Person::default();
+    let person_json = serde_json::to_string(&person).expect("Couldn't serialize config");
+    let person_json_pretty = serde_json::to_string_pretty(&person).expect("Couldn't serialize config");
+    println!("person_json 直接转成json:\n {}", person_json);
+    println!("person_json_pretty 转成格式化json:\n {}", person_json_pretty);
+}
+
+fn main() {
+    fromstring();
+    fromfile();
+}
+
+
+JiangBo, 44 years old, like Rust
+强类型解析输出：Person { name: "John Doe", age: 43, address: Address { street: "10 Downing Street", city: "London" }, phones: ["+44 1234567", "+44 2345678"] }
+== name ==John Doe
+== age ==43
+== city ==London
+== phones ==["+44 1234567", "+44 2345678"]
+==address-street==10 Downing Street
+person_json 直接转成json:
+ {"name":"zhangsan","age":18,"address":{"street":"East nanjing road","city":"shanghai"},"phones":["13562958755","15963695569"]}
+person_json_pretty 转成格式化json:
+ {
+  "name": "zhangsan",
+  "age": 18,
+  "address": {
+    "street": "East nanjing road",
+    "city": "shanghai"
+  },
+  "phones": [
+    "13562958755",
+    "15963695569"
+  ]
+}
+```
+
+## 枚举和 JSON 
+
+使用 serde 将枚举转换为各种不同的格式，实际情况可以根据需要选择。
+
+### Externally tagged
+
+``` rust
+#[derive(Serialize, Deserialize)]
+enum Message {
+    Request { id: String, method: String, params: Params },
+    Response { id: String, result: Value },
+}
+
+
+输出格式如下：
+{"Request": {"id": "...", "method": "...", "params": {...}}}
+```
+
+案例
+
+``` rust
+use serde_derive::{Deserialize, Serialize};
+use serde_json::Value;
+use serde_json::json;
+
+#[derive(Serialize, Deserialize)]
+enum Animal {
+    Human {
+        name: String,
+        age: u16,
+        languages: Vec<String>,
+    },
+}
+
+fn main() {
+    let human = Animal::Human {
+        name: "JiangBo".to_owned(),
+        age: 44,
+        languages: vec!["Rust".to_owned(), "Java".to_owned()],
+    };
+
+    println!("{}", serde_json::to_string(&human).unwrap());
+    // {"Human":{"name":"JiangBo","age":44,"languages":["Rust","Java"]}}
+}
+```
+
+### Internally tagged
+
+``` rust
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
+enum Message {
+    Request { id: String, method: String, params: Params },
+    Response { id: String, result: Value },
+}
+
+
+输出格式如下：
+{"type": "Request", "id": "...", "method": "...", "params": {...}}
+```
+
+案例
+
+``` rust
+use serde_derive::{Deserialize, Serialize};
+use serde_json::Value;
+use serde_json::json;
+
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "type")] // 新增
+enum Animal {
+    Human {
+        name: String,
+        age: u16,
+        languages: Vec<String>,
+    },
+}
+
+fn main() {
+    let human = Animal::Human {
+        name: "JiangBo".to_owned(),
+        age: 44,
+        languages: vec!["Rust".to_owned(), "Java".to_owned()],
+    };
+
+    println!("{}", serde_json::to_string(&human).unwrap());
+    // {"type":"Human","name":"JiangBo","age":44,"languages":["Rust","Java"]}
+}
+```
+
+### Adjacently tagged
+
+``` rust
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "t", content = "c")]
+enum Block {
+    Para(Vec<Inline>),
+    Str(String),
+}
+
+
+输出格式如下：
+{"t": "Para", "c": [{...}, {...}]}
+{"t": "Str", "c": "the string"}
+```
+
+案例
+
+``` rust
+use serde_derive::{Deserialize, Serialize};
+use serde_json::Value;
+use serde_json::json;
+
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "tag", content = "content")] // 新增
+enum Animal {
+    Human {
+        name: String,
+        age: u16,
+        languages: Vec<String>,
+    },
+}
+
+fn main() {
+    let human = Animal::Human {
+        name: "JiangBo".to_owned(),
+        age: 44,
+        languages: vec!["Rust".to_owned(), "Java".to_owned()],
+    };
+
+    println!("{}", serde_json::to_string(&human).unwrap());
+    // {"tag":"Human","content":{"name":"JiangBo","age":44,"languages":["Rust","Java"]}}
+}
+```
+
+### Untagged
+
+``` rust
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+enum Message {
+    Request { id: String, method: String, params: Params },
+    Response { id: String, result: Value },
+}
+
+
+输出格式如下：
+{"id": "...", "method": "...", "params": {...}}
+```
+
+案例
+
+``` rust
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)] // 新增
+enum Animal {
+    Human {
+        name: String,
+        age: u16,
+        languages: Vec<String>,
+    },
+}
+
+fn main() {
+    let human = Animal::Human {
+        name: "JiangBo".to_owned(),
+        age: 44,
+        languages: vec!["Rust".to_owned(), "Java".to_owned()],
+    };
+
+    println!("{}", serde_json::to_string(&human).unwrap());
+    // {"name":"JiangBo","age":44,"languages":["Rust","Java"]}
+}
+```
+
+## 枚举和数字转换 
+
+使用 serde 时，可以将枚举映射为数字，也可以将数字映射为枚举。
+
+``` rust
+serde_repr = "0.1"
+
+
+use serde_derive::{Deserialize, Serialize};
+use serde_json::Value;
+use serde_json::json;
+use serde_repr::*;
+
+#[derive(Serialize_repr, Deserialize_repr, PartialEq, Debug)]
+#[repr(u8)]
+enum SmallPrime {
+    Two = 2,
+    Three = 3,
+    Five = 5,
+    Seven = 7,
+}
+
+fn main() {
+    use SmallPrime::*;
+    let nums = vec![Two, Three, Five, Seven];
+
+    println!("{}", serde_json::to_string(&nums).unwrap());
+    assert_eq!(Two, serde_json::from_str("2").unwrap());
+}
+
+[2,3,5,7]
+```
+
+## 格式转换
+
+感觉类似io的重定向，未细致研究
+
+``` rust
+serde-transcode = "1"
+
+
+use serde_derive::{Deserialize, Serialize};
+use serde_json::Value;
+use serde_json::json;
+use serde_repr::*;
+use std::io;
+
+fn main() {
+    // A JSON input with plenty of whitespace.
+    let input = r#"
+      {
+        "a boolean": true,
+        "an array": [3, 2, 1]
+      }
+    "#;
+
+    // A JSON deserializer. You can use any Serde Deserializer here.
+    let mut deserializer = serde_json::Deserializer::from_str(input);
+
+    // A compacted JSON serializer. You can use any Serde Serializer here.
+    let mut serializer = serde_json::Serializer::new(io::stdout());
+
+    // Prints `{"a boolean":true,"an array":[3,2,1]}` to stdout.
+    // This line works with any self-describing Deserializer and any Serializer.
+    serde_transcode::transcode(&mut deserializer, &mut serializer).unwrap();
+}
+
+{"a boolean":true,"an array":[3,2,1]}
+```
+
+## 结构扁平化 
+
+使用 serde 将多层的结构体展开成一层的结构，也可以将没有定义的字段，全部放到扩展字段中。
+
+``` rust
+use serde_derive::{Deserialize, Serialize};
+use serde_json::json;
+use serde_json::Value;
+use serde_repr::*;
+use std::collections::HashMap;
+
+// 组合公共属性
+fn f1() {
+    #[derive(Serialize, Deserialize, Debug)]
+    struct Paging {
+        page_number: usize,
+        page_size: usize,
+    }
+
+    #[derive(Serialize, Deserialize, Debug)]
+    struct Request {
+        name: String,
+        paging: Paging,
+    }
+
+    let request = Request {
+        name: "JiangBo".to_owned(),
+        paging: Paging {
+            page_number: 4,
+            page_size: 44,
+        },
+    };
+
+    let json = serde_json::to_string(&request).unwrap();
+    println!("{}", json); // {"name":"JiangBo","paging":{"page_number":4,"page_size":44}}
+    let req: Request = serde_json::from_str(&json).unwrap();
+    println!("{:?}", req); // Request { name: "JiangBo", paging: Paging { page_number: 4, page_size: 44 } }
+}
+
+// 捕获剩余字段
+fn f2() {
+    #[derive(Serialize, Deserialize, Debug)]
+    struct Request {
+        name: String,
+        #[serde(flatten)]
+        other: HashMap<String, Value>,
+    }
+
+    let json = r#"{
+        "name": "JiangBo",
+        "page_number": 4,
+        "page_size": 44
+      }"#;
+
+    let req: Request = serde_json::from_str(json).unwrap();
+    println!("{:?}", req); // Request { name: "JiangBo", other: {"page_size": Number(44), "page_number": Number(4)} }
+    println!("{}", serde_json::to_string(&req).unwrap());
+    // {"name":"JiangBo","page_size":44,"page_number":4}
+}
+
+fn main() {
+    f1();
+    f2();
+}
+
+```
+
+## 多种类型转换 
+
+使用 serde 反序列化时，如果 JSON 中的类型和程序中的类型不匹配，可以使用下面的方式转换。
+
+``` rust
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_derive::{Deserialize, Serialize};
+use std::fmt;
+
+
+fn f1() { // 直接转
+    #[derive(Serialize, Deserialize, Debug)]
+    struct Person {
+        name: String,
+        #[serde(deserialize_with = "from_str")]
+        age: u16,
+    }
+
+    #[derive(Deserialize)]
+    #[serde(untagged)] // 枚举类型的无标签方式
+    enum StrOrU16 {
+        String(String),
+        U64(u16),
+    }
+
+    fn from_str<'de, D>(deserializer: D) -> Result<u16, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(match StrOrU16::deserialize(deserializer)? {
+            StrOrU16::String(v) => v.parse().unwrap_or_default(),
+            StrOrU16::U64(v) => v,
+        })
+    }
+
+    // 字符串类型的 age
+    let json = r#"{
+            "name":"JiangBo",
+            "age": "44"
+        }"#;
+
+    println!("{:?}", serde_json::from_str::<Person>(json).unwrap());
+    // Person { name: "JiangBo", age: 44 }
+
+    // 数字类型的 age
+    let json = r#"{
+            "name":"JiangBo",
+            "age": 44
+        }"#;
+
+    println!("{:?}", serde_json::from_str::<Person>(json).unwrap());
+    // Person { name: "JiangBo", age: 44 }
+}
+
+fn f2() { // 转为枚举
+    #[derive(Deserialize, Debug)]
+    struct Person {
+        name: String,
+        age: StrOrU16,
+    }
+
+    #[derive(Deserialize, Debug)]
+    #[serde(untagged)] // 枚举类型的无标签方式
+    enum StrOrU16 {
+        String(String),
+        U64(u16),
+    }
+
+    let json = r#"{
+        "name":"JiangBo",
+        "age": "44"
+    }"#;
+
+    println!("{:?}", serde_json::from_str::<Person>(json).unwrap());
+    // Person { name: "JiangBo", age: String("44") }
+
+    let json = r#"{
+        "name":"JiangBo",
+        "age": 44
+    }"#;
+
+    println!("{:?}", serde_json::from_str::<Person>(json).unwrap());
+    // Person { name: "JiangBo", age: U64(44) }
+}
+
+fn main() {
+    f1();
+    f2();
+}
+
+```
+
+## 自定义类型转换 
+
+使用 serde 反序列化时，提供了自定义的类型，并且提供了自定义类型的反序列化逻辑。
+
+``` rust
+use serde_derive::{Deserialize, Serialize};
+use std::fmt;
+use serde::{de::Visitor, Deserialize, Deserializer};
+
+#[derive(Deserialize, Debug)]
+struct Person {
+    name: String,
+    languages: MyVec,
+}
+
+#[derive(Debug)]
+struct MyVec(Vec<String>);
+
+impl<'de> Deserialize<'de> for MyVec {
+    fn deserialize<D>(deserializer: D) -> Result<MyVec, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let vec = s.split(',').map(str::to_string).collect();
+        Ok(MyVec(vec))
+    }
+}
+
+fn main() {
+    let json = r#"{
+        "name":"JiangBo",
+        "languages": "Java,Rust"
+    }"#;
+
+    let person: Person = serde_json::from_str(json).unwrap();
+    println!("{:?}", person);
+}
+
+Person { name: "JiangBo", languages: MyVec(["Java", "Rust"]) }
+```
+
+## 跳过某个属性 
+
+使用 serde 序列化时，可以使用属性宏来决定是否进行序列化。
+
+``` rust
+use serde_derive::{Deserialize, Serialize};
+use std::fmt;
+use std::collections::BTreeMap as Map;
+
+
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+enum Speech {
+    Str(String),
+    StrArray(Vec<String>),
+    text_all(TextInfo),
+}
+
+#[derive(Debug,Serialize)]
+pub struct TextInfo {
+    item_words: String,
+    chinese_key: String,
+    item_score: f64,
+}
+
+
+#[derive(Serialize)]
+struct Resource {
+    // Always serialized.
+    name: String,
+
+    // Never serialized.
+    #[serde(skip_serializing)]
+    hash: String,
+
+    // Use a method to decide whether the field should be skipped.
+    #[serde(skip_serializing_if = "Map::is_empty")]
+    metadata: Map<String, String>,
+    
+    #[serde(skip_serializing_if = "Option::is_none")]
+    image_result: Option<Speech>,
+}
+
+fn main() {
+    let resources = vec![
+        Resource {
+            name: "Stack Overflow".to_string(),
+            hash: "b6469c3f31653d281bbbfa6f94d60fea130abe38".to_string(),
+            image_result: Some(Speech::Str("zhangsan".to_string())),
+            metadata: Map::new(),
+        },
+        Resource {
+            name: "tensorflow".to_string(),
+            hash: "b2469c3f31653d281bbbfa6f94d60fea130abe38".to_string(),
+            image_result: None,
+            metadata: Map::new(),
+        },
+        Resource {
+            name: "torch".to_string(),
+            hash: "b1239c3f31653d281bbbfa6f94d60fea130abe38".to_string(),
+            image_result: Some(Speech::text_all(TextInfo{
+                item_words: "第一个单词".to_string(),
+                chinese_key: "简体中文".to_string(),
+                item_score: 0.985142,}
+                )),
+            metadata: Map::new(),
+        },
+        Resource {
+            name: "GitHub".to_string(),
+            hash: "5cb7a0c47e53854cd00e1a968de5abce1c124601".to_string(),
+            image_result:Some(Speech::StrArray(vec!["recognize_01".to_string(), "recognize_02 all".to_string()])),
+            metadata: {
+                let mut metadata = Map::new();
+                metadata.insert("headquarters".to_string(),
+                                "San Francisco".to_string());
+                metadata
+            },
+        },
+    ];
+
+    let json = serde_json::to_string_pretty(&resources).unwrap();
+    println!("{}", json);
+}
+
+[
+  {
+    "name": "Stack Overflow",
+    "image_result": "zhangsan"
+  },
+  {
+    "name": "tensorflow"
+  },
+  {
+    "name": "torch",
+    "image_result": {
+      "item_words": "第一个单词",
+      "chinese_key": "简体中文",
+      "item_score": 0.985142
+    }
+  },
+  {
+    "name": "GitHub",
+    "metadata": {
+      "headquarters": "San Francisco"
+    },
+    "image_result": [
+      "recognize_01",
+      "recognize_02 all"
+    ]
+  }
+]
+```
+
+## json 反序列化日期格式
+
+``` rust
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_derive::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
+
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct StructWithCustomDate {
+    // DateTime支持Serde开箱即用，但使用rfc339格式。提供一些自定义逻辑
+    #[serde(with = "my_date_format")]
+    pub timestamp: DateTime<Utc>,
+
+    // Any other fields in the struct.
+    pub bidder: String,
+}
+
+mod my_date_format {
+    use chrono::{DateTime, Utc, TimeZone};
+    use serde::{self, Deserialize, Serializer, Deserializer};
+    const FORMAT: &'static str = "%Y-%m-%d %H:%M:%S";
+    
+    
+    pub fn serialize<S>(
+        date: &DateTime<Utc>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let s = format!("{}", date.format(FORMAT));
+        serializer.serialize_str(&s)
+    }
+
+    // 反序列化函数的签名必须遵循以下模式：
+    // 尽管它也可能是输出类型T上的泛型。
+    pub fn deserialize<'de, D>(
+        deserializer: D,
+    ) -> Result<DateTime<Utc>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Utc.datetime_from_str(&s, FORMAT).map_err(serde::de::Error::custom)
+    }
+}
+
+fn main() {
+    let json_str = r#"
+      {
+        "timestamp": "2017-02-16 21:54:30",
+        "bidder": "Skrillex"
+      }
+    "#;
+
+    let data: StructWithCustomDate = serde_json::from_str(json_str).unwrap();
+    println!("{:#?}", data);
+
+    let serialized = serde_json::to_string_pretty(&data).unwrap();
+    println!("{}", serialized);
+}
+
+StructWithCustomDate {
+    timestamp: 2017-02-16T21:54:30Z,
+    bidder: "Skrillex",
+}
+{
+  "timestamp": "2017-02-16 21:54:30",
+  "bidder": "Skrillex"
+}
+```
+
+## 高级案例
+
+假设有一个整数阵列，我们希望找出最大值，而无需同时将整个阵列保留在内存中。这种方法可以适应处理各种其他情况，其中数据需要处理，同时被除名，而不是之后。
+
+``` rust
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_derive::{Deserialize, Serialize};
+
+use serde::de::{self, SeqAccess, Visitor};
+
+use std::marker::PhantomData;
+use std::{cmp, fmt};
+
+#[derive(Deserialize)]
+struct Outer {
+    id: String,
+    // 通过计算序列（JSON数组）的最大值来反序列化此字段
+    #[serde(deserialize_with = "deserialize_max")]
+    // JSON 字段为 `values`.
+    #[serde(rename(deserialize = "values"))]
+    max_value: u64,
+}
+
+/// 反序列化值序列的最大值。整个序列不会：先反序列化为Vec<T>然后计算最大值，无需缓冲到内存中。
+/// T可以是实现Ord的泛型, it is used with T=u64.
+fn deserialize_max<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+where
+    T: Deserialize<'de> + Ord,
+    D: Deserializer<'de>,
+{
+    struct MaxVisitor<T>(PhantomData<fn() -> T>);
+
+    impl<'de, T> Visitor<'de> for MaxVisitor<T>
+    where
+        T: Deserialize<'de> + Ord,
+    {
+        /// 访问者的返回类型。这个访问者计算T类型的值序列的最大值，因此最大值的类型是T。
+        type Value = T;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a nonempty sequence of numbers")
+        }
+
+        fn visit_seq<S>(self, mut seq: S) -> Result<T, S::Error>
+        where
+            S: SeqAccess<'de>,
+        {
+            // 从最大值等于序列中的第一个值开始。
+            let mut max = seq.next_element()?.ok_or_else(||
+                // 空序列处理。
+                de::Error::custom("no values in seq when looking for maximum"))?;
+
+            // 更新最大值
+            while let Some(value) = seq.next_element()? {
+                max = cmp::max(max, value);
+            }
+
+            Ok(max)
+        }
+    }
+
+    // 创建访问者并要求反序列化程序驱动它。如果输入数据中存在seq，反序列化程序将调用visitor.visit_seq().
+    let visitor = MaxVisitor(PhantomData);
+    deserializer.deserialize_seq(visitor)
+}
+
+fn main() {
+    let j = r#"
+        {
+          "id": "demo-deserialize-max",
+          "values": [
+            256,
+            100,
+            384,
+            314,
+            271
+          ]
+        }
+    "#;
+
+    let out: Outer = serde_json::from_str(j).unwrap();
+
+    // Prints "max value: 384"
+    println!("max value: {}", out.max_value);
+}
+
+```
+
 # 日期与时间
 
 ## 日期、星期几
@@ -13677,6 +14894,252 @@ if Local::now() > channel.deadline {
 	locked_channels.remove(&message_no);
 	return Err(ProtocolError::ReceviedTimeoutedMessage(format!("{:?}", response)).into());
 }
+```
+
+# clap
+
+## 概念
+
+以“ myapp run app --release --message hello ”为例，这里的参数分为几种
+
+- run：子命令
+- app：固定位置参数
+- --release：flag 参数
+- --message hello：命名选项参数
+
+需要添加一下依赖
+
+``` rust
+clap = { version = "4.1.8", features = ["derive"] }
+```
+
+## 子命令 
+
+``` rust
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    #[command(subcommand)] // 在结构中使用 #[command(subcommand)] 表示以下结构是一个子命令 
+    command: Commands
+}
+
+#[derive(Subcommand)] // 用 #[derive(Subcommand)] 来声明一个子命令结构
+enum Commands {
+    Add {
+    name: Option<String>
+    }
+}
+
+fn main() {
+    let cli = Cli::parse();
+    match &cli.command {
+    Commands::Add {name} => {
+        println!("myapp add was used, name is: {:?}", name)
+    }
+    }
+}
+
+huaw@huaw:~/playground/rust/tut$ ./target/debug/main add hello
+myapp add was used, name is: Some("hello")
+```
+
+## 固定位置参数
+
+程序的解析顺序是按照结构体中字段的声明顺序决定的
+
+``` rust
+use clap::Parser;
+
+#[derive(Debug, Parser)]
+struct Cli {
+    a: u32,
+    b: u32,
+    c: u32,
+    name: String
+}
+
+fn main() {
+    let cli = Cli::parse();
+    println!("{:?}", cli);
+}
+
+huaw@huaw:~/playground/rust/tut$ ./target/debug/main 1 2 3 hello
+Cli { a: 1, b: 2, c: 3, name: "hello" }
+```
+
+## Flag 参数
+
+``` rust
+use clap::Parser;
+
+#[derive(Debug, Parser)]
+struct Cli {
+    a: u32,
+    b: u32,
+    c: u32,
+    #[arg(long)]
+    name: String,
+
+    #[arg(long)] // 先添加 #[arg(long)] 或者 #[arg(short)] 宏，再将字段类型改为 bool 即可
+    verbose: bool
+}
+
+fn main() {
+    let cli = Cli::parse();
+    println!("{:?}", cli);
+}
+
+huaw@huaw:~/playground/rust/tut$ ./target/debug/main  1 2 3 --name hello --verbose
+Cli { a: 1, b: 2, c: 3, name: "hello", verbose: true }
+```
+
+## 命名选项参数
+
+``` rust
+use clap::Parser;
+
+#[derive(Debug, Parser)]
+struct Cli {
+    a: u32,
+    b: u32,
+    c: u32,
+    #[arg(long)] // 需要在字段上添加一个 #[arg(short, long)] ，就可以生成短选项和长选项 
+    name: String
+}
+
+fn main() {
+    let cli = Cli::parse();
+    println!("{:?}", cli);
+}
+
+huaw@huaw:~/playground/rust/tut$ ./target/debug/main 1 2 3 --name hello
+Cli { a: 1, b: 2, c: 3, name: "hello" }
+```
+
+## 可选的参数
+
+``` rust
+use clap::Parser;
+
+#[derive(Debug, Parser)]
+struct Cli {
+    a: u32,
+    b: u32,
+    c: Option<u32>, // 将字段类型改为 Option 即可，这样程序找不到匹配的项时，会将值设置为 None
+
+    #[arg(long)]
+    name: String,
+
+    #[arg(long)]
+    verbose: bool,
+}
+
+fn main() {
+    let cli = Cli::parse();
+    println!("{:?}", cli);
+}
+
+huaw@huaw:~/playground/rust/tut$ ./target/debug/main  1 2 --name hello --verbose
+Cli { a: 1, b: 2, c: None, name: "hello", verbose: true }
+```
+
+## 默认值
+
+``` rust
+use clap::Parser;
+
+#[derive(Parser)]
+struct Cli {
+    #[arg(default_value_t = 2020)] // 只需要在字段上加上 #[arg(default_value_t = 值)]即可
+    port: u16
+}
+
+fn main() {
+    let cli = Cli::parse();
+    println!("port: {:?}", cli.port);
+}
+
+huaw@huaw:~/playground/rust/tut$ ./target/debug/main 
+port: 2020
+```
+
+## 验证
+
+``` rust
+use clap::Parser;
+
+use std::ops::RangeInclusive;
+
+const PORT_RANGE: RangeInclusive<usize> = 1..=65535;
+
+// 制定一个验证器函数，这个函数要返回一个 Result 类型，接受一个 &str 参数
+fn port_in_range(s: &str) -> Result<u16, String> {
+    let port: usize = s
+        .parse()
+        .map_err(|_| format!("`{}` isn't a port number", s))?;
+
+    if PORT_RANGE.contains(&port) {
+        Ok(port as u16)
+    } else {
+        Err(format!(
+            "Port not in range {} - {}",
+            PORT_RANGE.start(),
+            PORT_RANGE.end()
+        ))
+    }
+}
+
+#[derive(Parser)]
+struct Cli {
+    #[arg(value_parser = port_in_range)]
+    port: u16, // 验证函数返回值的T类型要与此字段类型一致
+}
+
+fn main() {
+    let cli = Cli::parse();
+    println!("port: {:?}", cli.port);
+}
+
+huaw@huaw:~/playground/rust/tut$ ./target/debug/main 123451
+error: invalid value '123451' for '<PORT>': Port not in range 1 - 65535
+For more information, try '--help'.
+```
+
+## 转换
+
+``` rust
+use clap::Parser;
+
+#[derive(Debug, Parser)]
+struct Cli {
+    a: u32,
+    b: u32,
+    #[arg(value_parser = convert)] // 转换器，返回输入数字的负数
+    c: i32,
+
+    #[arg(long)]
+    name: String,
+
+    #[arg(long)]
+    verbose: bool,
+}
+
+fn convert(s: &str) -> Result<i32, String> {
+    let number: i32 = s
+        .parse()
+        .map_err(|_| format!("`{}` isn't a valid number", s))?;
+    return Ok(-number as i32);
+}
+
+fn main() {
+    let cli = Cli::parse();
+    println!("{:?}", cli);
+}
+
+huaw@huaw:~/playground/rust/tut$ ./target/debug/main 1 2 3 --name aaa --verbose
+Cli { a: 1, b: 2, c: -3, name: "aaa", verbose: true }
 ```
 
 # FFI
