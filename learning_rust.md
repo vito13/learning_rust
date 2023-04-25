@@ -29,6 +29,12 @@ https://github.com/wasmflow/node-to-rust
 
 https://doc.rust-lang.org/rust-by-example/fn/closures/input_parameters.html
 https://mirrors.gitcode.host/rust-lang-cn/rust-by-example-cn/mod.html
+
+
+
+https://rust-book.junmajinlong.com/ch3/08_slice.html        继续此
+https://doc.rust-lang.org/std/primitive.slice.html#impl
+
 ---
 
 # 准备
@@ -1545,7 +1551,8 @@ huaw@test:~/playground/rust/hellocargo$ cargo run
 
 ### 布尔
 
-bool类型只包括两个值: true 和 false。布尔类型最主要的用途是在if表达式内作为条件使用。必须写成 if x != 0 { ... } 类型这样才行。
+- bool类型只包括两个值: true 和 false。布尔类型最主要的用途是在if表达式内作为条件使用。必须写成 if x != 0 { ... } 类型这样才行。
+- 布尔值可以使用as操作符转换为各种数值类型，false对应0，true对应1。
 
 ``` rust
 fn main() {
@@ -1553,6 +1560,9 @@ fn main() {
     let f = false; // 隐式类型声明
     println!("{}", t);
     println!("{}", f);
+    println!("{}", true as u32);
+    println!("{}", false as u8);
+    // println!("{}", 1_u8 as bool);  // 编译错误
 }
 huaw@test:~/playground/rust/hellocargo$ cargo run
    Compiling hellocargo v0.1.0 (/home/huaw/playground/rust/hellocargo)
@@ -1560,11 +1570,13 @@ huaw@test:~/playground/rust/hellocargo$ cargo run
      Running `target/debug/hellocargo`
 true
 false
+1
+0
 ```
 
 ### 字符
 
-char类型表示单个字符。char类型使用单引号制定，而不同于字符串使用双引号指定。因为char类型的设计目的是描述任意一个unicode字符，因此它占据的内存空间不是1个字节，而是4个字节。Rust 会将字符和数值类型区别对待，即 char 既不是 u8 也不是 i8
+char类型表示单个字符。char类型使用单引号制定，而不同于字符串使用双引号指定。因为char类型的设计目的是描述任意一个unicode字符(即将其转换为UTF-8编码的数据进行存储)，因此它占据的内存空间不是1个字节，而是4个字节。Rust 会将字符和数值类型区别对待，即 char 既不是 u8 也不是 i8
 
 ``` rust
 fn main() {
@@ -1572,6 +1584,25 @@ fn main() {
     let b = '✔';
     let c = '☺';
     println!("a = {}, b = {}, c = {}", a, b, c);    // 输出 a = y, b = ✔, c = ☺
+
+    // char -> Integer
+    println!("{}", '我' as i32);     // 25105
+    println!("{}", '是' as u16);     // 26159
+    println!("{}", '是' as u8);      // 47，被截断了
+
+    // u8 -> char
+    println!("{}", 97u8 as char);    // a
+
+    // std::char
+    use std::char;
+
+    println!("{}", char::from_u32(0x2764).unwrap());  // ❤
+    assert_eq!(char::from_u32(0x110000), None);  // true
+
+    println!("{}", char::from_digit(4,10).unwrap());  // '4'
+    println!("{}", char::from_digit(11,16).unwrap()); // 'b'
+    assert_eq!(char::from_digit(11,10),None); // true
+
 }
 ```
 
@@ -1582,6 +1613,16 @@ let love = '❤'; // 可以直接嵌入任何 unicode 字符
 let c1 = '\n'; // 换行符
 let c2 = '\x7f'; // 8 bit 字符变量
 let c3 = '\u{7FFF}'; // unicode字符
+```
+
+## 最大值、最小值
+
+``` rust
+fn main(){
+    let n: i32 = std::i32::MAX;  // i32类型的最大值
+    // println!("{}", n + 1);     // 编译错误，溢出
+    println!("{}, {}", n, std::i32::MIN);
+}
 ```
 
 ## 类型转换
@@ -2501,7 +2542,7 @@ Just an integer: 5
 Matrix(1.1, 1.2, 2.1, 2.2)
 ```
 
-## 数组
+## 数组 Array
 
 数组（Array）是Rust内建的原始集合类型，数组的特点为：
 
@@ -2509,8 +2550,7 @@ Matrix(1.1, 1.2, 2.1, 2.2)
 - 元素均为同类型。
 - 默认不可变。
 
-数组类型是由相同类型的元素组合成的复合类型，我们可以使用
-[T; n]表示，T代表元素类型，n代表长度即元素个数。
+数组类型是由相同类型的元素组合成的复合类型，数组类型表示为[T; N]，数组的引用类型表示为&[T; N]，T代表元素类型，n代表长度即元素个数。
 
 数组的声明和初始化有以下3种方式
 
@@ -2545,6 +2585,46 @@ huaw@test:~/playground/rust/hellocargo$ cargo run
 [1, 1, 1, 1, 1]
 [1, 1, 1, 1, 1]
 arr1[0]: 1, arr3[2]: 1
+```
+
+### 数组的方法
+
+- 可以直接将数组的引用当成slice来使用。即&arr和&mut arr当作不可变slice和可变slice来使用。
+- 在调用方法的时候，由于.操作符会自动创建引用或解除引用，因此Array可以直接调用Slice的所有方法。实际上，数组的方法都来自Slice类型。
+
+案例：演示获取数组长度与遍历数组
+
+``` rust
+fn main() {
+    // 自动推导类型为：[i32; 4]
+    let _arr = [11,22,33,44];
+    
+    let _arr1: [&str; 3] = ["junma", "jinlong", "gaoxiao"];
+    // 可以迭代数组，不过不能直接for i in arr{}，而是for i in &arr{}或者for i in arr.iter(){}
+    for i in _arr1.iter() {
+        println!("{}", i);
+    }
+    // 自动推导类型为：[u8; 1024]
+    // 该数组初始化为1024个u8类型的0
+    // 可将之当作以0填充的1K的buf空间
+    let _arr2 = [0_u8; 1024]; 
+    println!("{}", _arr2.len());    // 1024 
+}
+```
+
+另一个案例
+
+``` rust
+fn main() {
+    let arr = [11, 22, 33, 44];
+    let slice = &arr; // &arr将自动转换为slice类型
+    // 调用slice类型的方法first()返回slice的第一个元素
+    println!("{}", slice.first().unwrap()); // 11
+
+    // 点运算符会自动将arr.first()转换为&arr.first()
+    // 而&arr又会自动转换为slice类型
+    println!("{}", arr.first().unwrap()); // 11
+}
 ```
 
 ### 函数参数是数组
@@ -2608,14 +2688,15 @@ reset array [5, 4, 3, 2, 1]
 reset after : origin array [5, 4, 3, 2, 1]
 ```
 
-## 切片
+## 切片 slice
 
 - 切片本身是没有所有权的，它是通过引用语法实现对集合中一段连续的元素序列的借用。切片可以和常见的能够在内存中开辟一段连续内存块的数据结构一起使用，比如数组、动态数组、字符串等。字符串切片就是指向字符串中一段连续的字符。
 - 切片与数组类似，但它们的长度在编译时并不为人所知。相反，一个切片是一个两个字的对象；第一个字是一个指向数据的指针，第二个字是切片的长度。字的大小与usize相同，由处理器架构决定，例如x86-64的64位。片断可以用来借用一个数组的一部分，其类型签名为&[T]。
+- Rust常见的数据类型中，有三种类型已支持Slice操作：String类型、Array类型和Vec类型(其实Slice类型自身也支持切片操作)。实际上，用户自定义的类型也可以支持Slice操作，只要自定义的类型满足一些条件即可，
 
 ### 切片定义
 
-切片本质上是指向一段内存空间的指针，用于访问一段连续内存块中的数据。它的数据结构存储了切片的起始位置和长度。切片定义的语法如下所示。
+切片本质上是指向一段内存空间的指针，用于访问一段连续内存块中的数据。它的数据结构存储了切片的起始位置和长度。Slice类型表示为[T]，Slice的引用类型表示为&[T]。切片定义的语法如下所示。
 
 ``` rust
 let slice = &data[start_index..end_index];
@@ -2645,6 +2726,32 @@ fn main() {
     println!("{:?}", &vec[0..vec.len()]); // [1, 2, 3, 4, 5]
     println!("{:?}", &vec[..]); // [1, 2, 3, 4, 5]
 }
+```
+
+### 可变切片
+
+默认情况下，切片是不能改变所引用的数组、动态数组、字符串中的元素的，也就是说不能通过更改切片的元素来影响源数据。但是，如果声明源数据是可变的，同时声明切片也是可变的，就可以通过更改切片的元素来更改源数据。
+
+案例：更改可变切片的元素会更改源数据。动态数组和动态数组切片都是可变的，修改切片第1个元素的值，动态数组中对应的第4个元素的值也会被更改。
+
+``` rust
+fn main() {
+    let mut arr = [11,22,33,44];
+
+    // 不可变slice
+    let arr_slice1 = &arr[..=1];
+    println!("{:?}", arr_slice1); // [11,22];
+  
+    // 可变slice
+    let arr_slice2 = &mut arr[..=1];  
+    arr_slice2[0] = 1111;
+    println!("{:?}", arr_slice2);// [1111,22];
+    println!("{:?}", arr);// [1111,22,33,44];
+}
+
+[11, 22]
+[1111, 22]
+[1111, 22, 33, 44]
 ```
 
 ### 切片作为函数参数
@@ -2750,24 +2857,9 @@ fn print_vec(vec: &[i32]) {
 
 ```
 
-### 可变切片
+### 常用方法
 
-默认情况下，切片是不能改变所引用的数组、动态数组、字符串中的元素的，也就是说不能通过更改切片的元素来影响源数据。但是，如果声明源数据是可变的，同时声明切片也是可变的，就可以通过更改切片的元素来更改源数据。
-
-案例：更改可变切片的元素会更改源数据。动态数组和动态数组切片都是可变的，修改切片第1个元素的值，动态数组中对应的第4个元素的值也会被更改。
-
-``` rust
-fn main() {
-    let mut vec = vec![1, 2, 3, 4, 5];
-    let vec_slice = &mut vec[3..];
-    vec_slice[0] = 7;
-    println!("{:?}", vec);
-}
-
-[1, 2, 3, 7, 5]
-```
-
-### 切片的函数
+注：这些方法都不适用于String Slice，String Slice可用的方法较少，上面给出官方手册中，除了方法名中有"ascii"的方法(如is_ascii()方法)是String Slice可使用的方法外，其他方法都不能被String Slice调用。
 
 #### binary_search
 
@@ -3951,66 +4043,6 @@ Symmetric Difference: [1, 5]
 let s = "Hello,World!"; // s是字符串切片，“Hello,World!”是字面值
 ```
 
-## 字符串切片 &str
-
-- Rust中的字符串本质上是一段有效的UTF8字节序列。字符串切⽚（&str）则是指向此字节序列的引⽤（&[u8]），使用时候而无需复制
-- str字符串类型由两部分组成：指向字符串序列的指针和记录长度的值。可以通过str模块提供的as_ptr和len方法分别求得指针和长度
-
-
-``` rust
-fn main() {
-    println!("字符串切片----->");
-    let s = String::from("broadcast"); // 这是string
-
-    let part1 = &s[0..5]; // 这是切片
-    let part2 = &s[5..9];
-
-    println!("{}={}+{}", s, part1, part2);
-}
-
-字符串切片----->
-broadcast=broad+cast
-```
-
-字符串切片的成员函数
-
-``` rust
-fn main(){
-    let truth:&'static str ="Rust是一门优雅的语言";
-    let ptr = truth.as_ptr();
-    let len = truth.len();
-    assert_eq!(28,len);
-    let s = unsafe {
-        let slice = std::slice::from_raw_parts(ptr, len);
-        std::str::from_utf8(slice)
-    };
-    assert_eq!(s,Ok(truth));
-}
-```
-
-定义函数时，使用 &str作为参数类型，可以同时接受String和&str类型的参数。即使用字符串切片代替字符串引用会使API更加通用。下面是字符串切片当作函数参数的案例
-
-``` rust
-fn main() {
-    let my_string = String::from("Hello world");
-    let wordIndex = first_word(&my_string[..]);
-
-    let my_string_literal = "hello world";
-    let wordIndex = first_word(my_string_literal);
-}
-
-fn first_word(s: &str) -> &str {
-    let bytes = s.as_bytes();
-
-    for (i, &item) in bytes.iter().enumerate() {
-        if item == b' ' {
-            return &s[..i];
-        }
-    }
-    &s[..]
-}
-```
-
 ## 原始字符串 raw string
 
 原始标识符可以避免由于新增加关键字导致的不兼容问题，使用 r# 来使用。
@@ -4174,6 +4206,80 @@ fn main() {
     println!("{}", s);
 }
 
+```
+
+## String的切片 &str
+
+String的切片和普通的切片有些不同。
+
+- String的切片类型是str，而非[String]，String切片的引用是&str而非&[String]。
+- Rust为了保证字符串总是有效的Unicode字符，它不允许用户直接修改字符串中的字符，所以也无法通过切片引用来修改源字符串，除非那是ASCII字符(ASCII字符总是有效的unicode字符)。
+- Rust只为&str提供了两个转换ASCII大小写的方法来修改源字符串，除此之外，没有为字符串切片类型提供任何其他原地修改字符串的方法。
+
+``` rust
+fn main() {
+    let mut s = String::from("HELLO");
+    let ss = &mut s[..];
+    ss.make_ascii_lowercase();
+    println!("{}", s);  // hello
+}
+```
+
+- Rust中的字符串本质上是一段有效的UTF8字节序列。字符串切⽚（&str）则是指向此字节序列的引⽤（&[u8]），使用时候而无需复制
+- str字符串类型由两部分组成：指向字符串序列的指针和记录长度的值。可以通过str模块提供的as_ptr和len方法分别求得指针和长度
+
+``` rust
+fn main() {
+    println!("字符串切片----->");
+    let s = String::from("broadcast"); // 这是string
+
+    let part1 = &s[0..5]; // 这是切片
+    let part2 = &s[5..9];
+
+    println!("{}={}+{}", s, part1, part2);
+}
+
+字符串切片----->
+broadcast=broad+cast
+```
+
+字符串切片的成员函数
+
+``` rust
+fn main(){
+    let truth:&'static str ="Rust是一门优雅的语言";
+    let ptr = truth.as_ptr();
+    let len = truth.len();
+    assert_eq!(28,len);
+    let s = unsafe {
+        let slice = std::slice::from_raw_parts(ptr, len);
+        std::str::from_utf8(slice)
+    };
+    assert_eq!(s,Ok(truth));
+}
+```
+
+定义函数时，使用 &str作为参数类型，可以同时接受String和&str类型的参数。即使用字符串切片代替字符串引用会使API更加通用。下面是字符串切片当作函数参数的案例
+
+``` rust
+fn main() {
+    let my_string = String::from("Hello world");
+    let wordIndex = first_word(&my_string[..]);
+
+    let my_string_literal = "hello world";
+    let wordIndex = first_word(my_string_literal);
+}
+
+fn first_word(s: &str) -> &str {
+    let bytes = s.as_bytes();
+
+    for (i, &item) in bytes.iter().enumerate() {
+        if item == b' ' {
+            return &s[..i];
+        }
+    }
+    &s[..]
+}
 ```
 
 ## 字节数组
@@ -8590,9 +8696,92 @@ fn main() {
 
 # 引用
 
+## 基本概念
+
+Rust中，使用&T表示类型T的引用类型(reference type)。例如，&String表示String的引用类型，&i32表示i32的引用类型，&&i32表示i32引用的引用类型。
+
+- 引用类型是一种数据类型，它表示其所保存的值是一个引用。
+- 引用，通常来说是指向其他数据的一个指针或一个胖指针(有额外元数据的指针)
+- 引用类型保存值的引用。
+
+``` rust
+fn main() {
+    let n = 33;
+    let n_ref1 = &n; // n_ref1指向33
+    // 可以将保存了引用的变量赋值给其他变量，这样就有多个变量拥有同一份数据的引用。
+    let n_ref2 = n_ref1; // n_ref2也指向33
+
+    let n = 33;
+    let n_ref1 = &n;
+    let n_ref2 = n_ref1;
+    // 可以使用std::ptr::eq()来判断两个引用是否指向同一个地址，即判断所指向的数据是否是同一份数据。
+    println!("{}", std::ptr::eq(n_ref1, n_ref2)); // true
+ 
+    // 错误的方式
+    let s1 = String::from("hello");
+    let s2 = &s1;
+    let s3 = s1;
+    // 因为 s2 租借的 s1 已经将所有权移动到 s3，
+    // 所以 s2 将无法继续租借使用 s1 的所有权。
+    // 如果需要使用 s2 使用该值，必须重新租借，
+    // 如下面一段代码
+    println!("{}", s2); 
+
+
+    // 正确的方式
+    let s1 = String::from("hello");
+    let mut s2 = &s1;
+    let s3 = s1;
+    s2 = &s3; // 重新从 s3 租借所有权
+    println!("{}", s2);
+}
+```
+
+
+
+
+## 函数参数是引用
+
 多数情况下，我们更希望能访问数据，同时不取得其所有权。为实现这点，Rust 使用了借用（borrowing）机制。对象可以通过引用（&T）来传递，从而取代通过值（T）来传递。编译器（通过借用检查）静态地保证了引用总是指向有效的对象。也就是说，当存在引用指向一个对象时，该对象不能被销毁。
 
-- 复杂的案例
+案例：两个动态数组类型变量vec1和vec2作为实参传递给sum_vec函数，在函数内对两个动态数组中所有元素计算总和，最后打印出vec1、vec2和sum_vec函数返回值。
+
+``` rust
+错误的方式：当把变量vec1传递给sum_vec函数时发生所有权转移，vec1绑定的动态数组的所有权转移给了sum_vec函数的参数v1，那么打印时再次调用vec1就会发生错误。
+
+fn main() {
+    let vec1 = vec![1, 2, 3];
+    let vec2 = vec![4, 5, 6];
+
+    let answer = sum_vec(vec1, vec2);
+    println!("v1: {:?}, v2: {:?}, sum: {}", vec1, vec2, answer);
+}
+
+fn sum_vec(v1: Vec<i32>, v2: Vec<i32>) -> i32 {
+    let sum1: i32 = v1.iter().sum();
+    let sum2: i32 = v2.iter().sum();
+    sum1 + sum2
+}
+
+正确的方式：以引用作为函数参数不获取值的所有权。Rust支持所有权的借用，通过引用给函数传递实参，就是把所有权借用给函数的参数，当函数的参数离开作用域时会自动归还所有权。这个过程需要将函数的参数通过&操作符定义为引用，同时传递实参时也应该传递变量的引用。
+
+fn main() {
+    let vec1 = vec![1, 2, 3];
+    let vec2 = vec![4, 5, 6];
+    let answer = sum_vec(&vec1, &vec2); // 传递&Vec<i32>类型的实参来调用函数
+    println!("v1: {:?}, v2: {:?}, sum: {}", vec1, vec2, answer);
+}
+
+fn sum_vec(v1: &Vec<i32>, v2: &Vec<i32>) -> i32 { // 定义了带有&Vec<i32>类型参数的函数
+    let sum1: i32 = v1.iter().sum();
+    let sum2: i32 = v2.iter().sum();
+    sum1 + sum2
+}
+
+v1: [1, 2, 3], v2: [4, 5, 6], sum: 21
+```
+
+案例：更加复杂的
 
 ``` rust
 // 此函数取得一个 box 的所有权并销毁它
@@ -8637,103 +8826,9 @@ fn main() {
 }
 ```
 
-- 引用：变量的案例
-
-``` rust
-错误的方式
-fn main() {
-    let s1 = String::from("hello");
-    let s2 = &s1;
-    let s3 = s1;
-    // 因为 s2 租借的 s1 已经将所有权移动到 s3，
-    // 所以 s2 将无法继续租借使用 s1 的所有权。
-    // 如果需要使用 s2 使用该值，必须重新租借，
-    // 如下面一段代码
-    println!("{}", s2); 
-}
-
-正确的方式
-fn main() {
-    let s1 = String::from("hello");
-    let mut s2 = &s1;
-    let s3 = s1;
-    s2 = &s3; // 重新从 s3 租借所有权
-    println!("{}", s2);
-}
-```
-
-- 解引用并非取得所有权
-
-当要断⾔变量y中的值时，由于数值和引⽤是两种不同的类型，所以不能直接⽐较这两者。必须使⽤解引⽤运算符来跳转到引⽤指向的值。即使⽤*y来跟踪引⽤并跳转到它指向的值。
-
-``` rust
-fn main() {
-    let x = 5;
-    let y = &x;
-    assert_eq!(5, x);
-    assert_eq!(5, *y);
-}
-```
-
-``` rust
-fn main() {
-  let needle = 42;
-  let haystack = [1, 1, 2, 5, 14, 42, 132, 429, 1430, 4862]; // <1>
-    
-  for reference in haystack.iter() { // <2>
-    let item = *reference; // <3>
-    if item == needle {
-      println!("{}", item);
-    }
-  }
-}
-```
-
-- 引用：函数参数的案例
-
-两个动态数组类型变量vec1和vec2作为实参传递给sum_vec函数，在函数内对两个动态数组中所有元素计算总和，最后打印出vec1、vec2和sum_vec函数返回值。
-
-``` rust
-错误的方式：当把变量vec1传递给sum_vec函数时发生所有权转移，vec1绑定的动态数组的所有权转移给了sum_vec函数的参数v1，那么打印时再次调用vec1就会发生错误。
-
-fn main() {
-    let vec1 = vec![1, 2, 3];
-    let vec2 = vec![4, 5, 6];
-
-    let answer = sum_vec(vec1, vec2);
-    println!("v1: {:?}, v2: {:?}, sum: {}", vec1, vec2, answer);
-}
-
-fn sum_vec(v1: Vec<i32>, v2: Vec<i32>) -> i32 {
-    let sum1: i32 = v1.iter().sum();
-    let sum2: i32 = v2.iter().sum();
-    sum1 + sum2
-}
-
-
-正确的方式：以引用作为函数参数不获取值的所有权。Rust支持所有权的借用，通过引用给函数传递实参，就是把所有权借用给函数的参数，当函数的参数离开作用域时会自动归还所有权。这个过程需要将函数的参数通过&操作符定义为引用，同时传递实参时也应该传递变量的引用。
-
-fn main() {
-    let vec1 = vec![1, 2, 3];
-    let vec2 = vec![4, 5, 6];
-    let answer = sum_vec(&vec1, &vec2); // 传递&Vec<i32>类型的实参来调用函数
-    println!("v1: {:?}, v2: {:?}, sum: {}", vec1, vec2, answer);
-}
-
-fn sum_vec(v1: &Vec<i32>, v2: &Vec<i32>) -> i32 { // 定义了带有&Vec<i32>类型参数的函数
-    let sum1: i32 = v1.iter().sum();
-    let sum2: i32 = v2.iter().sum();
-    sum1 + sum2
-}
-
-v1: [1, 2, 3], v2: [4, 5, 6], sum: 21
-```
-
 ## 可变引用
 
-可变数据可以使用 &mut T 进行可变借用。这叫做可变引用（mutable reference），它使借用者可以读/写数据。相反，&T 通过不可变引用（immutable reference）来借用数据，借用者可以读数据而不能更改数据：
-
-引用默认是只读的，要想修改引用的值，应该使用可变引用&mut。在定义与调用带有可变引用参数的函数时，必须同时满足以下3个要求，缺一不可，否则会导致程序错误。
+如果想要通过引用去修改源数据，需要使用&mut v来创建可修改源数据v的可变引用。在定义与调用带有可变引用参数的函数时，必须同时满足以下3个要求，缺一不可，否则会导致程序错误。
 
 - 变量本身必须是可变的，因为可变引用只能操作可变变量，不能获取不可变变量的可变引用。变量声明中必须使用mut。
 - 函数的参数必须是可变的，函数的参数定义中必须使用&mut。
@@ -8821,6 +8916,39 @@ fn main() {
 }
 
 x: 7
+```
+
+## 解引用
+
+解引用表示解除引用，即通过引用获取到该引用所指向的原始值。解引用使用*T表示，其中T是一个引用(如&i32)。
+
+``` rust
+use clap::Parser;
+use serde_derive::{Deserialize, Serialize};
+
+fn main() {
+    let s = String::from("junma");
+    let s_ref = &s; // s_ref是指向"junma"的一个引用
+
+    // *s_ref表示通过引用s_ref获取其指向的"junma"
+    // 因此s和*s_ref都指向同一个"junma"，它们是同一个东西
+    assert_eq!(s, *s_ref); // true
+
+    let mut n = 33;
+    let n_ref = &mut n;
+    n = *n_ref + 1;
+    println!("{}", n); // 34
+
+    let needle = 42;
+    let haystack = [1, 1, 2, 5, 14, 42, 132, 429, 1430, 4862];
+    for reference in haystack.iter() {
+        let item = *reference;
+        if item == needle {
+            println!("{}", item); // 42
+        }
+    }
+}
+
 ```
 
 ## 借用规则
