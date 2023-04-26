@@ -34,6 +34,8 @@ https://mirrors.gitcode.host/rust-lang-cn/rust-by-example-cn/mod.html
 
 https://rust-book.junmajinlong.com/ch3/08_slice.html        继续此
 https://doc.rust-lang.org/std/primitive.slice.html#impl
+https://rustwiki.org/zh-CN/std/primitive.slice.html#method.to_vec
+https://www.cnblogs.com/jiangbo4444/category/2071807.html?page=3
 
 ---
 
@@ -2691,7 +2693,8 @@ reset after : origin array [5, 4, 3, 2, 1]
 ## 切片 slice
 
 - 切片本身是没有所有权的，它是通过引用语法实现对集合中一段连续的元素序列的借用。切片可以和常见的能够在内存中开辟一段连续内存块的数据结构一起使用，比如数组、动态数组、字符串等。字符串切片就是指向字符串中一段连续的字符。
-- 切片与数组类似，但它们的长度在编译时并不为人所知。相反，一个切片是一个两个字的对象；第一个字是一个指向数据的指针，第二个字是切片的长度。字的大小与usize相同，由处理器架构决定，例如x86-64的64位。片断可以用来借用一个数组的一部分，其类型签名为&[T]。
+- 切片与数组类似，但它们的长度在编译时并不为人所知。相反，一个切片是一个两个字的对象；第一个字是一个指向数据的指针，第二个字是切片的长度。字的大小与usize相同，由处理器架构决定，例如x86-64的64位。
+- 片断可以用来借用一个数组的一部分，其类型签名为&[T]。
 - Rust常见的数据类型中，有三种类型已支持Slice操作：String类型、Array类型和Vec类型(其实Slice类型自身也支持切片操作)。实际上，用户自定义的类型也可以支持Slice操作，只要自定义的类型满足一些条件即可，
 
 ### 切片定义
@@ -2725,34 +2728,52 @@ fn main() {
     println!("{:?}", &vec[2..]); // [3, 4, 5]
     println!("{:?}", &vec[0..vec.len()]); // [1, 2, 3, 4, 5]
     println!("{:?}", &vec[..]); // [1, 2, 3, 4, 5]
+
+    // 不可变slice
+    let mut arr = [11,22,33,44];
+    let arr_slice1 = &arr[..=1];
+    println!("{:?}", arr_slice1); // [11,22];
+
+    // 切片 Vec
+    let vec = vec![1, 2, 3];
+    let int_slice = &vec[..];
+    // 将数组强制转换为切片
+    let str_slice: &[&str] = &["one", "two", "three"];
+
+
+    // 由于切片存储了它们所指的序列的长度，它们的大小是Sized类型指针的两倍。
+    let pointer_size = std::mem::size_of::<&u8>();
+    assert_eq!(2 * pointer_size, std::mem::size_of::<&[u8]>());
+    assert_eq!(2 * pointer_size, std::mem::size_of::<*const [u8]>());
+    assert_eq!(2 * pointer_size, std::mem::size_of::<Box<[u8]>>());
+    assert_eq!(2 * pointer_size, std::mem::size_of::<Rc<[u8]>>());
 }
 ```
 
 ### 可变切片
 
-默认情况下，切片是不能改变所引用的数组、动态数组、字符串中的元素的，也就是说不能通过更改切片的元素来影响源数据。但是，如果声明源数据是可变的，同时声明切片也是可变的，就可以通过更改切片的元素来更改源数据。
+默认情况下，切片是不能改变所引用的数组、动态数组、字符串中的元素的，也就是说不能通过更改切片的元素来影响源数据。但是，如果声明源数据是可变的，同时声明切片也是可变的，就可以通过更改切片的元素来更改源数据。可变切片类型为 &mut [T]
 
 案例：更改可变切片的元素会更改源数据。动态数组和动态数组切片都是可变的，修改切片第1个元素的值，动态数组中对应的第4个元素的值也会被更改。
 
 ``` rust
 fn main() {
-    let mut arr = [11,22,33,44];
 
-    // 不可变slice
-    let arr_slice1 = &arr[..=1];
-    println!("{:?}", arr_slice1); // [11,22];
-  
     // 可变slice
+    let mut arr = [11,22,33,44];
     let arr_slice2 = &mut arr[..=1];  
     arr_slice2[0] = 1111;
     println!("{:?}", arr_slice2);// [1111,22];
     println!("{:?}", arr);// [1111,22,33,44];
-}
 
-[11, 22]
-[1111, 22]
-[1111, 22, 33, 44]
+    let mut x = [1, 2, 3];
+    let x = &mut x[..]; // 取 `x` 的完整切片。
+    x[1] = 7;
+    assert_eq!(x, &[1, 7, 3]);
+}
 ```
+
+### 迭代slice
 
 ### 切片作为函数参数
 
@@ -2860,6 +2881,615 @@ fn print_vec(vec: &[i32]) {
 ### 常用方法
 
 注：这些方法都不适用于String Slice，String Slice可用的方法较少，上面给出官方手册中，除了方法名中有"ascii"的方法(如is_ascii()方法)是String Slice可使用的方法外，其他方法都不能被String Slice调用。
+
+
+#### len、is_empty
+
+``` rust
+fn main() {
+    let a = [1, 2, 3];
+// len: 返回切片中的元素数。
+    assert_eq!(a.len(), 3);
+
+// is_empty: 如果切片的长度为 0，则返回 true。
+    assert!(!a.is_empty());
+}
+```
+
+#### first、last
+
+单独仅取首、尾元素
+
+``` rust
+fn main() {
+
+// first: 返回切片的第一个元素; 如果为空则返回None，不为空则返回Some
+    let v = [10, 40, 30];
+    assert_eq!(Some(&10), v.first());   
+    let w: &[i32] = &[];
+    assert_eq!(None, w.first());
+
+// first_mut：是first的mut版本
+    let x = &mut [0, 1, 2];
+    if let Some(first) = x.first_mut() {
+        *first = 5;
+    }
+    assert_eq!(x, &[5, 1, 2]);
+
+// last：返回切片的最后一个元素; 如果为空则返回None，不为空则返回Some
+    let v = [10, 40, 30];
+    assert_eq!(Some(&30), v.last());
+    let w: &[i32] = &[];
+    assert_eq!(None, w.last());
+
+// last_mut：是last的mut版本
+    let x = &mut [0, 1, 2];
+    if let Some(last) = x.last_mut() {
+        *last = 10;
+    }
+    assert_eq!(x, &[0, 1, 10]);
+}
+
+```
+
+#### split_first、split_last
+
+将首、尾从slice分离出，并将剩余元素保存为新slice
+
+``` rust
+fn main() {
+// split_first： 返回由第一个元素和其余元素们组成的tuple，如果slice为空则返回None。
+    let x = &[0, 1, 2];
+    if let Some((first, elements)) = x.split_first() {
+        assert_eq!(first, &0);
+        assert_eq!(elements, &[1, 2]);
+    }
+
+// split_first_mut： 是split_first的mut版本
+    let x = &mut [0, 1, 2];
+    if let Some((first, elements)) = x.split_first_mut() {
+        *first = 3;
+        elements[0] = 4;
+        elements[1] = 5;
+    }
+    assert_eq!(x, &[3, 4, 5]);
+
+// split_last 返回由最后一个元素和其余元素们组成的tuple，如果slice为空则返回None。
+    let x = &[0, 1, 2];
+    if let Some((last, elements)) = x.split_last() {
+        assert_eq!(last, &2);
+        assert_eq!(elements, &[0, 1]);
+    }
+
+// split_last_mut 是split_last的mut版本
+    let x = &mut [0, 1, 2];
+    if let Some((last, elements)) = x.split_last_mut() {
+        *last = 3;
+        elements[0] = 4;
+        elements[1] = 5;
+    }
+    assert_eq!(x, &[4, 5, 3]);
+}
+
+```
+
+#### get、get_unchecked
+
+根据索引获取指定的元素Some(&T)或是子切片Some(&[T])
+
+``` rust
+fn main() {
+// get 获取切片的指定元素或是子切片，如果越界返回None
+    let v = [10, 40, 30];
+    assert_eq!(Some(&40), v.get(1));
+    assert_eq!(Some(&[10, 40][..]), v.get(0..2));
+    assert_eq!(None, v.get(3));
+    assert_eq!(None, v.get(0..4));
+
+// get_mut 是get的mut版本
+    let x = &mut [0, 1, 2];
+    if let Some(elem) = x.get_mut(1) {
+        *elem = 42;
+    }
+    assert_eq!(x, &[0, 42, 2]);
+
+// get_unchecked：是get的不检测版本，不安全，不会返回None
+    let x = &[1, 2, 4];
+    unsafe {
+        assert_eq!(x.get_unchecked(1), &2);
+    }
+
+// get_unchecked_mut：是get_mut的不检测版本，不安全，不会返回None
+    let x = &mut [1, 2, 4];
+    unsafe {
+        let elem = x.get_unchecked_mut(1);
+        *elem = 13;
+    }
+    assert_eq!(x, &[1, 13, 4]);
+}
+```
+
+#### as_ptr、as_ptr_range
+
+用于获取slice的指针，用于指针的操作
+
+``` rust
+fn main() {
+// as_ptr 返回指向slice的指针，使用时候要确保源slice是有效的
+    let x = &[1, 2, 4];
+    let x_ptr = x.as_ptr();
+    unsafe {
+        for i in 0..x.len() {
+            assert_eq!(x.get_unchecked(i), &*x_ptr.add(i));
+        }
+    }
+
+// as_mut_ptr 是as_ptr的mut版本
+    let x = &mut [1, 2, 4];
+    let x_ptr = x.as_mut_ptr();
+    unsafe {
+        for i in 0..x.len() {
+            *x_ptr.add(i) += 2;
+        }
+    }
+    assert_eq!(x, &[3, 4, 6]);
+
+// as_ptr_range
+
+// as_mut_ptr_range
+
+}
+
+```
+
+#### swap、reverse
+
+交换元素与翻转slice
+
+``` rust
+fn main() {
+
+// swap 交换切片中的两个元素，索引越界则崩溃
+    let mut v = ["a", "b", "c", "d", "e"];
+    v.swap(2, 4);
+    assert!(v == ["a", "b", "e", "d", "c"]);
+
+// reverse 翻转
+    let mut v = [1, 2, 3];
+    v.reverse();
+    assert!(v == [3, 2, 1]);
+}
+
+```
+#### iter、iter_mut、windows
+
+获取slice的迭代器，以及更高级的一次可以迭代多个元素的方法
+
+``` rust
+fn main() {
+
+// iter 获取迭代器
+    let x = &[1, 2, 4];
+    let mut iterator = x.iter();
+
+    assert_eq!(iterator.next(), Some(&1));
+    assert_eq!(iterator.next(), Some(&2));
+    assert_eq!(iterator.next(), Some(&4));
+    assert_eq!(iterator.next(), None);
+
+// iter_mut 是iter的mut版本
+    let x = &mut [1, 2, 4];
+    for elem in x.iter_mut() {
+        *elem += 2;
+    }
+    assert_eq!(x, &[3, 4, 6]);
+
+// windows 另一种迭代器，每次迭代返回指定数量个元素，且会重叠（其实每次迭代仅前进了一个元素，其余都在重叠），此数量要小于slice元素总数，否则返回none，如是0则崩溃
+    let slice = ['r', 'u', 's', 't'];
+    let mut iter = slice.windows(2);
+    assert_eq!(iter.next().unwrap(), &['r', 'u']);
+    assert_eq!(iter.next().unwrap(), &['u', 's']);
+    assert_eq!(iter.next().unwrap(), &['s', 't']);
+    assert!(iter.next().is_none());
+
+    let slice = ['f', 'o', 'o'];
+    let mut iter = slice.windows(4);
+    assert!(iter.next().is_none());
+
+// 没有windows的mut版本，但可用Cell::as_slice_of_cells实现
+}
+
+```
+
+#### chunks、rchunks、chunks_exact、rchunks_exact
+
+也都是高级的一次可以迭代多个元素的方法，并且各有自己的特点
+
+``` rust
+fn main() {
+
+// chunks 效果类似windows，但每次迭代出的元素不会重叠，且末尾一次可能数量小于指定元素数
+    let slice = ['l', 'o', 'r', 'e', 'm'];
+    let mut iter = slice.chunks(2);
+    assert_eq!(iter.next().unwrap(), &['l', 'o']);
+    assert_eq!(iter.next().unwrap(), &['r', 'e']);
+    assert_eq!(iter.next().unwrap(), &['m']);
+    assert!(iter.next().is_none());
+
+// rchunks 是chunks的反方向版本，从后往前迭代，注意看下面每次迭代取出元素的顺序
+    let slice = ['l', 'o', 'r', 'e', 'm'];
+    let mut iter = slice.rchunks(2);
+    assert_eq!(iter.next().unwrap(), &['e', 'm']);
+    assert_eq!(iter.next().unwrap(), &['o', 'r']);
+    assert_eq!(iter.next().unwrap(), &['l']);
+    assert!(iter.next().is_none());
+
+// chunks_mut 是chunks的mut版本
+    let v = &mut [0, 1, 2, 3, 4];
+    let mut count = 1;
+    for chunk in v.chunks_mut(2) { // 每次返回2个元素
+        for elem in chunk.iter_mut() { // 遍历这2个元素
+            *elem += count; // 每个元素都加count
+        }
+        count += 10;
+    }
+    // 即前两个数加1，后两个数都加11，最后一个数加21
+    assert_eq!(v, &[1, 2, 13, 14, 25]);
+
+
+// rchunks_mut 是chunks_mut的反方向版本
+    let v = &mut [0, 1, 2, 3, 4];
+    let mut count = 1;
+    for chunk in v.rchunks_mut(2) { // 每次返回2个元素
+        for elem in chunk.iter_mut() { // 遍历这2个元素
+            *elem += count; // 每个元素都加count
+        }
+        count += 10;
+    }
+    // 注意是从后往前迭代，所以是末尾两个数加1，前两个数都加11，最前一个数加21
+    assert_eq!(v, &[21, 12, 13, 4, 5]);
+
+
+// chunks_exact 效果类似chunks，只不过最末次迭代如果不足指定数量则返回none，余下的元素通过remainder获取
+    let slice = ['l', 'o', 'r', 'e', 'm'];
+    let mut iter = slice.chunks_exact(2);
+    assert_eq!(iter.next().unwrap(), &['l', 'o']);
+    assert_eq!(iter.next().unwrap(), &['r', 'e']);
+    assert!(iter.next().is_none());
+    assert_eq!(iter.remainder(), &['m']);
+
+// rchunks_exact 是chunks_exact的反方向版本
+    let slice = ['l', 'o', 'r', 'e', 'm'];
+    let mut iter = slice.rchunks_exact(2);
+    assert_eq!(iter.next().unwrap(), &['e', 'm']);
+    assert_eq!(iter.next().unwrap(), &['o', 'r']);
+    assert!(iter.next().is_none());
+    assert_eq!(iter.remainder(), &['l']);
+
+
+// chunks_exact_mut 是chunks_exact的mut版本
+    let v = &mut [0, 1, 2, 3, 4];
+    let mut count = 1;
+    for chunk in v.chunks_exact_mut(2) { // 每次返回2个元素
+        for elem in chunk.iter_mut() { // 遍历这2个元素
+            *elem += count; // 每个元素都加count
+        }
+        count += 10;
+    }
+    // 即前两个数加1，后两个数都加11，最后一个数不会被迭代出来
+    assert_eq!(v, &[1, 2, 13, 14, 4]);
+
+// rchunks_exact_mut
+    let v = &mut [0, 1, 2, 3, 4];
+    let mut count = 1;
+    for chunk in v.rchunks_exact_mut(2) { // 每次返回2个元素
+        for elem in chunk.iter_mut() { // 遍历这2个元素
+            *elem += count; // 每个元素都加count
+        }
+        count += 10;
+    }
+    // 即末尾两个数加1，前两个数都加11，最前一个数不会被迭代出来
+    assert_eq!(v, &[0, 12, 13, 4, 5]);
+}
+
+```
+#### split、split_at、rsplit、splitn、rsplitn、split_inclusive
+
+所有分割操作都仅仅是生成新的子分片，如是mut版本则可以修改子分片中索引所指的内容，同时也会导致源分片中索引所指内容的改变，因为它们统统都是引用。。。
+
+``` rust
+fn main() {
+
+// split_at 分割为2个子切片，参数用于指定第一个子切片的元素数量，如大于len则崩溃
+    let v = [1, 2, 3, 4, 5, 6];
+    {
+    let (left, right) = v.split_at(0);
+    assert_eq!(left, []);
+    assert_eq!(right, [1, 2, 3, 4, 5, 6]);
+    }
+
+    {
+        let (left, right) = v.split_at(2);
+        assert_eq!(left, [1, 2]);
+        assert_eq!(right, [3, 4, 5, 6]);
+    }
+
+    {
+        let (left, right) = v.split_at(6);
+        assert_eq!(left, [1, 2, 3, 4, 5, 6]);
+        assert_eq!(right, []);
+    }
+    
+// split_at_mut 是split_at的mut版本
+    let mut v = [1, 0, 3, 0, 5, 6];
+    let (left, right) = v.split_at_mut(2);
+    assert_eq!(left, [1, 0]);
+    assert_eq!(right, [3, 0, 5, 6]);
+    left[1] = 2;
+    right[1] = 4;
+    // 注意看此例最后即使被分割后源slice依然包含所有元素，且元素值已被改变，体现出切片就是引用而已
+    assert_eq!(v, [1, 2, 3, 4, 5, 6]);
+
+
+// split 执行闭包找到满足的所有分割点，首尾的连续匹配次数会产生数量相同的空子切片，中间的连续匹配次数会产生数量-1个空子切片
+    {
+        // 理想场景：将满足闭包的元素作为切割点，返回其之后与其之后2个子切片（且都不含此元素）
+        let slice = [10, 40, 33, 20, 22];
+        let mut iter = slice.split(|num| num % 3 == 0);
+        assert_eq!(iter.next().unwrap(), &[10, 40]);
+        assert_eq!(iter.next().unwrap(), &[20, 22]);
+        assert!(iter.next().is_none());
+    }
+    {
+        let slice = [9, 10, 1, 33, 20, 2, 99];
+        let mut iter = slice.split(|num| num % 3 == 0);
+        assert_eq!(iter.next().unwrap(), &[]); // 1个匹配在两端将产生1个空子切片
+        assert_eq!(iter.next().unwrap(), &[10, 1]);
+                                                // 一个匹配在中间将会被去除，即数量-1
+        assert_eq!(iter.next().unwrap(), &[20, 2]);
+        assert_eq!(iter.next().unwrap(), &[]); // 1个匹配在两端将产生1个空子切片
+        assert!(iter.next().is_none());
+    }
+    {
+        
+        let slice = [9, 3, 66, 10, 6, 99, 3, 33, 20, 3, 33, 99];
+        let mut iter = slice.split(|num| num % 3 == 0);
+        assert_eq!(iter.next().unwrap(), &[]); // 连续的n个匹配在两端（[9, 3, 66）将产生n个空子切片
+        assert_eq!(iter.next().unwrap(), &[]);
+        assert_eq!(iter.next().unwrap(), &[]);
+        assert_eq!(iter.next().unwrap(), &[10]);
+        assert_eq!(iter.next().unwrap(), &[]); // 连续的n个匹配且不在两端（6, 99, 3, 33）将产生n-1个空子切片
+        assert_eq!(iter.next().unwrap(), &[]);
+        assert_eq!(iter.next().unwrap(), &[]);
+        assert_eq!(iter.next().unwrap(), &[20]);
+        assert_eq!(iter.next().unwrap(), &[]);
+        assert_eq!(iter.next().unwrap(), &[]);
+        assert_eq!(iter.next().unwrap(), &[]); // 连续的n个匹配在两端（3, 33, 99）将产生n个空子切片
+        assert!(iter.next().is_none());
+    }
+
+// split_inclusive 效果同split，只不过每个子切片都包含切割点
+    {
+        let slice = [10, 40, 33, 20, 22];
+        let mut iter = slice.split_inclusive(|num| num % 3 == 0);
+        assert_eq!(iter.next().unwrap(), &[10, 40, 33]);
+        assert_eq!(iter.next().unwrap(), &[20, 22]);
+        assert!(iter.next().is_none());
+    }
+    {
+        let slice = [9, 10, 1, 33, 20, 2, 99];
+        let mut iter = slice.split_inclusive(|num| num % 3 == 0);
+        assert_eq!(iter.next().unwrap(), &[9]);
+        assert_eq!(iter.next().unwrap(), &[10, 1, 33]);
+        assert_eq!(iter.next().unwrap(), &[20, 2, 99]);
+        assert!(iter.next().is_none());
+    }
+    {
+        
+        let slice = [9, 3, 66, 10, 6, 99, 3, 33, 20, 3, 33, 99];
+        let mut iter = slice.split_inclusive(|num| num % 3 == 0);
+        assert_eq!(iter.next().unwrap(), &[9]);
+        assert_eq!(iter.next().unwrap(), &[3]);
+        assert_eq!(iter.next().unwrap(), &[66]);
+        assert_eq!(iter.next().unwrap(), &[10, 6]);
+        assert_eq!(iter.next().unwrap(), &[99]);
+        assert_eq!(iter.next().unwrap(), &[3]);
+        assert_eq!(iter.next().unwrap(), &[33]);
+        assert_eq!(iter.next().unwrap(), &[20, 3]);
+        assert_eq!(iter.next().unwrap(), &[33]);
+        assert_eq!(iter.next().unwrap(), &[99]);
+        assert!(iter.next().is_none());
+    }
+
+
+// split_mut 是split的mut版本
+    let mut v = [10, 40, 30, 20, 60, 50];
+    for group in v.split_mut(|num| *num % 3 == 0) { // 这里是迭代所有的子分片
+        // println!("1: {:?}", group);
+        group[0] = 1; // 更改每个子分片的第一个元素，源分片里的值也会变，下面是打印出的内容
+        // println!("2: {:?}", group);
+
+        // 1: [10, 40]
+        // 2: [1, 40]
+        // 1: [20]
+        // 2: [1]
+        // 1: [50]
+        // 2: [1]
+    }
+    assert_eq!(v, [1, 40, 30, 1, 60, 1]);
+
+// split_inclusive_mut 是split_inclusive的mut版本
+    let mut v = [10, 40, 30, 20, 60, 50];
+    for group in v.split_inclusive_mut(|num| *num % 3 == 0) {
+        let terminator_idx = group.len()-1;
+        group[terminator_idx] = 1;
+    }
+    assert_eq!(v, [10, 40, 1, 20, 1, 1]);
+
+// rsplit 是split的反方向版本，也要注意分割后子分片中元素的顺序
+    {
+        let slice = [11, 22, 33, 0, 44, 55];
+        let mut iter = slice.rsplit(|num| *num == 0);
+        assert_eq!(iter.next().unwrap(), &[44, 55]);
+        assert_eq!(iter.next().unwrap(), &[11, 22, 33]);
+        assert_eq!(iter.next(), None);
+    }
+    {
+        let v = &[0, 1, 1, 2, 3, 5, 8];
+        let mut it = v.rsplit(|n| *n % 2 == 0);
+        assert_eq!(it.next().unwrap(), &[]);
+        assert_eq!(it.next().unwrap(), &[3, 5]);
+        assert_eq!(it.next().unwrap(), &[1, 1]);
+        assert_eq!(it.next().unwrap(), &[]);
+        assert_eq!(it.next(), None);
+    }
+
+// rsplit_mut 是split_mut的反方向版本
+    let mut v = [100, 400, 300, 200, 600, 500];
+    let mut count = 0;
+    for group in v.rsplit_mut(|num| *num % 3 == 0) {
+        // println!("1: {:?}", group);
+        count += 1;
+        group[0] = count;
+        // println!("count: {:?}", count);
+        // println!("2: {:?}", group);
+
+        // 1: [500]
+        // count: 1
+        // 2: [1]
+        // 1: [200]
+        // count: 2
+        // 2: [2]
+        // 1: [100, 400]
+        // count: 3
+        // 2: [3, 400]
+    }
+    assert_eq!(v, [3, 400, 300, 2, 600, 1]);
+
+// splitn 通过参数指定最多分割为几个子分片
+    let v = [10, 40, 30, 20, 60, 50];
+    for group in v.splitn(1, |num| *num % 3 == 0) {
+        // println!("{:?}", group);
+        // [10, 40, 30, 20, 60, 50]
+    }
+    for group in v.splitn(2, |num| *num % 3 == 0) {
+        // println!("{:?}", group);
+        // [10, 40]
+        // [20, 60, 50]
+    }
+    for group in v.splitn(30, |num| *num % 3 == 0) { // 只有指定的数量较大才会分割的较为细致些
+        // println!("{:?}", group);
+        // [10, 40]
+        // [20]
+        // [50]
+    }
+
+// rsplitn 是splitn的反方向版本
+    let v = [10, 40, 30, 20, 60, 50];
+    for group in v.rsplitn(2, |num| *num % 3 == 0) {
+        // println!("{:?}", group);
+        // [50]
+        // [10, 40, 30, 20]
+    }
+
+// splitn_mut 是splitn的mut版本
+    let mut v = [10, 40, 30, 20, 60, 50];
+    for group in v.splitn_mut(2, |num| *num % 3 == 0) {
+        group[0] = 1;
+    }
+    assert_eq!(v, [1, 40, 30, 1, 60, 50]);
+
+// rsplitn_mut 是rsplitn的mut版本
+    let mut s = [10, 40, 30, 20, 60, 50];
+    for group in s.rsplitn_mut(2, |num| *num % 3 == 0) {
+        group[0] = 1;
+    }
+    assert_eq!(s, [1, 40, 30, 20, 60, 1]);
+}
+
+```
+#### contains、starts_with、ends_with
+
+检测包含指定元素，以及检测开头与结尾包含指定元素
+
+``` rust
+fn main() {
+
+// contains 如果切片包含给定值的元素，则返回 true。
+    let v = [10, 40, 30];
+    assert!(v.contains(&30));
+    assert!(!v.contains(&50));
+
+    let v = [String::from("hello"), String::from("world")]; // `String` 切片
+    assert!(v.iter().any(|e| e == "hello")); // 用 `&str` 搜索
+    assert!(!v.iter().any(|e| e == "hi"));
+
+// starts_with 开头检测成功为True
+    let v = [10, 40, 30];
+    assert!(v.starts_with(&[10]));
+    assert!(v.starts_with(&[10, 40]));
+    assert!(!v.starts_with(&[50]));
+    assert!(!v.starts_with(&[10, 50]));
+    let v = &[10, 40, 30];
+    assert!(v.starts_with(&[])); // 如果参数为空切片，则始终返回true
+    let v: &[u8] = &[];
+    assert!(v.starts_with(&[]));
+
+// ends_with 末尾检测成功为True
+    let v = [10, 40, 30];
+    assert!(v.ends_with(&[30]));
+    assert!(v.ends_with(&[40, 30]));
+    assert!(!v.ends_with(&[50]));
+    assert!(!v.ends_with(&[50, 30]));
+    let v = &[10, 40, 30];
+    assert!(v.ends_with(&[])); // 如果参数为空切片，则始终返回true
+    let v: &[u8] = &[];
+    assert!(v.ends_with(&[]));
+}
+
+```
+
+#### strip_prefix、strip_suffix
+
+匹配成功则掐头或去尾
+
+``` rust
+fn main() {
+
+// strip_prefix 掐头（返回去掉部分前缀的子分片）
+    let v = &[10, 40, 30];
+    assert_eq!(v.strip_prefix(&[10]), Some(&[40, 30][..])); // 如果源分片是以参数开头则返回参数之后的子分片
+    assert_eq!(v.strip_prefix(&[10, 40]), Some(&[30][..]));
+    assert_eq!(v.strip_prefix(&[50]), None); // 如果参数不匹配，则返回None
+    assert_eq!(v.strip_prefix(&[10, 50]), None);
+    assert_eq!(v.strip_prefix(&[]), Some(&[10, 40, 30][..])); // 如果参数是空slice，则返回原分片
+    let prefix : &str = "he";
+    assert_eq!(b"hello".strip_prefix(prefix.as_bytes()), Some(b"llo".as_ref())); // 匹配成功返回剩余分片内容
+
+// strip_suffix 去尾（返回去掉部分后缀的子分片）
+    let v = &[10, 40, 30];
+    assert_eq!(v.strip_suffix(&[30]), Some(&[10, 40][..])); // 如果源分片是以参数结尾则返回参数之前的子分片
+    assert_eq!(v.strip_suffix(&[40, 30]), Some(&[10][..]));
+    assert_eq!(v.strip_suffix(&[50]), None); // 如果参数不匹配，则返回None
+    assert_eq!(v.strip_suffix(&[50, 30]), None);
+    assert_eq!(v.strip_suffix(&[]), Some(&[10, 40, 30][..])); // 如果参数是空slice，则返回原分片
+}
+
+```
+
+#### 
+
+``` rust
+```
+#### 
+
+``` rust
+```
+
+#### 
+
+``` rust
+```
 
 #### binary_search
 
