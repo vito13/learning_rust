@@ -2721,13 +2721,14 @@ fn main() {
     println!("{}", &s[0..s.len()]); // Hello, Rust!
     println!("{}", &s[..]); // Hello, Rust!
 
-    let vec = vec![1, 2, 3, 4, 5];
-    println!("{:?}", &vec[0..2]); // [1, 2]
-    println!("{:?}", &vec[..2]); // [1, 2]
-    println!("{:?}", &vec[2..vec.len()]); // [3, 4, 5]
-    println!("{:?}", &vec[2..]); // [3, 4, 5]
-    println!("{:?}", &vec[0..vec.len()]); // [1, 2, 3, 4, 5]
-    println!("{:?}", &vec[..]); // [1, 2, 3, 4, 5]
+    let vec = vec![10, 20, 30, 40, 50];
+    println!("{:?}", &vec[0..2]); // [10, 20]
+    println!("{:?}", &vec[..2]); // [10, 20]
+    println!("{:?}", &vec[2..vec.len()]); // [30, 40, 50]
+    println!("{:?}", &vec[2..]); // [30, 40, 50]
+    println!("{:?}", &vec[0..vec.len()]); // [10, 20, 30, 40, 50]
+    println!("{:?}", &vec[..]); // [10, 20, 30, 40, 50]
+
 
     // 不可变slice
     let mut arr = [11,22,33,44];
@@ -3477,43 +3478,37 @@ fn main() {
 
 ```
 
-#### 
+#### binary_search、binary_search_by、binary_search_by_key、partition_point
+
+二分查找，即需要先将slice排序，然后再找，可以直接比较值、运行闭包进行比较
 
 ``` rust
-```
-#### 
 
-``` rust
-```
-
-#### 
-
-``` rust
-```
-
-#### binary_search
-
-在排序后的切片中搜索给定的元素。就是直接给个值当参数即可。
-
-如果找到该值，则返回 Result::Ok，其中包含匹配元素的索引。 如果有多个匹配项，则可以返回任何一个匹配项。 索引的选择是确定的，但在 Rust 的未来版本中可能会发生变化。 如果找不到该值，则返回 Result::Err，其中包含在保留排序顺序的同时可以在其中插入匹配元素的索引。
-
-``` rust
 fn main() {
-    let s = [0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55];
-    assert_eq!(s.binary_search(&13),  Ok(9)); // 找到第一个，具有唯一确定的位置；
-    assert_eq!(s.binary_search(&4),   Err(7)); // 没有找到第二个和第三个；
-    assert_eq!(s.binary_search(&100), Err(13));
-    let r = s.binary_search(&1); // 第四个可以匹配 [1, 4] 中的任何位置。
-    assert!(match r { Ok(1..=4) => true, _ => false, });
-}
-```
 
-#### binary_search_by
+// binary_search 在排好序的切片中搜索给定的值，如果找到该值则返回pos，如果找到多个则可能返回任何一个pos...没有找到则返回err并且附带合适的插入位置
+    let s = [0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55]; // 注意这里得是排好序的
+    assert_eq!(s.binary_search(&13),  Ok(9)); // 找到pos=9
+    assert_eq!(s.binary_search(&4),   Err(7)); // 没找到，但pos=7是合适的插入位置...
+    assert_eq!(s.binary_search(&100), Err(13)); // 没找到，但pos=13是合适的插入位置...
+    let r = s.binary_search(&1); 
+    println!("{:?}", r); // Ok(3), 找到pos=3
+    assert!(match r {
+        Ok(1..=4) => true, // pos=1到4其实都可以
+        _ => false,
+    });
 
-使用比较器函数搜索排序后的切片。需要给个类似cmp函数的闭包当参数
+    // 下面演示向已排序的vec里插入数据
+    let mut s = vec![0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55];
+    let num = 42;
+    let idx = s.binary_search(&num).unwrap_or_else(|x| x); 
+    // let idx = s.partition_point(|&x| x < num); 此句与上句效果相同
+    s.insert(idx, num);
+    // let idx = s.partition_point(|&x| x < num);
+    assert_eq!(s, [0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 42, 55]);
 
-``` rust
-fn main() {
+
+// binary_search_by 是binary_search的闭包版本
     let s = [0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55];
     let seek = 13;
     assert_eq!(s.binary_search_by(|probe| probe.cmp(&seek)), Ok(9)); // 找到第一个，具有唯一确定的位置
@@ -3527,17 +3522,10 @@ fn main() {
         Ok(1..=4) => true,
         _ => false,
     });
-}
 
-```
 
-#### binary_search_by_key
-
-使用关键字提取函数搜索排序后的切片。需要2个参数，第一个是要找的值，第2个是闭包（“&(a, b)”是解构每行的2个数字，“b”是以它排序）
-
-``` rust
-fn main() {
-    let s = [
+// binary_search_by_key 可以在已排序的tuple里进行二分查找，需要2个参数，第一个是要找的值，第2个是闭包
+    let s = [  // 已按第二个元素排序
         (0, 0),
         (2, 1),
         (4, 1),
@@ -3552,18 +3540,150 @@ fn main() {
         (2, 34),
         (4, 55),
     ];
-    // 在成对的切片中按其第二个元素排序的一系列四个元素中查找。 
-    assert_eq!(s.binary_search_by_key(&13, |&(a, b)| b), Ok(9)); // 找到第一个，具有唯一确定的位置；
-    assert_eq!(s.binary_search_by_key(&4, |&(a, b)| b), Err(7)); // 没有找到第二个和第三个；
+    // 下面搜索的key也是第二个元素值，因为是以第二个值排序的。。。
+    assert_eq!(s.binary_search_by_key(&13, |&(a, b)| b), Ok(9)); // 找到pos=9，“|&(a, b)| b”代表上面的一个元组取第二个数，然后和“13”进行比较
+    assert_eq!(s.binary_search_by_key(&4, |&(_, b)| b), Err(7)); // 没有找到，返回合适的插入位置，元组的第一个值其实没有用可以省略
     assert_eq!(s.binary_search_by_key(&100, |&(a, b)| b), Err(13));
-    let r = s.binary_search_by_key(&1, |&(a, b)| b); // 第四个可以匹配 [1, 4] 中的任何位置。
+    let r = s.binary_search_by_key(&1, |&(a, b)| b); // 找到pos=3
+    println!("{:?}", r);
     assert!(match r {
-        Ok(1..=4) => true,
+        Ok(1..=4) => true, // pos=1到4其实都可以
         _ => false,
     });
+
+
+// partition_point 也是闭包比较方式，貌似比前面的更好用点
+    let v = [10, 20, 30, 30, 50, 60, 70];
+    let i = v.partition_point(|&x| x < 50); // 找到元素值<50的pos=4
+    assert_eq!(i, 4);
+    assert!(v[..i].iter().all(|&x| x < 50)); // 新构建的slice所有值都<50
+    assert!(v[i..].iter().all(|&x| !(x < 50))); // 新构建的slice所有值都>50
+
+    // 如果slice所有元素都符合则返回slice.len，空slice返回0
+    let a = [2, 4, 8];
+    assert_eq!(a.partition_point(|x| x < &100), a.len());
+    let a: [i32; 0] = [];
+    assert_eq!(a.partition_point(|x| x < &100), 0);
+
+    // 向已排序的vec里插入值
+    let mut s = vec![0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55];
+    let num = 42;
+    let idx = s.partition_point(|&x| x < num);
+    s.insert(idx, num);
+    assert_eq!(s, [0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 42, 55]);
+
+
+
+    let s = [0, 1, 1, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55];
+    let low = s.partition_point(|x| x < &1); // 找到元素值<1的pos=1
+    assert_eq!(low, 1);
+    let high = s.partition_point(|x| x <= &1); // 找到元素值<=1的pos=5
+    assert_eq!(high, 5);
+    let r = s.binary_search(&1);
+    println!("{:?}", &r.unwrap()); // 找到pos=3
+    println!("{:?}", &s[low..high]); // 这是构建新的slice
+    for i in low..high  // 这才是下面那句的作用，即构建range
+    {
+        println!("{:?}", i);
+    }
+    assert!((low..high).contains(&r.unwrap())); // range[1, 2, 3, 4]里包含3
+    assert!(s[..low].iter().all(|&x| x < 1)); // 下面三句就是构建出slice【0】
+    assert!(s[low..high].iter().all(|&x| x == 1)); // 【1，1，1，1】
+    assert!(s[high..].iter().all(|&x| x > 1)); // 【2, 3, 5, 8, 13, 21, 34, 55】
+    
+    assert_eq!(s.partition_point(|x| x < &11), 9); // 未找到元素则返回合适的插入pos
+    assert_eq!(s.partition_point(|x| x <= &11), 9);
+    assert_eq!(s.binary_search(&11), Err(9));
+}
+```
+
+
+#### sort、sort_by、sort_by_key、sort_by_cached_key
+
+排序，在用时首选带有unstable（不稳定排序），因为它通常比稳定排序快，并且不分配辅助内存。
+
+``` rust
+fn main() {
+// sort、sort_unstable 排序
+    let mut v = [-5, 4, 1, -3, 2];
+    v.sort();
+    assert!(v == [-5, -3, 1, 2, 4]);
+
+    let mut v = [-5, 4, 1, -3, 2];
+    v.sort_unstable();
+    assert!(v == [-5, -3, 1, 2, 4]);
+
+// sort_by、sort_unstable_by 自定义cmp的排序方式
+    let mut v = [5, 4, 1, 3, 2];
+    v.sort_by(|a, b| a.cmp(b));
+    assert!(v == [1, 2, 3, 4, 5]);
+    // 反向排序
+    v.sort_by(|a, b| b.cmp(a));
+    assert!(v == [5, 4, 3, 2, 1]);
+
+    let mut v = [5, 4, 1, 3, 2];
+    v.sort_unstable_by(|a, b| a.cmp(b));
+    assert!(v == [1, 2, 3, 4, 5]);
+    v.sort_unstable_by(|a, b| b.cmp(a));
+    assert!(v == [5, 4, 3, 2, 1]);
+
+// sort_by_key、sort_unstable_by_key 根据闭包计算结果排序
+    let mut v = [-5i32, 4, 1, -3, 2];
+    v.sort_by_key(|k| k.abs());
+    assert!(v == [1, 2, -3, 4, -5]);
+
+    let mut v = [-5i32, 4, 1, -3, 2];
+    v.sort_unstable_by_key(|k| k.abs());
+    assert!(v == [1, 2, -3, 4, -5]);
+
+// sort_by_cached_key 貌似与sort_by_key类似，未细致研究
+    let mut v = [-5i32, 4, 32, -3, 2];
+    v.sort_by_cached_key(|k| k.to_string());
+    assert!(v == [-3, -5, 2, 32, 4]);
 }
 
 ```
+
+#### select_nth_unstable、select_nth_unstable_by、select_nth_unstable_by_key
+
+nth算法，指定一个pos作为分割点，得到的结果为3部分，见下说明。常用于在未排序时快速找出指定数量个通过测试的结果，此结果未排序，但却都通过测试了
+
+``` rust
+fn main() {
+    let mut v = [5, 8, 4, 2, 8, 5, 3, 7, 8];
+/* select_nth_unstable 实现快速检索与分割
+    会先进行不完全的排序，再返回分割后的元组(&mut [T], &mut T, &mut [T])，
+    元组第二分量是对排序后的第N个元素的引用、第一分量是所有小于此值的slice，第三分离是所有大于此值的slice，且这2个slice均无序。
+    案例如下：
+    Before: [5, 8, 4, 2, 8, 5, 3, 7, 8]
+    select_nth_unstable(3);
+    After: [4, 2, 3,   5,   8, 8, 5, 7, 8]
+           [...0...]  {1}  [......2......]
+    */
+    let s = v.select_nth_unstable(3);
+    // println!("{:?}", s); // ([2, 3, 4], 5, [5, 7, 8, 8, 8])
+    // println!("{:?}", v); // [2, 3, 4, 5, 5, 7, 8, 8, 8]，注意源slice已改变
+
+
+// select_nth_unstable_by 是select_nth_unstable的自定义cmp版本，下面实现了倒排
+    let mut v = [5, 8, 4, 2, 8, 5, 3, 7, 8];
+    let s = v.select_nth_unstable_by(3, |a, b| b.cmp(a));
+    // println!("{:?}", s); // ([8, 8, 8], 7, [5, 5, 4, 3, 2])
+    // println!("{:?}", v); // [8, 8, 8, 7, 5, 5, 4, 3, 2]，注意源slice已改变
+
+// select_nth_unstable_by_key 是select_nth_unstable的闭包版本
+    let mut v = [-5i32, 8, 4, 2, 8, 5, -3, 7, 8];
+    let s = v.select_nth_unstable_by_key(3, |a| a.abs());
+    // println!("{:?}", s); // ([2, -3, 4], -5, [5, 7, 8, 8, 8])
+    // println!("{:?}", v); // [2, -3, 4, -5, 5, 7, 8, 8, 8]，注意源slice已改变
+}
+```
+
+#### 
+
+``` rust
+```
+
 
 ## range
 
@@ -7273,7 +7393,7 @@ assert_eq!(x.and(y), None);
 
 ### and_then
 
-此为and的闭包版本
+如果为some则and_then用闭包的返回值替换了整个结果进行返回，此为and的闭包版本
 
 ``` rust
 fn sq_then_to_string(x: u32) -> Option<String> {
