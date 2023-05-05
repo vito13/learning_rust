@@ -1429,6 +1429,30 @@ Postgres v15 is stopped
 
 ```
 
+# pg操作补充
+
+## initdb带有密码的用户
+
+- 超级用户名：aaa
+- 密码：/home/huaw/playground/pw.txt的第一行内容
+- 开启登录需要密码
+
+参考 https://webinstall.dev/postgres/
+
+``` shell
+huaw@huaw:~/work/outpostdbv4/bin$ ./initdb --username aaa --pwfile /home/huaw/playground/pw.txt --auth-local=password --auth-host=password
+
+huaw@huaw:~/work/outpostdbv4/bin$ ./pg_ctl start
+
+huaw@huaw:~/work/outpostdbv4/bin$ ./psql -p 5333 -d postgres -U aaa
+
+然后输入密码即可登录
+
+查看用户 postgres=# SELECT rolname,rolpassword FROM pg_authid;
+```
+
+
+
 # 基本概念
 
 - rust是静态编译语言
@@ -3043,9 +3067,9 @@ fn main() {
 
 ```
 
-#### swap、reverse
+#### swap、reverse、swap_with_slice
 
-交换元素与翻转slice
+交换同一slice内的2个元素、翻转slice、交换2个slice全部元素
 
 ``` rust
 fn main() {
@@ -3059,6 +3083,13 @@ fn main() {
     let mut v = [1, 2, 3];
     v.reverse();
     assert!(v == [3, 2, 1]);
+
+// swap_with_slice 交换2个slice的所有元素值，2个slice的len不同则panic，不可对同一个slice进行此操作，因为在同一作用域内只能有一个此slice的可变引用
+    let mut slice1 = [0, 0];
+    let mut slice2 = [1, 2, 3, 4];
+    slice1.swap_with_slice(&mut slice2[2..]);
+    assert_eq!(slice1, [3, 4]);
+    assert_eq!(slice2, [1, 2, 0, 0]);
 }
 
 ```
@@ -3679,11 +3710,204 @@ fn main() {
 }
 ```
 
-#### 
+#### rotate_left、rotate_right
+
+将开头部分元素挪到末尾，或是反过来
 
 ``` rust
+// rotate_left 将开头n个元素挪到末尾，如果参数大于len则panic
+    let mut a = ['a', 'b', 'c', 'd', 'e', 'f'];
+    a.rotate_left(2);
+    assert_eq!(a, ['c', 'd', 'e', 'f', 'a', 'b']);
+    let mut a = ['a', 'b', 'c', 'd', 'e', 'f'];
+    a[1..5].rotate_left(1); // 将【'b', 'c', 'd', 'e'】旋转1下
+    assert_eq!(a, ['a', 'c', 'd', 'e', 'b', 'f']);
+
+
+// rotate_right 与rotate_left方向相反
+    let mut a = ['a', 'b', 'c', 'd', 'e', 'f'];
+    a.rotate_right(2);
+    assert_eq!(a, ['e', 'f', 'a', 'b', 'c', 'd']);
+    let mut a = ['a', 'b', 'c', 'd', 'e', 'f'];
+    a[1..5].rotate_right(1);
+    assert_eq!(a, ['a', 'e', 'b', 'c', 'd', 'f']);
+
 ```
 
+#### fill、fill_with
+
+使用相同值填充所有元素
+
+``` rust
+// fill 通过clone给定参数填充所有值
+    let mut buf = vec![0; 10];
+    buf.fill(1);
+    assert_eq!(buf, vec![1; 10]);
+
+// fill_with 通过调用闭包填充所有值
+    let mut buf = vec![1; 10];
+    buf.fill_with(Default::default);
+    assert_eq!(buf, vec![0; 10]);
+
+```
+
+#### clone_from_slice、copy_from_slice、copy_within
+
+拷贝slice、拷贝一部分
+
+``` rust
+// clone_from_slice 从src克隆slice到dst，且src与dst要len相同，否则panic
+    let src = [1, 2, 3, 4];
+    let mut dst = [0, 0];
+    // 下面参数是为了保持2个len一致
+    dst.clone_from_slice(&src[2..]);
+    assert_eq!(src, [1, 2, 3, 4]);
+    assert_eq!(dst, [3, 4]);
+
+// copy_from_slice 与clone_from_slice的区别是内部使用memcpy进行复制，如果源未实现copy则应使用clone_from_slice
+    let src = [1, 2, 3, 4];
+    let mut dst = [0, 0];
+    // 由于切片必须具有相同的长度，因此我们将源切片从四个元素切成两个。
+    // 如果不这样做，它将为 panic。
+    dst.copy_from_slice(&src[2..]);
+    assert_eq!(src, [1, 2, 3, 4]);
+    assert_eq!(dst, [3, 4]);
+
+// copy_within 使用memmove在自身内进行字节复制，src是range，表示源pos与len，dest是目标pos，len与源len一致。这两个范围可以重叠。两个范围的末端必须小于或等于self.len
+    let mut bytes = *b"0123456789"; // type: [u8; 13] 是字节数组，此处仅是赋值方式不同罢了
+    bytes.copy_within(1..5, 6); // 用1234覆盖6789
+    assert_eq!(&bytes, b"0123451234");
+```
+
+#### align_to、align_to_mut
+
+按照字节重新适配到新的数据类型
+
+``` rust
+// align_to 用于将slice内所有元素按照新指定数据类型进行识别
+    let v: Vec<i32> = vec![1, 2, 3, 4, 5, 6, 7, 8]; // 8个32位
+    let (head, body, tail) = unsafe { v.align_to::<u8>() }; // 换为32个8位
+    assert!(head.is_empty());
+    assert!(tail.is_empty());
+    println!("{:#x?}", body);
+    println!("{:?}", body);
+
+    let mut v: Vec<i32> = vec![1, 2, 3, 4, 5, 6, 7, 8]; // 8个32位
+    let (head, body, tail) = unsafe { v.align_to_mut::<u16>() }; // 换为16个16位
+    assert!(head.is_empty());
+    assert!(tail.is_empty());
+    println!("{:#x?}", body);
+    println!("{:?}", body);
+```
+
+#### is_ascii、escape_ascii、eq_ignore_ascii_case、to_ascii_uppercase、to_ascii_lowercase、make_ascii_uppercase、make_ascii_lowercase
+
+转大小写、ascii检测以及包含转义字符的转换
+
+``` rust
+fn main() {
+// is_ascii 检查该字符串中的所有字符是否在ASCII范围内。
+    let bytes = *b"0123456789";
+    assert_eq!(true, bytes.is_ascii());
+    let ascii = "hello!\n";
+    let non_ascii = "Grüße, Jürgen ❤";
+    assert!(ascii.is_ascii());
+    assert!(!non_ascii.is_ascii());
+
+// escape_ascii 返回一个迭代器，产生这个片断的转义版本，将其视为ASCII字符串。
+    let s = b"0\t\r\n'\"\\\x9d";
+    let escaped = s.escape_ascii().to_string();
+    assert_eq!(escaped, "0\\t\\r\\n\\'\\\"\\\\\\x9d");
+
+
+// eq_ignore_ascii_case 检查两个字符（也支持字符串）是否为ASCII大小写不敏感（即不区分大小写的情况下是否相同）
+    let char1 = 'i';
+    let char2 = 'I';   
+    let char3 = '☀'; 
+    let char4 = 'M';
+    let char5 = 'm';
+    let char6 = 'k';
+    assert_eq!(true, char1.eq_ignore_ascii_case(&char2));
+    assert_eq!(false, char2.eq_ignore_ascii_case(&char3));
+    assert_eq!(true, char5.eq_ignore_ascii_case(&char4));
+    assert_eq!(false, char6.eq_ignore_ascii_case(&char5));
+    assert!("Ferris".eq_ignore_ascii_case("FERRIS"));
+    assert!("Ferrös".eq_ignore_ascii_case("FERRöS"));
+    assert!(!"Ferrös".eq_ignore_ascii_case("FERRÖS"));
+
+    let char1 = 't';
+    let char2 = '❤';
+    let char3 = '!';
+// to_ascii_uppercase 返回该字符串的副本,其中每个字符都被映射到其ASCII大写等值。ASCII字母'a'到'z'被映射为'A'到'Z',但非ASCII字母则没有变化。
+    println!("{} uppercase is {}", char1, char1.to_ascii_uppercase());
+    println!("{} uppercase is {}", char2, char2.to_ascii_uppercase());
+    println!("{} uppercase is {}", char3, char3.to_ascii_uppercase());
+    let s = "Grüße, Jürgen ❤";
+    assert_eq!("GRüßE, JüRGEN ❤", s.to_ascii_uppercase());
+
+// to_ascii_lowercase 与to_ascii_uppercase 相反
+    let s = "Grüße, Jürgen ❤";
+    assert_eq!("grüße, jürgen ❤", s.to_ascii_lowercase());
+
+   
+// make_ascii_uppercase 将此字符串原位转换为ASCII大写字母。ASCII字母'a'到'z'被映射为'A'到'Z',但非ASCII字母则没有变化。
+    let mut char4 = 'a';
+    let mut char5 = '❤';
+    let mut char6 = '!';
+    char4.make_ascii_uppercase();
+    char5.make_ascii_uppercase();
+    char6.make_ascii_uppercase();
+    // print uppercase characters
+    println!("{}", char4);
+    println!("{}", char5);
+    println!("{}", char6);
+    let mut s = String::from("Grüße, Jürgen ❤");
+    s.make_ascii_uppercase();
+    assert_eq!("GRüßE, JüRGEN ❤", s);
+
+// make_ascii_lowercase 与make_ascii_uppercase相反
+    let mut s = String::from("GRÜßE, JÜRGEN ❤");
+    s.make_ascii_lowercase();
+    assert_eq!("grÜße, jÜrgen ❤", s);
+}
+
+```
+
+#### to_vec、into_vec、repeat
+
+slice转vec、box<[slice]>转vec、重复n遍
+
+``` rust
+// to_vec 将slice复制到新的Vec中
+    let s = [10, 40, 30];
+    let x = s.to_vec();
+    // 在此，`s` 和 `x` 可以独立修改。
+    assert_eq!(x, vec![10, 40, 30]);
+
+// into_vec 将box包装的slice转换为vec
+    let s: Box<[i32]> = Box::new([10, 40, 30]);
+    let x = s.into_vec();
+    // `s` 不能再使用了，因为它已经转换成 `x`。
+    assert_eq!(x, vec![10, 40, 30]);
+
+// repeat 通过重复切片n次来创建vector
+    assert_eq!([1, 2].repeat(3), vec![1, 2, 1, 2, 1, 2]);
+```
+
+#### concat、join
+
+连接
+
+``` rust
+// concat 将多个slice展开为原始类型后再连接到一起
+    assert_eq!(["hello", "world"].concat(), "helloworld");
+    assert_eq!([[1, 2], [3, 4]].concat(), [1, 2, 3, 4]);
+
+// join 是concat的加强版，可以在相邻slice之间加入指定分隔符
+    assert_eq!(["hello", "world"].join(" "), "hello world");
+    assert_eq!([[1, 2], [3, 4]].join(&0), [1, 2, 0, 3, 4]);
+    assert_eq!([[1, 2], [3, 4]].join(&[0, 0][..]), [1, 2, 0, 0, 3, 4]);
+```
 
 ## range
 
@@ -4954,6 +5178,9 @@ fn main() {
     // clear：等价于将truncate方法的参数指定为0，删除字符串中所有字符。
     s.clear();
     println!("{}", s);
+
+// 分割
+    let vec:Vec<String> = self.initdb_params.clone().unwrap().split(' ').map(str::to_string).collect();
 }
 
 ```
