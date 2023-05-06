@@ -37,6 +37,10 @@ https://doc.rust-lang.org/std/primitive.slice.html#impl
 https://rustwiki.org/zh-CN/std/primitive.slice.html#method.to_vec
 https://www.cnblogs.com/jiangbo4444/category/2071807.html?page=3
 
+
+待看
+https://kumakichi.github.io/easy_rust_chs/Chapter_1.html
+
 ---
 
 # 准备
@@ -3800,80 +3804,7 @@ fn main() {
     println!("{:?}", body);
 ```
 
-#### is_ascii、escape_ascii、eq_ignore_ascii_case、to_ascii_uppercase、to_ascii_lowercase、make_ascii_uppercase、make_ascii_lowercase
-
-转大小写、ascii检测以及包含转义字符的转换
-
-``` rust
-fn main() {
-// is_ascii 检查该字符串中的所有字符是否在ASCII范围内。
-    let bytes = *b"0123456789";
-    assert_eq!(true, bytes.is_ascii());
-    let ascii = "hello!\n";
-    let non_ascii = "Grüße, Jürgen ❤";
-    assert!(ascii.is_ascii());
-    assert!(!non_ascii.is_ascii());
-
-// escape_ascii 返回一个迭代器，产生这个片断的转义版本，将其视为ASCII字符串。
-    let s = b"0\t\r\n'\"\\\x9d";
-    let escaped = s.escape_ascii().to_string();
-    assert_eq!(escaped, "0\\t\\r\\n\\'\\\"\\\\\\x9d");
-
-
-// eq_ignore_ascii_case 检查两个字符（也支持字符串）是否为ASCII大小写不敏感（即不区分大小写的情况下是否相同）
-    let char1 = 'i';
-    let char2 = 'I';   
-    let char3 = '☀'; 
-    let char4 = 'M';
-    let char5 = 'm';
-    let char6 = 'k';
-    assert_eq!(true, char1.eq_ignore_ascii_case(&char2));
-    assert_eq!(false, char2.eq_ignore_ascii_case(&char3));
-    assert_eq!(true, char5.eq_ignore_ascii_case(&char4));
-    assert_eq!(false, char6.eq_ignore_ascii_case(&char5));
-    assert!("Ferris".eq_ignore_ascii_case("FERRIS"));
-    assert!("Ferrös".eq_ignore_ascii_case("FERRöS"));
-    assert!(!"Ferrös".eq_ignore_ascii_case("FERRÖS"));
-
-    let char1 = 't';
-    let char2 = '❤';
-    let char3 = '!';
-// to_ascii_uppercase 返回该字符串的副本,其中每个字符都被映射到其ASCII大写等值。ASCII字母'a'到'z'被映射为'A'到'Z',但非ASCII字母则没有变化。
-    println!("{} uppercase is {}", char1, char1.to_ascii_uppercase());
-    println!("{} uppercase is {}", char2, char2.to_ascii_uppercase());
-    println!("{} uppercase is {}", char3, char3.to_ascii_uppercase());
-    let s = "Grüße, Jürgen ❤";
-    assert_eq!("GRüßE, JüRGEN ❤", s.to_ascii_uppercase());
-
-// to_ascii_lowercase 与to_ascii_uppercase 相反
-    let s = "Grüße, Jürgen ❤";
-    assert_eq!("grüße, jürgen ❤", s.to_ascii_lowercase());
-
-   
-// make_ascii_uppercase 将此字符串原位转换为ASCII大写字母。ASCII字母'a'到'z'被映射为'A'到'Z',但非ASCII字母则没有变化。
-    let mut char4 = 'a';
-    let mut char5 = '❤';
-    let mut char6 = '!';
-    char4.make_ascii_uppercase();
-    char5.make_ascii_uppercase();
-    char6.make_ascii_uppercase();
-    // print uppercase characters
-    println!("{}", char4);
-    println!("{}", char5);
-    println!("{}", char6);
-    let mut s = String::from("Grüße, Jürgen ❤");
-    s.make_ascii_uppercase();
-    assert_eq!("GRüßE, JüRGEN ❤", s);
-
-// make_ascii_lowercase 与make_ascii_uppercase相反
-    let mut s = String::from("GRÜßE, JÜRGEN ❤");
-    s.make_ascii_lowercase();
-    assert_eq!("grÜße, jÜrgen ❤", s);
-}
-
-```
-
-#### to_vec、into_vec、repeat
+#### to_vec、into_vec
 
 slice转vec、box<[slice]>转vec、重复n遍
 
@@ -5051,6 +4982,978 @@ A string with "# in it. And even "##!
 - String类型的本质是一个字段为Vec<u8>类型的结构体，它把字符内容存放在堆上，由指向堆上字节序列的指针（as_ptr方法）、记录堆上字节序列的长度（len方法）和堆分配的容量（capacity方法）3部分组成。
 - 可以将一段字节序列转换为string。
 
+### 常用方法
+
+#### 构建
+
+- 构建空的
+- 构建指定容量的
+- 从Vec<u8>构建
+- 从utf16数组构建
+- 由ptr、len、cap构建
+- repeat重复多次构建
+
+``` rust
+use std::mem;
+
+fn main() {
+// new、with_capacity、创建带有指定容量的字符串
+// capacity 字符串的容量
+    let s = String::new(); // 创建空String，很快且不分配空间，即容量是0
+    let mut s = String::with_capacity(10); // 创建一个具有特定容量字节的新的空String
+    assert_eq!(s.len(), 0);
+    let cap = s.capacity(); // 返回此字符串的容量 (以字节为单位)。获取上面设置的容量
+    for _ in 0..10 {
+        s.push('a');
+    }
+    assert_eq!(s.capacity(), cap);
+    // 但这可能会使字符串重新分配，因为初次分配了10个字节
+    s.push('a');
+    println!("{}", s.capacity()); // 此时是20了
+
+// from_utf8 由Vec<u8>转为String，遇到无效字符则返回Err
+    let sparkle_heart = vec![240, 159, 146, 150]; // 一些字节
+    let sparkle_heart = String::from_utf8(sparkle_heart).unwrap(); // 明确知道这些字节是有效的因此使用unwrap即可
+    // let sparkle_heart = unsafe { String::from_utf8_unchecked(sparkle_heart)}; // 这是不安全版本
+    assert_eq!("💖", sparkle_heart);
+    let sparkle_heart = vec![0, 159, 146, 150]; // 一些无效字节
+    assert!(String::from_utf8(sparkle_heart).is_err());
+
+// from_utf8_lossy 将字节切片转换为字符串（ 返回Cow<'a, str>），包括无效字符，无效字符会转为'�'
+    let sparkle_heart = vec![240, 159, 146, 150]; // vector 中的一些字节
+    let sparkle_heart = String::from_utf8_lossy(&sparkle_heart);
+    assert_eq!("💖", sparkle_heart);
+    let input = b"Hello \xF0\x90\x80World"; // 一些无效的字节
+    let output = String::from_utf8_lossy(input);
+    assert_eq!("Hello �World", output);
+
+// from_utf16 是from_utf8的16位版本
+    // 𝄞music
+    let v = &[0xD834, 0xDD1E, 0x006d, 0x0075,
+            0x0073, 0x0069, 0x0063];
+    assert_eq!(String::from("𝄞music"),
+            String::from_utf16(v).unwrap());
+
+    // 𝄞mu<invalid>ic
+    let v = &[0xD834, 0xDD1E, 0x006d, 0x0075,
+            0xD800, 0x0069, 0x0063];
+    assert!(String::from_utf16(v).is_err());
+
+
+// from_utf16_lossy，是from_utf8_lossy的16位版本，但返回String，因为 UTF-16 到 UTF-8 的转换需要分配内存。
+    // 𝄞mus<invalid>ic<invalid>
+    let v = &[0xD834, 0xDD1E, 0x006d, 0x0075,
+            0x0073, 0xDD1E, 0x0069, 0x0063,
+            0xD834];
+
+    assert_eq!(String::from("𝄞mus\u{FFFD}ic\u{FFFD}"),
+            String::from_utf16_lossy(v));
+
+
+// from_raw_parts 很不安全的由ptr、len、cap构建String
+    unsafe {
+        let s = String::from("hello");
+        // 防止自动丢弃字符串的数据
+        let mut s = mem::ManuallyDrop::new(s);
+        let ptr = s.as_mut_ptr();
+        let len = s.len();
+        let capacity = s.capacity();
+        let s = String::from_raw_parts(
+            ptr, // 第一个字节必须是有效的UTF-8
+            len, // len需要小于或等于 capacity
+            capacity
+        );
+        assert_eq!(String::from("hello"), s);
+    }
+                
+
+// repeat 通过重复字符串 n 次来创建新的 String。
+    assert_eq!("abc".repeat(4), String::from("abcabcabcabc"));
+
+
+    let one = 1.to_string(); // 整数到字符串
+    let float = 1.3.to_string(); // 浮点数到字符串
+}
+
+```
+
+#### 基本属性
+
+获取字节数、判断空
+
+``` rust
+// len 注意返回的是字节数，不是字符数
+    let a = String::from("foo");
+    assert_eq!(a.len(), 3);
+    let fancy_f = String::from("ƒoo");
+    assert_eq!(fancy_f.len(), 4);
+    assert_eq!(fancy_f.chars().count(), 3);
+
+// is_empty 判断len是否为0
+    let mut v = String::new();
+    assert!(v.is_empty());
+    v.push('a');
+    assert!(!v.is_empty());
+```
+
+#### 边界的概念
+
+``` rust
+// is_char_boundary 判断指定pos的字节是否为有效边界，字符串的开始和结束以及utf字符的第一个字节被视为有效的
+    let s = "Löwe 老虎 Léopard";
+    assert!(s.is_char_boundary(0)); // 开始是有效边界
+    assert!(s.is_char_boundary(s.len())); // 结束也同样为有效边界
+
+    assert!(s.is_char_boundary(6)); // start of `老`，此汉字的第一个字节是有效的
+    assert!(!s.is_char_boundary(2)); // `ö` 的第二个字节
+    assert!(!s.is_char_boundary(8)); // third byte of `老`
+}
+```
+
+#### 类型转换
+
+- 使用parse
+- 转为vec<u8>、&str、以及mut &str、&[u8]、Box<str>，以及不安全的mut Vec<u8>
+
+``` rust
+// parse 解析为另一种类型（实现了FromStr的类型），失败返回Err
+    let four: u32 = "4".parse().unwrap(); // 没指定类型
+    assert_eq!(4, four);
+    let four = "4".parse::<u32>(); // 指定类型
+    assert_eq!(Ok(4), four);
+    let nope = "j".parse::<u32>(); // 无法解析
+    assert!(nope.is_err());
+
+// into_bytes 将String转换为Vec<u8>，会消耗掉String
+    let s = String::from("hello");
+    let bytes = s.into_bytes();
+    assert_eq!(&[104, 101, 108, 108, 111][..], &bytes[..]);
+
+// into_boxed_str 将String转换为Box<str>
+    let s = String::from("hello");
+    let b = s.into_boxed_str();
+
+// as_str 获取String的字符串切片，返回&str
+    let s = String::from("foo");
+    assert_eq!("foo", s.as_str());
+
+// as_mut_str 是as_str的mut版本
+    let mut s = String::from("foobar");
+    let s_mut_str = s.as_mut_str();
+    s_mut_str.make_ascii_uppercase();
+    assert_eq!("FOOBAR", s_mut_str);
+
+// as_bytes 返回&[u8]，即字节数组的切片
+    let s = String::from("hello");
+    assert_eq!(&[104, 101, 108, 108, 111], s.as_bytes());
+    let bytes = "bors".as_bytes();
+    assert_eq!(b"bors", bytes);
+
+// as_bytes_mut 是as_bytes的不安全mut版本，要确保字符串是有效的UTF8
+    let mut s = String::from("Hello");
+    let bytes = unsafe { s.as_bytes_mut() };
+    assert_eq!(b"Hello", bytes);
+    let mut s = String::from("🗻∈🌏");
+    unsafe {
+        let bytes = s.as_bytes_mut();
+        bytes[0] = 0xF0;
+        bytes[1] = 0x9F;
+        bytes[2] = 0x8D;
+        bytes[3] = 0x94;
+    }
+    assert_eq!("🍔∈🌏", s);
+
+// as_mut_vec 返回可变引用mut Vec<u8>，是不安全的，需假定所有字符都是有效的UTF-8
+    let mut s = String::from("hello");
+    unsafe {
+        let vec = s.as_mut_vec();
+        assert_eq!(&[104, 101, 108, 108, 111][..], &vec[..]);
+        vec.reverse();
+    }
+    assert_eq!(s, "olleh");
+
+// as_ptr 获取裸指针*const u8，还有as_mut_ptr
+    let s = "Hello";
+    let ptr = s.as_ptr();
+```
+
+#### 扩容与缩容
+
+``` rust
+fn main() {
+
+// capacity 返回此字符串的容量 (以字节为单位)。
+    let s = String::with_capacity(10);
+    assert!(s.capacity() >= 10);
+
+
+// reserve 再多扩容n个字节，如果容量已经足够，则不做任何事情
+// try_reserve 还有更安全的try版本，返回result，便于了解是否成功
+    let mut s = String::new();
+    s.reserve(10);
+    assert!(s.capacity() >= 10);
+
+    let mut s = String::with_capacity(10);
+    s.push('a');
+    s.push('b');
+    assert_eq!(2, s.len()); // s 现在的长度为 2，容量为 10
+    assert_eq!(10, s.capacity());
+    s.reserve(8); // 由于有8个额外的容量，因此没作用
+    assert_eq!(10, s.capacity()); // 实际上并没有增加。
+
+    match s.try_reserve(10) {
+        Ok(_) => assert!(s.capacity() == 20),
+        Err(e) => println!("{:?}", e),
+    }
+
+// reserve_exact 直接扩容到指定容量
+// try_reserve_exact 是reserve_exact的try版本
+    let mut s = String::with_capacity(10);
+    s.reserve_exact(20);
+    assert!(s.capacity() == 20);
+
+    match s.try_reserve_exact(30) {
+        Ok(_) => assert!(s.capacity() == 30),
+        Err(e) => println!("{:?}", e),
+    }
+
+// shrink_to_fit 缩小字符串的容量，使其与长度一致
+    let mut s = String::from("foo");
+    s.reserve(100);
+    assert!(s.capacity() >= 100);   
+    s.shrink_to_fit();
+    assert_eq!(3, s.capacity());
+
+// shrink_to 缩小字符串的容量，至少保持与长度和提供的值一样大。如果当前容量小于下限则无操作
+    let mut s = String::from("foo");
+    s.reserve(100);
+    assert!(s.capacity() >= 100);
+    s.shrink_to(10);
+    assert!(s.capacity() >= 10);
+    s.shrink_to(0);
+    assert!(s.capacity() >= 3);
+}
+
+```
+
+#### 追加、插入
+
+可以添加单个字符也可以是字符串切片，可以添加到末尾或指定pos
+
+``` rust
+// push_str 追加字符串切片到自身的末尾
+    let mut s = String::from("foo");
+    s.push_str("bar");
+    assert_eq!("foobar", s);
+
+// push 追加char到末尾
+    let mut s = String::from("abc");
+    s.push('1');
+    s.push('2');
+    s.push('3');
+    assert_eq!("abc123", s);
+
+// insert 在指定pos插入字符
+    let mut s = String::with_capacity(3);
+    s.insert(0, 'f');
+    s.insert(1, 'o');
+    s.insert(2, 'o');
+    assert_eq!("foo", s);
+
+// insert_str 在指定pos插入字符串切片
+    let mut s = String::from("bar");
+    s.insert_str(0, "foo");
+    assert_eq!("foobar", s);
+```
+
+#### clear、删除、切割、截断
+
+可以删除末尾的或指定pos的，也可迭代所有字符运行闭包决定删除哪个，以及清理与切割
+
+``` rust
+// clear 删除所有内容，len归0，但容量不变
+    let mut s = String::from("foo");
+    s.clear();
+    assert!(s.is_empty());
+    assert_eq!(0, s.len());
+    assert_eq!(3, s.capacity());
+
+// strip_prefix 返回删除了指定前缀的字符串切片
+    assert_eq!("foo:bar".strip_prefix("foo:"), Some("bar"));
+    assert_eq!("foo:bar".strip_prefix("bar"), None);
+    assert_eq!("foofoo".strip_prefix("foo"), Some("foo"));
+
+// strip_suffix 返回删除了指定后缀的字符串切片
+    assert_eq!("bar:foo".strip_suffix(":foo"), Some("bar"));
+    assert_eq!("bar:foo".strip_suffix("bar"), None);
+    assert_eq!("foofoo".strip_suffix("foo"), Some("foo"));
+
+
+// split_off 从pos切割为2个String，新String从pos处开始，原String容量不变，pos得是有效边界
+    let mut hello = String::from("Hello, World!");
+    let world = hello.split_off(7);
+    assert_eq!(hello, "Hello, ");
+    assert_eq!(world, "World!");
+
+// split_at 从pos切割为2个&str，pos得是有效边界
+    let s = "Per Martin-Löf";
+    let (first, last) = s.split_at(3);
+    assert_eq!("Per", first);
+    assert_eq!(" Martin-Löf", last);
+
+// split_at_mut 是split_at的mut版本
+    let mut s = "Per Martin-Löf".to_string();
+    {
+        let (first, last) = s.split_at_mut(3);
+        first.make_ascii_uppercase();
+        assert_eq!("PER", first);
+        assert_eq!(" Martin-Löf", last);
+    }
+    assert_eq!("PER Martin-Löf", s);
+
+// truncate 缩短为指定的长度，此方法对capacity无影响仅去除内容
+    let mut s = String::from("hello");
+    s.truncate(2);
+    assert_eq!("he", s);
+    assert_eq!(5, s.capacity());
+
+// pop 删除最后一个字符并返回之，如果String为空则返回None
+    let mut s = String::from("abc");
+    assert_eq!(s.pop(), Some('c'));
+    assert_eq!(s.pop(), Some('b'));
+    assert_eq!(s.pop(), Some('a'));
+    assert_eq!(s.pop(), None);
+    // 此时s无内容
+
+// remove 删除指定pos的char并返回之
+    let mut s = String::from("abc");
+    assert_eq!(s.remove(0), 'a');
+    assert_eq!(s.remove(1), 'c');
+    assert_eq!(s.remove(0), 'b');
+    // 此时s无内容
+
+// retain 迭代每个字符运行闭包，保留结果为T的字符，去除结果为F的
+    let mut s = String::from("f_o_ob_ar");
+    s.retain(|c| c != '_');
+    assert_eq!(s, "foobar");
+
+    let mut s = String::from("abcde");
+    let keep = [false, true, true, false, true];
+    let mut iter = keep.iter();
+    s.retain(|_| *iter.next().unwrap());
+    assert_eq!(s, "bce");
+
+// drain 删除指定range个字符，返回指向所有被删除字符的迭代器（即可得到被删除的子串）
+    let mut s = String::from("α is alpha, β is beta");
+    let beta_offset = s.find('β').unwrap_or(s.len());
+    // 删除范围直到字符串中的 β
+    let t: String = s.drain(..beta_offset).collect();
+    assert_eq!(t, "α is alpha, ");
+    assert_eq!(s, "β is beta");
+    // 全范围清除字符串
+    s.drain(..);
+    assert_eq!(s, "");
+```
+
+#### trim
+
+``` rust
+
+// trim 去除两端空白
+    let s = " Hello\tworld\t";
+    assert_eq!("Hello\tworld", s.trim());
+
+// trim_start 去除开头空白
+    let s = " Hello\tworld\t";
+    assert_eq!("Hello\tworld\t", s.trim_start());
+    let s = "  English  ";
+    assert!(Some('E') == s.trim_start().chars().next());
+    let s = "  עברית  ";
+    assert!(Some('ע') == s.trim_start().chars().next());
+
+// trim_end 去除结尾空白
+    let s = " Hello\tworld\t";
+    assert_eq!(" Hello\tworld", s.trim_end());
+    let s = "  English  ";
+    assert!(Some('h') == s.trim_end().chars().rev().next());
+    let s = "  עברית  ";
+    assert!(Some('ת') == s.trim_end().chars().rev().next());
+
+// trim_matches 去除两端的连续匹配项，中间的不去除
+    assert_eq!("11foo1bar11".trim_matches('1'), "foo1bar");
+    assert_eq!("123foo1bar123".trim_matches(char::is_numeric), "foo1bar");
+    let x: &[_] = &['1', '2'];
+    assert_eq!("12foo2bar12".trim_matches(x), "foo2bar");
+    assert_eq!("1foo1barXX".trim_matches(|c| c == '1' || c == 'X'), "foo1bar");
+
+// trim_start_matches 仅去除头部的连续匹配项
+    assert_eq!("11foo1bar11".trim_start_matches('1'), "foo1bar11");
+    assert_eq!("123foo1bar123".trim_start_matches(char::is_numeric), "foo1bar123");
+    let x: &[_] = &['1', '2'];
+    assert_eq!("12foo1bar12".trim_start_matches(x), "foo1bar12");
+
+// trim_end_matches 仅去除尾部的连续匹配项
+    assert_eq!("11foo1bar11".trim_end_matches('1'), "11foo1bar");
+    assert_eq!("123foo1bar123".trim_end_matches(char::is_numeric), "123foo1bar");
+    let x: &[_] = &['1', '2'];
+    assert_eq!("12foo1bar12".trim_end_matches(x), "12foo1bar");
+    assert_eq!("1fooX".trim_end_matches(|c| c == '1' || c == 'X'), "1foo");
+```
+
+#### 分割
+
+``` rust
+// split_whitespace 返回按照unicode概念里的空白分割后的迭代器
+    let mut iter = "A few words".split_whitespace();
+    assert_eq!(Some("A"), iter.next());
+    assert_eq!(Some("few"), iter.next());
+    assert_eq!(Some("words"), iter.next());
+    assert_eq!(None, iter.next());
+
+    // 注意下面的unicode里的空白表示方式
+    let mut iter = " Mary   had\ta\u{2009}little  \n\t lamb".split_whitespace();
+    assert_eq!(Some("Mary"), iter.next());
+    assert_eq!(Some("had"), iter.next());
+    assert_eq!(Some("a"), iter.next());
+    assert_eq!(Some("little"), iter.next());
+    assert_eq!(Some("lamb"), iter.next());
+    assert_eq!(None, iter.next());
+
+    assert_eq!("".split_whitespace().next(), None);
+    assert_eq!("   ".split_whitespace().next(), None);
+
+// split_ascii_whitespace 返回ASCII空格分割后的迭代器
+    let mut iter = "A few words".split_ascii_whitespace();
+    assert_eq!(Some("A"), iter.next());
+    assert_eq!(Some("few"), iter.next());
+    assert_eq!(Some("words"), iter.next());
+    assert_eq!(None, iter.next());
+    // 注意下面的\n\t都算ascii空白
+    let mut iter = " Mary   had\ta little  \n\t lamb".split_ascii_whitespace();
+    assert_eq!(Some("Mary"), iter.next());
+    assert_eq!(Some("had"), iter.next());
+    assert_eq!(Some("a"), iter.next());
+    assert_eq!(Some("little"), iter.next());
+    assert_eq!(Some("lamb"), iter.next());
+    assert_eq!(None, iter.next());
+
+    assert_eq!("".split_ascii_whitespace().next(), None);
+    assert_eq!("   ".split_ascii_whitespace().next(), None);
+
+
+// lines 按换行符 (\r\n或\n) 分割的迭代器，连续换行会产生空行，末行是否有回车都不会产生空行
+    let text = "foo\r\nbar\n\nbaz\n";
+    let mut lines = text.lines();
+    assert_eq!(Some("foo"), lines.next());
+    assert_eq!(Some("bar"), lines.next());
+    assert_eq!(Some(""), lines.next());
+    assert_eq!(Some("baz"), lines.next());
+    assert_eq!(None, lines.next());
+
+    let text = "foo\nbar\n\r\nbaz";
+    let mut lines = text.lines();
+    assert_eq!(Some("foo"), lines.next());
+    assert_eq!(Some("bar"), lines.next());
+    assert_eq!(Some(""), lines.next());
+    assert_eq!(Some("baz"), lines.next());
+    assert_eq!(None, lines.next());
+
+// split 分割字符串
+    let v: Vec<&str> = "Mary had a little lamb".split(' ').collect();
+    assert_eq!(v, ["Mary", "had", "a", "little", "lamb"]);
+    
+    let v: Vec<&str> = "".split('X').collect();
+    assert_eq!(v, [""]);
+    
+    let v: Vec<&str> = "lionXXtigerXleopard".split('X').collect();
+    assert_eq!(v, ["lion", "", "tiger", "leopard"]);
+    
+    let v: Vec<&str> = "lion::tiger::leopard".split("::").collect();
+    assert_eq!(v, ["lion", "tiger", "leopard"]);
+    
+    let v: Vec<&str> = "abc1def2ghi".split(char::is_numeric).collect(); // 使用数字分割
+    assert_eq!(v, ["abc", "def", "ghi"]);
+    
+    let v: Vec<&str> = "lionXtigerXleopard".split(char::is_uppercase).collect(); // 大写字母分割
+    assert_eq!(v, ["lion", "tiger", "leopard"]);
+
+    let v: Vec<&str> = "2020-11-03 23:59".split(&['-', ' ', ':', '@'][..]).collect(); // 可以指定多个分割符
+    assert_eq!(v, ["2020", "11", "03", "23", "59"]);
+    
+    let v: Vec<&str> = "abc1defXghi".split(|c| c == '1' || c == 'X').collect(); // 使用闭包的更复杂的模式
+    assert_eq!(v, ["abc", "def", "ghi"]);
+
+    let x = "||||a||b|c".to_string(); // 如果一个字符串包含多个连续的分隔符，您将在输出中得到空字符串：
+    let d: Vec<_> = x.split('|').collect();
+    assert_eq!(d, &["", "", "", "", "a", "", "b", "c"]);
+
+    let x = "(///)".to_string(); // 连续的分隔符由空字符串分隔。
+    let d: Vec<_> = x.split('/').collect();
+    assert_eq!(d, &["(", "", "", ")"]);
+    
+    let d: Vec<_> = "010".split("0").collect(); // 字符串开头或结尾的分隔符与空字符串相邻。
+    assert_eq!(d, &["", "1", ""]);
+
+    let f: Vec<_> = "rust".split("").collect(); // 当空字符串用作分隔符时，它将字符串中的每个字符以及字符串的开头和结尾分隔开。
+    assert_eq!(f, &["", "r", "u", "s", "t", ""]);
+
+    let x = "    a  b c".to_string(); // 当使用空格作为分隔符时，连续的分隔符可能会导致令人惊讶的行为。这段代码是正确的：
+    let d: Vec<_> = x.split(' ').collect();
+    assert_eq!(d, &["", "", "", "", "a", "", "b", "c"]); // 而非 assert_eq!(d, &["a", "b", "c"]);
+
+
+// rsplit 是split的反向版本
+    let v: Vec<&str> = "Mary had a little lamb".rsplit(' ').collect();
+    assert_eq!(v, ["lamb", "little", "a", "had", "Mary"]);
+    
+    let v: Vec<&str> = "".rsplit('X').collect();
+    assert_eq!(v, [""]);
+    
+    let v: Vec<&str> = "lionXXtigerXleopard".rsplit('X').collect();
+    assert_eq!(v, ["leopard", "tiger", "", "lion"]);
+    
+    let v: Vec<&str> = "lion::tiger::leopard".rsplit("::").collect();
+    assert_eq!(v, ["leopard", "tiger", "lion"]);
+    
+    let v: Vec<&str> = "abc1defXghi".rsplit(|c| c == '1' || c == 'X').collect(); // 使用闭包的更复杂的模式
+    assert_eq!(v, ["ghi", "def", "abc"]);
+
+// split_inclusive 分割后分隔符包含在前一个子串中
+    let v: Vec<&str> = "Mary had a little lamb\nlittle lamb\nlittle lamb."
+        .split_inclusive('\n')
+        .collect();
+    assert_eq!(
+        v,
+        ["Mary had a little lamb\n", "little lamb\n", "little lamb."]
+    );
+
+    let v: Vec<&str> = "Mary had a little lamb\nlittle lamb\nlittle lamb.\n"
+        .split_inclusive('\n')
+        .collect();
+    assert_eq!(
+        v,
+        [
+            "Mary had a little lamb\n",
+            "little lamb\n",
+            "little lamb.\n"
+        ]
+    );
+
+
+// split_terminator 与split不同之处在于连续多个空子串则仅保留一个，详见下面第二个断言的演示
+    let v: Vec<&str> = "A.B.".split_terminator('.').collect();
+    assert_eq!(v, ["A", "B"]);
+    let v: Vec<&str> = "A..B..".split_terminator(".").collect();
+    assert_eq!(v, ["A", "", "B", ""]);
+    let v: Vec<&str> = "A.B:C.D".split_terminator(&['.', ':'][..]).collect();
+    assert_eq!(v, ["A", "B", "C", "D"]);
+
+// rsplit_terminator 是split_terminator的反向版本
+    let v: Vec<&str> = "A.B.".rsplit_terminator('.').collect();
+    assert_eq!(v, ["B", "A"]);
+    let v: Vec<&str> = "A..B..".rsplit_terminator(".").collect();
+    assert_eq!(v, ["", "B", "", "A"]);
+    let v: Vec<&str> = "A.B:C.D".rsplit_terminator(&['.', ':'][..]).collect();
+    assert_eq!(v, ["D", "C", "B", "A"]);
+
+
+// splitn 可以指定最多分割几段，返回的最后一段包含源字符串剩余所有
+    let v: Vec<&str> = "Mary had a little lambda".splitn(3, ' ').collect();
+    assert_eq!(v, ["Mary", "had", "a little lambda"]);
+    
+    let v: Vec<&str> = "lionXXtigerXleopard".splitn(3, "X").collect();
+    assert_eq!(v, ["lion", "", "tigerXleopard"]);
+    
+    let v: Vec<&str> = "abcXdef".splitn(1, 'X').collect();
+    assert_eq!(v, ["abcXdef"]);
+    
+    let v: Vec<&str> = "".splitn(1, 'X').collect();
+    assert_eq!(v, [""]);
+
+    let v: Vec<&str> = "abc1defXghi".splitn(2, |c| c == '1' || c == 'X').collect();
+    assert_eq!(v, ["abc", "defXghi"]);
+
+
+// rsplitn 是splitn的反向版本
+    let v: Vec<&str> = "Mary had a little lamb".rsplitn(3, ' ').collect();
+    assert_eq!(v, ["lamb", "little", "Mary had a"]);
+    
+    let v: Vec<&str> = "lionXXtigerXleopard".rsplitn(3, 'X').collect();
+    assert_eq!(v, ["leopard", "tiger", "lionX"]);
+    
+    let v: Vec<&str> = "lion::tiger::leopard".rsplitn(2, "::").collect();
+    assert_eq!(v, ["leopard", "lion::tiger"]);
+
+    let v: Vec<&str> = "abc1defXghi".rsplitn(2, |c| c == '1' || c == 'X').collect();
+    assert_eq!(v, ["ghi", "abc1def"]);
+
+
+// split_once 仅在第一次出现分隔符位置分割一次，返回2个&str
+    assert_eq!("cfg".split_once('='), None);
+    assert_eq!("cfg=foo".split_once('='), Some(("cfg", "foo")));
+    assert_eq!("cfg=foo=bar".split_once('='), Some(("cfg", "foo=bar")));
+
+// rsplit_once 是split_once的反向版本
+    assert_eq!("cfg".rsplit_once('='), None);
+    assert_eq!("cfg=foo".rsplit_once('='), Some(("cfg", "foo")));
+    assert_eq!("cfg=foo=bar".rsplit_once('='), Some(("cfg=foo", "bar")));
+```
+
+#### 替换
+
+``` rust
+// replace 用一个子串替换模式的所有匹配项，源字符串不变，返回新字符串
+    let s = "this is old";
+    assert_eq!("this is new", s.replace("old", "new"));
+    println!("{}", s);
+    let s = "this is old";
+    assert_eq!(s, s.replace("cookie monster", "little lamb"));
+
+// replacen 可以指定最多替换次数的replace
+    let s = "foo foo 123 foo";
+    assert_eq!("new new 123 foo", s.replacen("foo", "new", 2));
+    assert_eq!("faa fao 123 foo", s.replacen('o', "a", 3));
+    assert_eq!("foo foo new23 foo", s.replacen(char::is_numeric, "new", 1));
+    let s = "this is old";
+    assert_eq!(s, s.replacen("cookie monster", "little lamb", 10));
+
+// replace_range 替换指定range个字符
+    let mut s = String::from("α is alpha, β is beta");
+    let beta_offset = s.find('β').unwrap_or(s.len());
+    s.replace_range(..beta_offset, "Α is capital alpha; ");
+    assert_eq!(s, "Α is capital alpha; β is beta");
+```
+
+#### 取子串
+
+
+
+``` rust
+//  get 返回指定range的子切片，如果range不是有效边界则返回none
+    let v = String::from("🗻∈🌏");
+    assert_eq!(Some("🗻"), v.get(0..4));
+    assert!(v.get(1..).is_none()); // 索引不在 UTF-8 序列边界上
+    assert!(v.get(..8).is_none());
+    assert!(v.get(..42).is_none()); // 越界
+
+// get_mut get的mut版本
+    let mut v = String::from("hello");
+    assert!(v.get_mut(0..5).is_some()); // 正确的长度
+    assert!(v.get_mut(..42).is_none()); // 越界
+    assert_eq!(Some("he"), v.get_mut(0..2).map(|v| &*v));
+    assert_eq!("hello", v);
+    {
+        let s = v.get_mut(0..2);
+        let s = s.map(|s| {
+            s.make_ascii_uppercase();
+            &*s
+        });
+        assert_eq!(Some("HE"), s);
+    }
+    assert_eq!("HEllo", v);
+
+// get_unchecked 是get的不检测版本，即更不安全的
+    let v = "🗻∈🌏";
+    unsafe {
+        assert_eq!("🗻", v.get_unchecked(0..4));
+        assert_eq!("∈", v.get_unchecked(4..7));
+        assert_eq!("🌏", v.get_unchecked(7..11));
+    }
+
+// get_unchecked_mut 是get_mut的不检测版本，即更不安全的
+    let mut v = String::from("🗻∈🌏");
+    unsafe {
+        assert_eq!("🗻", v.get_unchecked_mut(0..4));
+        assert_eq!("∈", v.get_unchecked_mut(4..7));
+        assert_eq!("🌏", v.get_unchecked_mut(7..11));
+    }
+```
+
+#### 迭代
+
+
+
+``` rust
+// chars 返回其utf8字符串切片的迭代器，注意遍历出的是unicode字符
+    let word = "goodbye";
+    let count = word.chars().count();
+    assert_eq!(7, count);
+    let mut chars = word.chars();
+    assert_eq!(Some('g'), chars.next());
+    assert_eq!(Some('o'), chars.next());
+    assert_eq!(Some('o'), chars.next());
+    assert_eq!(Some('d'), chars.next());
+    assert_eq!(Some('b'), chars.next());
+    assert_eq!(Some('y'), chars.next());
+    assert_eq!(Some('e'), chars.next());
+    assert_eq!(None, chars.next());
+
+    let a_string = "abc123汉字测试_+";
+    println!( // -a-b-c-1-2-3-汉-字-测-试-_-+-
+        "{}",
+        a_string
+            .chars() // Now it's an iterator
+            .fold("-".to_string(), |mut string_so_far, next_char| { // Start with a String "-". Bring it in as mutable each time along with the next char
+                string_so_far.push(next_char); // Push the char on, then '-'
+                string_so_far.push('-');
+                string_so_far} // Don't forget to pass it on to the next loop
+            ));
+            
+// char_indices 是char的加强版，迭代出的不仅有unicode字符还有pos，关于pos看下面的案例
+    let word = "goodbye";
+    let count = word.char_indices().count();
+    assert_eq!(7, count);
+    let mut char_indices = word.char_indices();
+    assert_eq!(Some((0, 'g')), char_indices.next());
+    assert_eq!(Some((1, 'o')), char_indices.next());
+    assert_eq!(Some((2, 'o')), char_indices.next());
+    assert_eq!(Some((3, 'd')), char_indices.next());
+    assert_eq!(Some((4, 'b')), char_indices.next());
+    assert_eq!(Some((5, 'y')), char_indices.next());
+    assert_eq!(Some((6, 'e')), char_indices.next());
+    assert_eq!(None, char_indices.next());
+
+    let numbers_together = "abc123汉字测试_+";
+    for (index, number) in numbers_together.char_indices() {
+        // print!("{}, {};", index, number);
+        // 注意看下面汉字是一个字3个字节
+        // 0, a;1, b;2, c;3, 1;4, 2;5, 3;6, 汉;9, 字;12, 测;15, 试;18, _;19, +;
+    }
+
+
+// bytes 这个才是按字节的迭代器
+    let mut bytes = "bors".bytes();
+    assert_eq!(Some(b'b'), bytes.next());
+    assert_eq!(Some(b'o'), bytes.next());
+    assert_eq!(Some(b'r'), bytes.next());
+    assert_eq!(Some(b's'), bytes.next());
+    assert_eq!(None, bytes.next());
+
+    let numbers_together = "abc123汉字测试_+";
+    for number in numbers_together.bytes() {
+        // print!("{:x},", number);
+        // 下面【】内的是汉字
+        // 61,62,63,31,32,33,【e6,b1,89,e5,ad,97,e6,b5,8b,e8,af,95,】5f,2b
+    }
+
+// encode_utf16 在编码为UTF-16的字符串上返回u16的迭代器
+    let text = "Zażółć gęślą jaźń";
+    let utf8_len = text.len();
+    let utf16_len = text.encode_utf16().count();
+    assert!(utf16_len <= utf8_len);
+
+```
+
+#### 模式匹配与查找
+
+Pattern可以是&str，char，char切片，类型为FnMut(char) -> bool的函数或闭包
+
+``` rust
+    let s = "Can you find a needle in a haystack?";
+    // &str pattern
+    assert_eq!(s.find("you"), Some(4));
+    // char pattern
+    assert_eq!(s.find('n'), Some(2));
+    // array of chars pattern
+    assert_eq!(s.find(&['a', 'e', 'i', 'o', 'u']), Some(1));
+    // slice of chars pattern
+    assert_eq!(s.find(&['a', 'e', 'i', 'o', 'u'][..]), Some(1));
+    // closure pattern
+    assert_eq!(s.find(|c: char| c.is_ascii_punctuation()), Some(35));
+```
+
+下面是各类使用匹配的查找
+
+``` rust
+// contains 模式匹配成功返回T
+    let bananas = "bananas";
+    assert!(bananas.contains("nana"));
+    assert!(!bananas.contains("apples"));
+
+// matches、rmatches 返回所有匹配的结果
+    let v: Vec<&str> = "abcXXXabcYYYabc".matches("abc").collect();
+    assert_eq!(v, ["abc", "abc", "abc"]);
+    let v: Vec<&str> = "1abc2abc3".matches(char::is_numeric).collect();
+    assert_eq!(v, ["1", "2", "3"]);
+
+    let v: Vec<&str> = "abcXXXabcYYYabc".rmatches("abc").collect();
+    assert_eq!(v, ["abc", "abc", "abc"]);
+    let v: Vec<&str> = "1abc2abc3".rmatches(char::is_numeric).collect();
+    assert_eq!(v, ["3", "2", "1"]);
+
+// match_indices、rmatch_indices 比matches多返回一个所在的字节索引
+    let v: Vec<_> = "abcXXXabcYYYabc".match_indices("abc").collect();
+    assert_eq!(v, [(0, "abc"), (6, "abc"), (12, "abc")]);
+    let v: Vec<_> = "1abcabc2".match_indices("abc").collect();
+    assert_eq!(v, [(1, "abc"), (4, "abc")]);
+    let v: Vec<_> = "ababa".match_indices("aba").collect();
+    assert_eq!(v, [(0, "aba")]); // 只有第一个 `aba`
+    let v: Vec<_> = "abcXXXabcYYYabc".rmatch_indices("abc").collect();
+    assert_eq!(v, [(12, "abc"), (6, "abc"), (0, "abc")]);
+    let v: Vec<_> = "1abcabc2".rmatch_indices("abc").collect();
+    assert_eq!(v, [(4, "abc"), (1, "abc")]);
+    let v: Vec<_> = "ababa".rmatch_indices("aba").collect();
+    assert_eq!(v, [(2, "aba")]); // 只有最后的 `aba`
+
+
+// starts_with 模式匹配开头
+    let bananas = "bananas";
+    assert!(bananas.starts_with("bana"));
+    assert!(!bananas.starts_with("nana"));
+
+// ends_with 模式匹配结尾
+    let bananas = "bananas";
+    assert!(bananas.ends_with("anas"));
+    assert!(!bananas.ends_with("nana"));
+
+// find 查找匹配，注意返回的是字节索引，不是第几个字符，没找到返回None
+    let s = "Löwe 老虎 Léopard Gepardi";
+    assert_eq!(s.find('L'), Some(0));
+    assert_eq!(s.find('é'), Some(14));
+    assert_eq!(s.find("pard"), Some(17));
+
+    // 闭包的
+    let s = "Löwe 老虎 Léopard";
+    assert_eq!(s.find(char::is_whitespace), Some(5));
+    assert_eq!(s.find(char::is_lowercase), Some(1));
+    assert_eq!(
+        s.find(|c: char| c.is_whitespace() || c.is_lowercase()),
+        Some(1)
+    );
+    assert_eq!(s.find(|c: char| (c < 'o') && (c > 'a')), Some(4));
+
+    // 找不到的
+    let s = "Löwe 老虎 Léopard";
+    let x: &[_] = &['1', '2'];
+    assert_eq!(s.find(x), None);
+
+// rfind 是find的反向版本
+    let s = "Löwe 老虎 Léopard Gepardi";
+    assert_eq!(s.rfind('L'), Some(13));
+    assert_eq!(s.rfind('é'), Some(14));
+    assert_eq!(s.rfind("pard"), Some(24));
+    let s = "Löwe 老虎 Léopard";
+    assert_eq!(s.rfind(char::is_whitespace), Some(12));
+    assert_eq!(s.rfind(char::is_lowercase), Some(20));
+    let s = "Löwe 老虎 Léopard";
+    let x: &[_] = &['1', '2'];
+    assert_eq!(s.rfind(x), None);
+```
+
+#### ascii、大小写
+
+
+
+``` rust
+// is_ascii 检查该字符串中的所有字符是否在ASCII范围内。
+    let bytes = *b"0123456789";
+    assert_eq!(true, bytes.is_ascii());
+    let ascii = "hello!\n";
+    let non_ascii = "Grüße, Jürgen ❤";
+    assert!(ascii.is_ascii());
+    assert!(!non_ascii.is_ascii());
+
+// eq_ignore_ascii_case 检查两个字符（也支持字符串）是否为ASCII大小写不敏感（即不区分大小写的情况下是否相同）
+    let char1 = 'i';
+    let char2 = 'I';   
+    let char3 = '☀'; 
+    let char4 = 'M';
+    let char5 = 'm';
+    let char6 = 'k';
+    assert_eq!(true, char1.eq_ignore_ascii_case(&char2));
+    assert_eq!(false, char2.eq_ignore_ascii_case(&char3));
+    assert_eq!(true, char5.eq_ignore_ascii_case(&char4));
+    assert_eq!(false, char6.eq_ignore_ascii_case(&char5));
+    assert!("Ferris".eq_ignore_ascii_case("FERRIS"));
+    assert!("Ferrös".eq_ignore_ascii_case("FERRöS"));
+    assert!(!"Ferrös".eq_ignore_ascii_case("FERRÖS"));
+
+
+// make_ascii_uppercase 将字符串原地转换为大写字母，非ASCII字母则没有变化。
+    let mut char4 = 'a';
+    let mut char5 = '❤';
+    let mut char6 = '!';
+    char4.make_ascii_uppercase(); // 已改变为大写
+    char5.make_ascii_uppercase();
+    char6.make_ascii_uppercase();
+    let mut s = String::from("Grüße, Jürgen ❤");
+    s.make_ascii_uppercase();
+    assert_eq!("GRüßE, JüRGEN ❤", s);
+
+// make_ascii_lowercase 与make_ascii_uppercase相反
+    let mut s = String::from("GRÜßE, JÜRGEN ❤");
+    s.make_ascii_lowercase();
+    assert_eq!("grÜße, jÜrgen ❤", s);
+
+
+
+// to_lowercase 返回小写字符串，源字符串不变
+    let s = "HELLO";
+    assert_eq!("hello", s.to_lowercase());
+    let sigma = "Σ";
+    assert_eq!("σ", sigma.to_lowercase());
+    let odysseus = "ὈΔΥΣΣΕΎΣ";  // 但在单词结尾时，它是 ς，而不是 σ：
+    assert_eq!("ὀδυσσεύς", odysseus.to_lowercase());
+    let new_year = "农历新年";
+    assert_eq!(new_year, new_year.to_lowercase()); // 不区分大小写的语言不会更改：
+
+// to_uppercase 返回大写字符串，源字符串不变
+    let s = "hello";
+    assert_eq!("HELLO", s.to_uppercase());
+    let new_year = "农历新年";
+    assert_eq!(new_year, new_year.to_uppercase());
+    let s = "tschüß";
+    assert_eq!("TSCHÜSS", s.to_uppercase());
+
+
+// to_ascii_uppercase 返回该字符串的副本,其中每个字符都被映射到其ASCII大写等值。非ASCII字母则没有变化。
+    let char1 = 't';
+    let char2 = '❤';
+    let char3 = '!';
+    println!("{} uppercase is {}", char1, char1.to_ascii_uppercase()); // t uppercase is T
+    println!("{} uppercase is {}", char2, char2.to_ascii_uppercase()); // ❤ uppercase is ❤
+    println!("{} uppercase is {}", char3, char3.to_ascii_uppercase()); // ! uppercase is !
+    let s = "Grüße, Jürgen ❤";
+    assert_eq!("GRüßE, JüRGEN ❤", s.to_ascii_uppercase());
+
+// to_ascii_lowercase 与to_ascii_uppercase 相反
+    let s = "Grüße, Jürgen ❤";
+    assert_eq!("grüße, jürgen ❤", s.to_ascii_lowercase());
+```
+
+#### 转码
+
+``` rust
+// escape_debug 使用char::escape_debug转码每个字符，只有以字符串开头是扩展grapheme码点才会被转义，都打印出“❤\n!”
+    for c in "❤\n!".escape_debug() { // 迭代器形式
+        print!("{}", c);
+    }
+    println!();
+    println!("{}", "❤\n!".escape_debug()); // 直接使用println!
+    println!("❤\\n!");
+    assert_eq!("❤\n!".escape_debug().to_string(), "❤\\n!"); // String形式
+
+// escape_default 使用char::escape_default转码每个字符，都打印出“\u{2764}\n!”
+    for c in "❤\n!".escape_default() {
+        print!("{}", c);
+    }
+    println!();
+    println!("{}", "❤\n!".escape_default());
+    println!("\\u{{2764}}\\n!");
+    assert_eq!("❤\n!".escape_default().to_string(), "\\u{2764}\\n!");
+
+// escape_unicode 使用char::escape_unicode转码每个字符，都打印出“\u{2764}\u{a}\u{21}”
+    for c in "❤\n!".escape_unicode() {
+        print!("{}", c);
+    }
+    println!();
+    println!("{}", "❤\n!".escape_unicode());
+    println!("\\u{{2764}}\\u{{a}}\\u{{21}}");
+    assert_eq!("❤\n!".escape_unicode().to_string(), "\\u{2764}\\u{a}\\u{21}");
+```
+
+#### 待整理合并
+
 ``` rust
 fn main() {
 // 创建
@@ -5261,7 +6164,8 @@ fn first_word(s: &str) -> &str {
 
 ## 字节数组
 
-想要非 UTF-8 字符串（记住，&str 和 String 都必须是合法的 UTF-8 序列），或者 需要一个字节数组，其中大部分是文本？请使用字节串（byte string）！
+- 想要非 UTF-8 字符串（记住，&str 和 String 都必须是合法的 UTF-8 序列），或者 需要一个字节数组，其中大部分是文本？请使用字节串（byte string）！
+- 双引号内容前面加b即为字节数组
 
 ``` rust
 use std::str;
@@ -5300,6 +6204,15 @@ fn main() {
         Ok(my_str) => println!("Conversion successful: '{}'", my_str),
         Err(e) => println!("Conversion failed: {:?}", e),
     };
+
+
+    // 字节数组的遍历， escape_ascii 返回一个迭代器，产生这个片断的转义版本，将其视为ASCII字符串。
+    let s = b"012abc\t\r\n'\"\\\x9d"; // 只能是ascii字符
+    for c in s.escape_ascii() {
+        print!("{:?}, ", c);
+    }
+    // 字节数组转String
+    println!("{}", s.escape_ascii().to_string());
 }
 
 A bytestring: [116, 104, 105, 115, 32, 105, 115, 32, 97, 32, 98, 121, 116, 101, 115, 116, 114, 105, 110, 103]
