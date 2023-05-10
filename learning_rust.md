@@ -1645,6 +1645,20 @@ let c2 = '\x7f'; // 8 bit 字符变量
 let c3 = '\u{7FFF}'; // unicode字符
 ```
 
+## 与、或、非
+
+- !、&、| 操作符有两种意思，根据上下文决定：
+    - 操作数是整数值时：按位取反、按位与、按位或
+    - 操作数是布尔值时：逻辑取反、逻辑与、逻辑或
+- &、&&都表示逻辑与，但后者会短路计算。同理|、||都表示逻辑或，但后者会短路计算
+
+``` rust
+// 不会panic报错退出，因为不会评估 || 运算符右边的操作数
+    if true || panic!("not bang!!!") {}
+// 会panic报错退出，因为会评估 | 运算符右边的操作数
+    if true | panic!("bang!!!") {}
+```
+
 ## 最大值、最小值
 
 ``` rust
@@ -2617,8 +2631,9 @@ huaw@test:~/playground/rust/hellocargo$ cargo run
 arr1[0]: 1, arr3[2]: 1
 ```
 
-### 数组的方法
+### 数组的方法(slice)
 
+- Array类型自动转换为Slice类型
 - 可以直接将数组的引用当成slice来使用。即&arr和&mut arr当作不可变slice和可变slice来使用。
 - 在调用方法的时候，由于.操作符会自动创建引用或解除引用，因此Array可以直接调用Slice的所有方法。实际上，数组的方法都来自Slice类型。
 
@@ -2722,7 +2737,7 @@ reset after : origin array [5, 4, 3, 2, 1]
 
 - 切片本身是没有所有权的，它是通过引用语法实现对集合中一段连续的元素序列的借用。切片可以和常见的能够在内存中开辟一段连续内存块的数据结构一起使用，比如数组、动态数组、字符串等。字符串切片就是指向字符串中一段连续的字符。
 - 切片与数组类似，但它们的长度在编译时并不为人所知。相反，一个切片是一个两个字的对象；第一个字是一个指向数据的指针，第二个字是切片的长度。字的大小与usize相同，由处理器架构决定，例如x86-64的64位。
-- 片断可以用来借用一个数组的一部分，其类型签名为&[T]。
+- Rust中几乎总是使用切片数据的引用。Slice类型表示为[T]，Slice的引用类型表示为&[T]或&mut [T]，前者不可通过Slice引用来修改源数据，后者可修改源数据。
 - Rust常见的数据类型中，有三种类型已支持Slice操作：String类型、Array类型和Vec类型(其实Slice类型自身也支持切片操作)。实际上，用户自定义的类型也可以支持Slice操作，只要自定义的类型满足一些条件即可，
 
 ### 切片定义
@@ -2733,9 +2748,13 @@ reset after : origin array [5, 4, 3, 2, 1]
 let slice = &data[start_index..end_index];
 ```
 
-- start_index..end_index表示一个范围类型，
-- starting_index是切片的第一个位置，ending_index是切片最后一个位置的后一个值，即生成的是从start_index开始到end_index结束的元素序列，但end_index索引指向的字符不包含在内。
-- start_index和end_index都可以省略，省略start_index表示从0开始，且start_index的最小取值也是0；而省略end_index表示取最大长度，且end_index的最大取值也就是最大长度。
+s[n1..n2]：获取s中index=n1到index=n2(不包括n2)之间的所有元素
+s[n1..]：获取s中index=n1到最后一个元素之间的所有元素
+s[..n2]：获取s中第一个元素到index=n2(不包括n2)之间的所有元素
+s[..]：获取s中所有元素
+其他表示包含范围的方式，如s[n1..=n2]表示取index=n1到index=n2(包括n2)之间的所有元素
+
+
 
 案例：字符串切片与动态数组切片
 
@@ -2909,7 +2928,8 @@ fn print_vec(vec: &[i32]) {
 
 ### 常用方法
 
-注：这些方法都不适用于String Slice，String Slice可用的方法较少，上面给出官方手册中，除了方法名中有"ascii"的方法(如is_ascii()方法)是String Slice可使用的方法外，其他方法都不能被String Slice调用。
+- 有三种类型已支持Slice操作：String类型、Array类型和Vec类型。实际上，用户自定义的类型也可以支持Slice操作，只要自定义的类型满足一些条件即可。
+- 注：这些方法都不适用于String Slice，String Slice可用的方法较少，上面给出官方手册中，除了方法名中有"ascii"的方法(如is_ascii()方法)是String Slice可使用的方法外，其他方法都不能被String Slice调用。
 
 
 #### len、is_empty
@@ -3842,7 +3862,35 @@ slice转vec、box<[slice]>转vec、重复n遍
 
 ## range
 
-范围类型常用来生成从一个整数开始到另一个整数结束的整数序列，有左闭右开和全闭两种形式，比如（1..5）是左闭右开区间，表示生成1、2、3、4这4个数字；（1..=5）是全闭区间，表示生成1、2、3、4、5这5个数字。范围类型自带一些方法，如
+表示范围的操作符
+
+|范围表达式|类型|表示的范围|
+|-|-|-|
+|start..end|std::ops::Range|start ≤ x < end|
+|start..|std::ops::RangeFrom|start ≤ x|
+|..end|std::ops::RangeTo|x < end|
+|..|std::ops::RangeFull|-|
+|start..=end|std::ops::RangeInclusive|start ≤ x ≤ end|
+|..=end|std::ops::RangeToInclusive|x ≤ end|
+
+范围类型常用来生成从一个整数开始到另一个整数结束的整数序列，有左闭右开和全闭两种形式，比如（1..5）是左闭右开区间，表示生成1、2、3、4这4个数字；（1..=5）是全闭区间，表示生成1、2、3、4、5这5个数字。
+
+``` rust
+let arr = [11, 22, 33, 44, 55];
+let s1 = &arr[0..3];    // [11,22,33]
+let s2 = &arr[1..=3];   // [22, 33, 44]
+let s3 = &arr[..];      // [11, 22, 33, 44, 55]
+
+for i in 1..5 {
+    println!("{}", i);  // 1 2 3 4
+}
+
+
+let x = 0..5; // 两个表示范围的方式是等价的：
+let y = std::ops::Range {start: 0, end: 5};
+```
+
+范围类型自带一些方法，如
 
 - rev方法可以将范围内的数字顺序反转
 - sum方法可以对范围内的数字进行求和
@@ -4138,6 +4186,26 @@ false
 true
 ```
 
+## self详解
+
+self表示调用方法时的Struct实例对象(如rect1.area()时，self就是rect1)。有如下几种self形式：
+
+- fn f(self)：当obj.f()时，转移obj的所有权，调用f方法之后，obj将无效。很少使用，因为这会使得调用方法后对象立即消失。但有时候也能派上场，例如可用于替换对象：调用方法后原对象消失，但返回另一个替换后的对象。
+- fn f(&self)：当obj.f()时，借用而非转移obj的只读权，方法内部不可修改obj的属性，调用f方法之后，obj依然可用
+- fn f(&mut self)：当obj.f()时，借用obj的可写权，方法内部可修改obj的属性，调用f方法之后，obj依然可用
+- 第一个参数self(或其他形式)没有指定类型。实际上，在方法的定义中，self的类型为Self(首字母大写)。例如，为Rectangle定义方法时，Self类型就是Rectangle类型。因此，下面几种定义方法的方式是等价的：
+
+``` rust
+fn f(self)
+fn f(self: Self)
+
+fn f(&self)
+fn f(self: &Self)
+
+fn f(&mut self)
+fn f(self: &mut Self)
+```
+
 ## 关联函数
 
 - 第一个参数是非self的函数叫关联函数。
@@ -4145,6 +4213,7 @@ true
 - 结构体 impl 块可以写几次，效果相当于它们内容的拼接！
 - 关联函数常常被⽤作构造器来返回⼀个结构体的新实例。
 - 关联函数可以将那些不需要实例的特定功能放置到结构体的命名空间中。
+- 关联方法类似于其他语言中类方法或静态方法的概念。
 
 ``` rust
 #[derive(Debug)]
@@ -6088,7 +6157,7 @@ fn main() {
 
 ```
 
-## String的切片 &str
+## String的切片 str
 
 String的切片和普通的切片有些不同。
 
@@ -6616,6 +6685,8 @@ fn main() {
 ```
 
 # 流程控制
+
+- Rust中这些结构都是表达式，它们都有默认的返回值()，且if结构和loop循环结构可以指定返回值。
 
 ## 条件判断
 
@@ -7447,13 +7518,37 @@ fn main() {
 
 这类似于 assert!。debug 断言宏也可以用在除测试代码之外的代码中。在其他代码中，这主要用于代码运行时，对应该保存的任何契约或不变性进行断言的情况。这些断言仅在调试版本中有效，并且有助于在调试模式下运行代码时捕获断言异常。当代码以优化模式编译时，这些宏调用将被忽略，并被优化为无操作。它还有类似的变体，例如 debug_assert_eq!和 debug_assert_ne!，它们的工作方式类似 assert!宏。
 
-# 匹配
+# 模式匹配
 
-## Match
+## let变量赋值时的模式匹配
 
-- match是运算符，用于流程控制的模式匹配，检查当前值是否匹配一系列模式中的某一个。
+将表达式与模式进行比较匹配，并将任何模式中找到的变量名进行对应的赋值。
+
+``` rust
+let x = 5;
+let (x, y) = (1, 2);
+```
+
+## 函数参数传值时的模式匹配
+
+为函数参数传值和使用let变量赋值是类似的，本质都是在做模式匹配的操作。
+
+``` rust
+fn f1(i: i32){
+  // xxx
+}
+
+fn f2(&(x, y): &(i32, i32)){
+  // yyy
+}
+```
+
+## match分支匹配
+
+- match是运算符，用于流程控制的模式匹配，检查当前值是否匹配一系列模式中的某一个。match会从前先后匹配各分支，一旦匹配成功则不再继续向下匹配。
 - 模式可由字面值、变量、通配符和其他内容构成。
-- Rust要求match模式匹配是穷尽式的，即必须穷举所有的可能性，否则会导致程序错误。
+- 无论加不加大括号，每个分支都是一个独立的作用域。
+- match也经常用来穷举Enum类型的所有成员。此时要求穷尽所有成员，如果有遗漏成员，编译将失败。
 - 每一个模式都是一个分支，程序根据匹配的模式执行相应的代码。按照从上到下的顺序对 match arm 进行评估。 必须在一般事例之前定义具体事例，否则它们将无法进行匹配和评估。如下案例的“Some(&"coconut")”与“Some(fruit_name)”的先后关系
 - 可以使用通配符“\_”放置在其他分支之后，作用类似default
 
@@ -7738,18 +7833,47 @@ Tell me about (0, -2, 3)
 First is `0`, `y` is -2, and `z` is 3
 ```
 
-### 绑定 @
+### @绑定变量名
 
-匹配提供了@符号，用于将值与名称绑定
+当解构后进行模式匹配时，如果某个值没有对应的变量名，则可以使用@手动绑定一个变量名。
 
 ``` rust
-// A function `age` which returns a `u32`.
+fn some_number() -> Option<u32> {
+    Some(42)
+}
+
 fn age() -> u32 {
     15
 }
 
 fn main() {
-    println!("Tell me what type of person you are");
+    struct S(i32, i32);
+
+    match S(1, 2) {
+        // 如果匹配1成功，将其赋值给变量z
+        // 如果匹配2成功，也将其赋值给变量z
+        S(z @ 1, _) | S(_, z @ 2) => assert_eq!(z, 1),
+        _ => panic!(),
+    }
+
+    let arr = ["x", "y", "z"];
+    match arr {
+        [.., "!"] => println!("!!!"),
+        // 匹配成功，start = ["x", "y"]
+        [start @ .., "z"] => println!("starts: {:?}", start),
+        ["a", end @ ..] => println!("ends: {:?}", end),
+        rest => println!("{:?}", rest),
+    }
+
+    match some_number() {
+        // Got `Some` variant, match if its value, bound to `n`,
+        // is equal to 42.
+        Some(n @ 42) => println!("The Answer: {}!", n),
+        // Match any other number.
+        Some(n)      => println!("Not interesting... {}", n),
+        // Match anything else (`None` variant).
+        _            => (),
+    }
 
     match age() {
         0             => println!("I haven't celebrated my first birthday yet"),
@@ -7763,27 +7887,6 @@ fn main() {
     }
 }
 
-Tell me what type of person you are
-I'm a teen of age 15
-```
-
-
-``` rust
-fn some_number() -> Option<u32> {
-    Some(42)
-}
-
-fn main() {
-    match some_number() {
-        // Got `Some` variant, match if its value, bound to `n`,
-        // is equal to 42.
-        Some(n @ 42) => println!("The Answer: {}!", n),
-        // Match any other number.
-        Some(n)      => println!("Not interesting... {}", n),
-        // Match anything else (`None` variant).
-        _            => (),
-    }
-}
 ```
 
 ### 匹配数组与切片
@@ -7857,9 +7960,9 @@ fn main() {
 On the y axis at 7
 ```
 
-### 使⽤_忽略匹配
+### 使用占位符忽略匹配
 
-下画线_作为通配符模式来匹配任意可能的值⽽不绑定值本⾝的内容。虽然_模式最常被⽤在match表达式的最后⼀个分⽀中，但实际上我们可以把它⽤于包括函数参数在内的⼀切模式中
+下画线_作为通配符模式来匹配任意可能的值⽽不绑定值本⾝的内容。虽然_模式最常被⽤在match表达式的最后⼀个分⽀中，但实际上我们可以把它⽤于包括函数参数在内的⼀切模式中。还有Range..形式的匹配也类似。
 
 - 假设你正在实现⼀个trait，⽽这个trait的⽅法包含了你不需要的某些参数。在这种情形下，可以借助忽略模式来避免编译器产⽣未使⽤变量的警告。
 
@@ -8083,12 +8186,127 @@ fn main() {
 
 ```
 
-### 匹配指针与引用
+### ref和mut修饰模式中的变量
 
-对指针来说，解构（destructure）和解引用（dereference）要区分开，因为这两者的概念是不同的，和 C 那样的语言用法不一样。
+当进行解构赋值时，很可能会将变量拥有的所有权转移出去，从而使得原始变量变得不完整或直接失效。
 
-- 解引用使用 *
-- 解构使用 &、ref、和 ref mut
+``` rust
+struct Person{
+  name: String,
+  age: i32,
+}
+
+fn main(){
+  let p = Person{name: String::from("junmajinlong"), age: 23};
+  let Person{name, age} = p;
+  
+  println!("{}", name);
+  println!("{}", age);
+  println!("{}", p.name);  // 错误，name字段所有权已转移
+}
+
+```
+
+如果想要在解构赋值时不丢失所有权，有以下几种方式：
+
+``` rust
+// 方式一：解构表达式的引用
+let Person{name, age} = &p;
+
+// 方式二：解构表达式的克隆，适用于可调用clone()方法的类型
+// 但Person struct没有clone()方法
+
+// 方式三：在模式的某些字段或元素上使用ref关键字修饰变量
+let Person{ref name, age} = p;
+let Person{name: ref n, age} = p;
+
+```
+
+在模式中使用ref修饰变量名相当于对被解构的字段或元素上使用&进行引用。
+
+``` rust
+let x = 5_i32;         // x的类型：i32
+let x = &5_i32;        // x的类型：&i32
+let ref x = 5_i32;     // x的类型：&i32
+let ref x = &5_i32;    // x的类型：&&i32
+```
+
+因此，使用ref修饰了模式中的变量后，解构赋值时对应值的所有权就不会发生转移，而是以只读的方式借用给该变量。
+
+如果想要对解构赋值的变量具有数据的修改权，需要使用mut关键字修饰模式中的变量，但这样会转移原值的所有权，此时可不要求原变量是可变的。
+
+``` rust
+#[derive(Debug)]
+struct Person {
+  name: String,
+  age: i32,
+}
+
+fn main() {
+  let p = Person {
+    name: String::from("junma"),
+    age: 23,
+  };
+  match p {
+    Person { mut name, age } => {
+      name.push_str("jinlong");
+      println!("name: {}, age: {}", name, age)
+    },
+  }
+  //println!("{:?}", p);    // 错误
+}
+```
+
+如果不想在可修改数据时丢失所有权，可在mut的基础上加上ref关键字，就像&mut xxx一样。
+
+``` rust
+#[derive(Debug)]
+struct Person {
+  name: String,
+  age: i32,
+}
+
+fn main() {
+  let mut p = Person {   // 这里要改为mut p
+    name: String::from("junma"),
+    age: 23,
+  };
+  match p {
+    // 这里要改为ref mut name
+    Person { ref mut name, age } => {
+      name.push_str("jinlong");
+      println!("name: {}, age: {}", name, age)
+    },
+  }
+  println!("{:?}", p);
+}
+
+```
+
+注意，使用ref修饰变量只是借用了被解构表达式的一部分值，而不是借用整个值。如果要匹配的是一个引用，则使用&。
+
+``` rust
+
+let a = &(1,2,3);       // a是一个引用
+let (t1,t2,t3) = a;     // t1,t2,t3都是引用类型&i32
+let &(x,y,z) = a;       // x,y,z都是i32类型
+let &(ref xx,yy,zz) = a;  // xx是&i32类型，yy,zz是i32类型
+```
+
+最后，也可以将match value{}的value进行修饰，例如match &mut value {}，这样就不需要在模式中去加ref和mut了。这对于有多个分支需要解构赋值，且每个模式中都需要ref/mut修饰变量的match非常有用。
+
+``` rust
+fn main() {
+  let mut s = "hello".to_string();
+  match &mut s {   // 对可变引用进行匹配
+    // 匹配成功时，变量也是对原数据的可变引用
+    x => x.push_str("world"),
+  }
+  println!("{}", s);
+}
+```
+
+另一个演示解引用的案例
 
 ``` rust
 fn main() {
@@ -8146,103 +8364,69 @@ Got a reference to a value: 5
 We added 10. `mut_value`: 16
 ```
 
+### 额外的后置条件
+
+当匹配了某分支的模式后，再检查该分支的守卫后置条件，如果守卫条件也通过，则成功匹配该分支。
+
+``` rust
+fn main() {
+    let x = 33;
+    match x {
+      // 先范围匹配，范围匹配成功后，再检查是否是偶数
+      // 如果范围匹配没有成功，则不会检查后置条件
+      0..=50 if x % 2 == 0 => {
+        println!("x in [0, 50], and it is an even");
+      },
+      0..=50 => println!("x in [0, 50], but it is not an even"),
+      _ => (),
+    }
+}
+
+```
+
 ## if let
 
+- if let是match的一种特殊情况的语法糖：当只关心一个match分支，其余情况全部由_负责匹配时，可以将其改写为更精简if let语法。
 - if let 运算符可将模式与表达式进行比较。 如果表达式与模式匹配，则会执行 if 块。 - if let 表达式的好处是，当你关注的是要匹配的单个模式时，你不需要 match 表达式的所有样板代码。
 - 适用于只针对一种匹配进行处理，忽略其它匹配，可以有else
 
-语法格式如下：
-
 ``` rust
-if let 匹配值 = 源变量 {
-    语句块
+let x = (11, 22);
+
+// 匹配成功，因此执行大括号内的代码
+// if let是独立作用域，变量a b只在大括号中有效
+if let (a, b) = x {
+  println!("{},{}", a, b);
+}
+
+// 等价于如下代码
+let x = (11, 22);
+match x {
+  (a, b) => println!("{},{}", a, b),
+  _ => (),
 }
 ```
 
-下面的案例演示了如何使用if let替代match
+另一个案例，穷举了Enum类型的所有成员，还包括该枚举类型之外的情况，但即使去掉任何一个分支，也都不会报错。
 
 ``` rust
-match版本：
-
-let a_number: Option<u8> = Some(7);
-match a_number {
-    Some(7) => println!("That's my lucky number!"),
-    _ => {},
+enum Direction {
+  Up,
+  Down,
+  Left,
+  Right,
 }
-
-
-
-if let版本：
-
-let a_number: Option<u8> = Some(7);
-if let Some(7) = a_number {
-    println!("That's my lucky number!");
-}
-
-```
-
-另一个案例
-
-``` rust
-match版本
 
 fn main() {
-    let i = 0;
-    match i {
-        0 => println!("zero"),
-        _ => {},
-    }
-}
-zero
+  let dir = Direction::Down;
 
-
-if let版本
-
-let i = 0;
-if let 0 = i {
-    println!("zero");
-}
-zero
-
-```
-
-if let用于枚举且有else的案例
-
-``` rust
-fn main() {
-    enum Book {
-        Papery(u32),
-        Electronic(String)
-    }
-    let book = Book::Electronic(String::from("url"));
-    if let Book::Papery(index) = book {
-        println!("Papery {}", index);
-    } else {
-        println!("Not papery book");
-    }
-}
-```
-
-其实还能elseif
-
-``` rust
-fn main() {
-    let favorite_color: Option<&str> = None;
-    let is_tuesday = false;
-    let age: Result<u8, _> = "34".parse();
-    if let Some(color) = favorite_color {
-        println!("Using your favorite color, {}, as the background", color);
-    } else if is_tuesday {
-        println!("Tuesday is green day!");
-    } else if let Ok(age) = age {
-        if age > 30 {
-            println!("Using purple as the background color");
-        } else {
-            println!("Using orange as the background color");
-        }
-    } else {
-        println!("Using blue as the background color");
-    }
+  if let Direction::Left = dir {
+    println!("Left");
+  } else if let Direction::Right = dir {
+    println!("Right");
+  } else {
+    println!("Up or Down or wrong");
+  }
 }
 ```
 
@@ -8250,26 +8434,75 @@ fn main() {
 
 ## while let
 
-通过案例演示使用while let来简化代码。与if let类似，其左侧Some（x）为匹配模式，它会匹配右侧pop方法调用返回的Option类型结果，并自动创建x绑定供println！宏语句使用。如果数组中的值取空，则自动跳出循环。
+只要while let的模式匹配成功，就会一直执行while循环内的代码。
+
+当stack.pop成功时，将匹配Some(top)成功，并将pop返回的值赋值给top，当没有元素可pop时，返回None，匹配失败，于是while循环退出。
 
 ``` rust
-未使用while let的代码
+let mut stack = Vec::new();
+stack.push(1);
+stack.push(2);
+stack.push(3);
+
+while let Some(top) = stack.pop() {
+  println!("{}", top);
+}
+```
+
+## for迭代
+
+for迭代也有模式匹配的过程：为控制变量赋值。例如：
+
+``` rust
+let v = vec!['a','b','c'];
+for (idx, value) in v.iter().enumerate(){
+  println!("{}: {}", idx, value);
+}
+```
+
+## 解构引用赋值
+
+在解构赋值时，如果解构的是一个引用，则被匹配的变量也将被赋值为对应元素的引用。
+
+``` rust
+let t = &(1,2,3);    // t是一个引用
+let (t0,t1,t2) = t;  // t0,t1,t2的类型都是&i32
+let t0 = t.0;   // t0的类型是i32而不是&i32，因为t.0等价于(*t).0
+let t0 = &t.0;  // t0的类型是&i32而不是i32，&t.0等价于&(t.0)而非(&t).0
+```
+
+因此，当使用模式匹配语法for i in t进行迭代时：
+
+- 如果t不是一个引用，则t的每一个元素都会move给i
+- 如果t是一个引用，则i将是每一个元素的引用
+- 同理，for i in &mut t和for i in mut t也一样
+
+
+## 解引用匹配
+
+当match VALUE的VALUE是一个解引用*xyz时(因此，xyz是一个引用)，可能会发生所有权的转移，此时可使用xyz或&*xyz来代替*xyz。
+
+``` rust
 fn main() {
-    let mut v = vec![1, 2, 3, 4, 5];
-    loop {
-        match v.pop() {
-            Some(x) => println!("{}", x),
-            None => break,
-        }
-    }
+  // p是一个Person实例的引用
+  let p = &Person {
+    name: "junmajinlong".to_string(),
+    age: 23,
+  };
+  
+  // 使用&*p或p进行匹配，而不是*p
+  // 使用*p将报错，因为会转移所有权
+  match &*p {
+    Person {name, age} =>{
+      println!("{}, {}",name, age);
+    },
+    _ => (),
+  }
 }
 
-使用while let的代码
-fn main(){
-    let mut v= vec![1,2,3,4,5];
-    while let Some(x) = v.pop() {
-        println!("{}", x);
-    }
+struct Person {
+  name: String,
+  age: u8,
 }
 ```
 
@@ -10315,7 +10548,7 @@ println!("{}", mascot);
 }
 ```
 
-## 所有权转移(移动语义 move)
+## 所有权转移 move
 
 与绑定概念相辅相成的另一个机制是所有权转移，所有权转移对应于移动语义。一个属于移动语义类型的值，其绑定变量的所有权转移给另一个变量的过程叫作所有权转移。所有权转移之后原变量不能再继续使用。Rust中会发生所有权转移的场景主要有变量赋值、向函数传递值、从函数返回值。
 
@@ -10450,9 +10683,59 @@ fn takes_and_gives_back(a_string: String) -> String { 
 }
 ```
 
-## 部分move
+### 被丢弃的move
 
-在单个变量的解构内，可以同时使用 by-move 和 by-reference 模式绑定。这样做将导致变量的部分移动（partial move），这意味着变量的某些部分将被移动，而其他部分将保留。在这种情况下，后面不能整体使用父级变量，但是仍然可以使用只引用（而不移动）的部分。
+下面第三行的x;取得了x的值，但是它直接被丢弃了，所以x也被消耗掉了，使得println中使用x报错。实际上，这里也产生了位置，它等价于let _tmp = x;，即将值移动给了一个临时变量。
+
+``` rust
+fn main(){
+  let x = "hello".to_string();
+  x;   // 发生Move
+  println!("{}", x);  // 报错：value borrowed here after move
+}
+```
+
+### 再次理解Move
+
+https://rust-book.junmajinlong.com/ch6/05_re_understand_move.html
+
+## 复合类型的所有权规则
+
+- 容器类型(如tuple/array/vec/struct/enum等)中可能包含栈中数据值(特指实现了Copy的类型)，也可能包含堆中数据值(特指未实现Copy的类型)
+
+- 复合类型变量解构时可同时使用 by-move 和 by-reference 模式。这样做将导致变量的部分移动（partial move），这意味着变量的某些部分将被移动，而其他部分将保留。在这种情况下，后面不能整体使用父级变量，但是仍然可以使用只引用（而不移动）的部分。
+
+``` rust
+fn main() {
+    let tup = (5, String::from("hello"));
+    let (x, y) = tup; // 5拷贝后赋值给x，tup.0依然还有所有权，string的所有权转移给y，tup.1已被move所有权，tup也无法再用了
+    println!("{},{}", x, y);   // 正确
+    println!("{}", tup.0);     // 正确
+    println!("{}", tup.1);  // 错误
+    println!("{:?}", tup);  // 错误
+}
+```
+
+如果想要让原始容器变量继续可用，要么忽略那些没有实现Copy的堆中数据，要么clone()拷贝堆中数据后再borrow，又或者可以引用该元素。
+
+``` rust
+fn main() {
+    let tup = (5, String::from("hello"));
+    // 方式一：忽略
+    let (x, _) = tup;
+    println!("{}", tup.1);  //  正确
+
+    // 方式二：clone
+    let (x, y) = tup.clone();
+    println!("{}", tup.1);  //  正确
+
+    // 方式三：引用
+    let (x, ref y) = tup;
+    println!("{}", tup.1);  //  正确
+}
+```
+
+另一个案例
 
 ``` rust
 fn main() {
@@ -10486,104 +10769,6 @@ The person's name is Alice
 The person's age from person struct is 20
 ```
 
-## Copy与Clone
-
-此贴简述了move, copy, clone，https://www.jianshu.com/p/bdfd4e777642
-
-浅复制Copy是指复制栈上数据，深复制Clone是指复制栈上和堆上数据。
-
-- 实现了Copy特征的值会被复制而不是移动，即所有权不能被转移。大多数简单类型都具有Copy特征。有如下：
-  - 所有整数类型，例如 i32 、 u32 、 i64 等。
-  - 布尔类型 bool，值为 true 或 false 。
-  - 所有浮点类型，f32 和 f64。
-  - 字符类型 char。
-  - 仅包含以上类型数据的元组（Tuples）。
-- 结构体和枚举有些特殊，即使所有字段的类型都实现了Copy trait，也不支持浅复制。
-- 复制数字的成本低，因此复制这些值是有意义的。复制字符串、向量或其他复杂类型的成本可能高昂，因此它们没有实现Copy特征，而是被移动。（需要分配内存或某种资源的类型都不会是Copy的）
-- 如果⼀种类型本⾝或这种类型的任意成员实现了Drop这种trait，那么Rust就不允许其实现Copy这种trait。尝试给某个需要在离开作⽤域时执⾏特殊指令的类型实现Copy这种trait会导致编译时错误。
-
-案例，字段都实现Copy trait的结构体不支持浅复制
-
-``` rust
-#[derive(Debug)]
-struct Foo {
-    x: i32,
-    y: bool,
-}
-
-编译代码会失败，下一段代码会改正
-
-fn main() {
-    let foo = Foo { x: 8, y: true };
-    let other = foo;
-    println!("foo: {:?}, other: {:?}", foo, other);
-}
-
-```
-
-在Foo定义上标记#[derive(Copy, Clone)]，让Foo实现Copy trait。
-
-``` rust
-#[derive(Debug, Copy, Clone)] 
-struct Foo {
-    x: i32,
-    y: bool,
-}
-
-fn main() {
-    let foo = Foo { x: 8, y: true };
-    let other = foo; 
-    println!("foo: {:?}, other: {:?}", foo, other);
-}
-
-foo: Foo { x: 8, y: true }, other: Foo { x: 8, y: true }
-```
-
-需要注意的是，如果结构体包含引用语义类型的字段，那么即使添加了上述属性也不支持浅复制。
-
-``` rust
-#[derive(Debug, Copy, Clone)]
-struct Foo {
-    x: i32,
-    y: String,
-}
-
-编译代码会失败，下一段代码会改正
-
-fn main() {
-    let foo = Foo {
-        x: 8,
-        y: String::from("hello"),
-    };
-    let other = foo; // 字段是String类型的结构体不支持浅复制
-    println!("foo: {:?}, other: {:?}", foo, other);
-}
-```
-
-如果确实需要深复制堆上数据，而不仅仅是栈上数据，对String使用clone方法深复制。
-
-这种方法可能有用，但会导致代码运行速度变慢，因为每次调用 clone 都是对数据的一次完整复制。 此方法通常包括内存分配或其他成本高昂的操作。 我们可使用引用来“借用”值，从而避免这些成本。
-
-``` rust
-fn main() {
-    let s1 = String::from("hello");
-    let s2 = s1.clone(); // s2不仅复制了s1栈上数据，还复制了堆上数据。在离开作用域前，s1和s2都保持有效
-    println!("s1 = {}, s2 = {}", s1, s2);
-}
-```
- 
-另一个clone案例：为了复制没有Copy特性的数据，可调用clone方法，会复制内存并生成一个新值。新值用于移动语义，旧值仍可使用。
-
-``` rust
-fn process(s: String) {}
-
-fn main() {
-    let s = String::from("Hello, world!");
-    process(s.clone()); // Passing another value, cloned from `s`.
-    process(s); // s was never moved and so it can still be used.
-}
-```
-
 # 引用
 
 ## 基本概念
@@ -10593,6 +10778,7 @@ Rust中，使用&T表示类型T的引用类型(reference type)。例如，&Strin
 - 引用类型是一种数据类型，它表示其所保存的值是一个引用。
 - 引用，通常来说是指向其他数据的一个指针或一个胖指针(有额外元数据的指针)
 - 引用类型保存值的引用。
+- 引用实现了Copy Trait
 
 ``` rust
 fn main() {
@@ -10626,9 +10812,6 @@ fn main() {
     println!("{}", s2);
 }
 ```
-
-
-
 
 ## 函数参数是引用
 
@@ -10808,9 +10991,28 @@ fn main() {
 x: 7
 ```
 
+### 理解可变引用的排他性
+
+https://rust-book.junmajinlong.com/ch6/04_understand_mutable_ref.html
+
 ## 解引用
 
 解引用表示解除引用，即通过引用获取到该引用所指向的原始值。解引用使用*T表示，其中T是一个引用(如&i32)。
+
+
+``` rust
+fn main(){
+    let a = &"junmajinlong.com".to_string();
+    // let b = *a;         // (1).取消注释将报错
+    let c = (*a).clone();  // (2).正确
+    let d = &*a;           // (3).正确
+    
+    let x = &3;
+    let y = *x;      // (4).正确
+}
+```
+
+
 
 ``` rust
 use clap::Parser;
@@ -11692,8 +11894,7 @@ id: 3, name: wanwu
 
 ### Copy、Clone与to_owned
 
-- copy是浅赋值
-- clone也许会深复制
+- 浅复制Copy是指复制栈上数据，深复制Clone是指复制栈上和堆上数据。
 - clone()与to_owned()主要差异是应用在引用类型中。如&str,&[i8],&[u32]
 
 #### copy
@@ -11704,11 +11905,130 @@ id: 3, name: wanwu
 - 可变引用没有实现Copy。（<&mut String>），非固定大小的结构，没有实现Copy。如：vec， hash。
 - 如果一种类型本身或者这种类型的任意成员实现了 Drop trait，那么 Rust 就不允许其实现 Copy trait。尝试在给某个需要在离开作用域时执行特殊指令（即实现了drop）的类型实现 Copy 这种 trait 会导致编译时错误。
 
+实现了Copy和未实现Copy时的一个对比示例
+
+``` rust
+#[derive(Debug)]
+struct Xyz(i32, i32);
+
+#[derive(Copy, Clone, Debug)]
+struct Def(i32, i32);
+
+fn main() {
+  let x = Xyz(11, 22);
+  let y = x;
+  // println!("x: {}", x); // 报错
+  println!("y: {:?}", y);
+
+  let d = Def(33, 44);
+  let e = d;
+  println!("d: {:?}", d);
+  println!("e: {:?}", e);
+}
+```
+
 #### clone
 
-- clone也许会深复制
+- clone是深拷贝
 - 如果需要struct支持clone则要满足：（1）所有元素是可clone的（2）在struct上面添加 #[derive(Clone)]
 - clone试图从引用产生的新值让其拥有所有权，但不一定成功（如从无法确定容量的&[T]进行克隆得到的依然是&[T]）
+
+案例：Clone是深拷贝，Rust会对每个字段每个元素递归调用clone()，直到最底部
+
+``` rust
+fn main() {
+    let vb0 = vec!["s1".to_string()];
+    let v = vec![vb0];
+    println!("{:p}", &v[0][0]); // 0x556941873ba0
+
+    let vc = v.clone();
+    println!("{:p}", &vc[0][0]); // 0x556941873c20
+}
+```
+
+案例，字段都实现Copy trait的结构体不支持浅复制
+
+``` rust
+#[derive(Debug)]
+struct Foo {
+    x: i32,
+    y: bool,
+}
+
+编译代码会失败，下一段代码会改正
+
+fn main() {
+    let foo = Foo { x: 8, y: true };
+    let other = foo;
+    println!("foo: {:?}, other: {:?}", foo, other);
+}
+
+```
+
+在Foo定义上标记#[derive(Copy, Clone)]，让Foo实现Copy trait。
+
+``` rust
+#[derive(Debug, Copy, Clone)] 
+struct Foo {
+    x: i32,
+    y: bool,
+}
+
+fn main() {
+    let foo = Foo { x: 8, y: true };
+    let other = foo; 
+    println!("foo: {:?}, other: {:?}", foo, other);
+}
+
+foo: Foo { x: 8, y: true }, other: Foo { x: 8, y: true }
+```
+
+需要注意的是，如果结构体包含引用语义类型的字段，那么即使添加了上述属性也不支持浅复制。
+
+``` rust
+#[derive(Debug, Copy, Clone)]
+struct Foo {
+    x: i32,
+    y: String,
+}
+
+编译代码会失败，下一段代码会改正
+
+fn main() {
+    let foo = Foo {
+        x: 8,
+        y: String::from("hello"),
+    };
+    let other = foo; // 字段是String类型的结构体不支持浅复制
+    println!("foo: {:?}, other: {:?}", foo, other);
+}
+```
+
+如果确实需要深复制堆上数据，而不仅仅是栈上数据，对String使用clone方法深复制。
+
+这种方法可能有用，但会导致代码运行速度变慢，因为每次调用 clone 都是对数据的一次完整复制。 此方法通常包括内存分配或其他成本高昂的操作。 我们可使用引用来“借用”值，从而避免这些成本。
+
+``` rust
+fn main() {
+    let s1 = String::from("hello");
+    let s2 = s1.clone(); // s2不仅复制了s1栈上数据，还复制了堆上数据。在离开作用域前，s1和s2都保持有效
+    println!("s1 = {}, s2 = {}", s1, s2);
+}
+```
+ 
+另一个clone案例：为了复制没有Copy特性的数据，可调用clone方法，会复制内存并生成一个新值。新值用于移动语义，旧值仍可使用。
+
+``` rust
+fn process(s: String) {}
+
+fn main() {
+    let s = String::from("Hello, world!");
+    process(s.clone()); // Passing another value, cloned from `s`.
+    process(s); // s was never moved and so it can still be used.
+}
+```
+
+另一些clone案例
 
 ``` rust
     #[derive(Clone)]
@@ -11804,6 +12124,10 @@ id: 3, name: wanwu
     let strs: &[&str] = &["asfa", "saf", "asfas"];
     let cloned_strs = strs.clone(); // type is &[&str]
 ```
+
+#### 引用类型的Copy和Clone
+
+https://rust-book.junmajinlong.com/ch6/06_ref_copy_clone.html
 
 #### to_owned
 
