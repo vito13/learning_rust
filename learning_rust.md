@@ -13275,7 +13275,179 @@ fn returns_summarizable() -> impl Summary {
 }
 ```
 
-## 使用dyn返回trait
+## Trait对象
+
+https://rust-book.junmajinlong.com/ch11/04_trait_object.html
+
+### Trait对象和vtable
+
+- Rust中不能直接将Trait当作数据类型来使用。例如，Audio类型实现了Trait Playable，在创建Audio实例对象时不能将数据类型指定为Trait Playable。
+
+``` rust
+// Trait Playable不能作为数据类型
+let x: Playable = Audio{
+  name: "telephone.mp3".to_string(),
+  duration: 3.42,
+};
+```
+
+- Trait Object是Rust支持的一种数据类型，它可以有自己的实例数据，对于Trait A，写法dyn A表示Trait A的Trait Object类型，由于Trait Object的大小不固定，因此几乎总是使用Trait Object的引用方式&dyn A，Trait Object的引用保存在栈中
+
+- Trait Object的引用方式有多种。例如对于Trait A，其Trait Object类型的引用可以是&dyn A、Box<dyn A>、Rc<dyn A>等
+
+- 虽然Trait Object没有固定大小，但它的引用类型的大小是固定的，它由两个指针组成，Trait Object所指向数据的指针和指向一个虚表vtable的指针。
+
+- 简而言之，当类型B实现了Trait A时，类型B的实例对象b可以当作A的Trait Object类型来使用，b中保存了作为Trait Object对象的数据指针(指向B类型的实例数据)和行为指针(指向vtable)。b被当作A的Trait Object的实例数据，而不再是B的实例对象，而且，b的vtable只包含了实现自Trait A的那些方法，因此b只能调用实现于Trait A的方法，而不能调用类型B本身实现的方法和B实现于其他Trait的方法。
+
+``` rust
+trait A{
+  fn a(&self){println!("from A");}
+}
+
+trait X{
+  fn x(&self){println!("from X");}
+}
+
+// 类型B同时实现trait A和trait X
+// 类型B还定义自己的方法b
+struct B{}
+impl B {fn b(&self){println!("from B");}}
+impl A for B{}
+impl X for B{}
+
+fn main(){
+  // bb是A的Trait Object实例，
+  // bb保存了指向类型B实例数据的指针和指向vtable的指针
+  let bb: &dyn A = &B{};
+  bb.a();  // 正确，bb可调用实现自Trait A的方法a()
+  bb.x();  // 错误，bb不可调用实现自Trait X的方法x()
+  bb.b();  // 错误，bb不可调用自身实现的方法b()
+}
+```
+
+### 创建dyn
+
+了解Trait Object之后，使用它就不再难了，它也只是一种数据类型罢了。
+
+案例：Trait Object对象
+
+``` rust
+trait Playable {
+    fn play(&self);
+    fn pause(&self) {
+        println!("pause");
+    }
+    fn get_duration(&self) -> f32;
+}
+
+// Audio类型，实现Trait Playable
+struct Audio {
+    name: String,
+    duration: f32,
+}
+impl Playable for Audio {
+    fn play(&self) {
+        println!("listening audio: {}", self.name);
+    }
+    fn get_duration(&self) -> f32 {
+        self.duration
+    }
+}
+
+// Video类型，实现Trait Playable
+struct Video {
+    name: String,
+    duration: f32,
+}
+impl Playable for Video {
+    fn play(&self) {
+        println!("watching video: {}", self.name);
+    }
+    fn pause(&self) {
+        println!("video paused");
+    }
+    fn get_duration(&self) -> f32 {
+        self.duration
+    }
+}
+
+// 将Audio的实例或Video的实例当作Playable的Trait Object来使用：
+fn main() {
+    let x: &dyn Playable = &Audio { // x的数据类型是Playable的Trait Object类型的引用，它在栈中保存了一个指向Audio实例数据的指针，还保存了一个指向包含了它可调用方法的vtable的指针。
+        name: "telephone.mp3".to_string(),
+        duration: 3.42,
+    };
+    x.play();
+
+    let y: &dyn Playable = &Video {
+        name: "Yui Hatano.mp4".to_string(),
+        duration: 59.59,
+    };
+    y.play();
+}
+```
+
+案例：Trait Object数组，继承了Debug Trait
+
+``` rust
+use std::fmt::Debug;
+
+trait Playable: Debug {
+    fn play(&self);
+    fn pause(&self) {
+        println!("pause");
+    }
+    fn get_duration(&self) -> f32;
+}
+
+#[derive(Debug)]
+struct Audio {
+    name: String,
+    duration: f32,
+}
+impl Playable for Audio {
+    fn play(&self) {
+        println!("listening audio: {}", self.name);
+    }
+    fn get_duration(&self) -> f32 {
+        self.duration
+    }
+}
+
+#[derive(Debug)]
+struct Video {
+    name: String,
+    duration: f32,
+}
+impl Playable for Video {
+    fn play(&self) {
+        println!("watching video: {}", self.name);
+    }
+    fn pause(&self) {
+        println!("video paused");
+    }
+    fn get_duration(&self) -> f32 {
+        self.duration
+    }
+}
+
+fn main() {
+    let a: &dyn Playable = &Audio {
+        name: "telephone.mp3".to_string(),
+        duration: 3.42,
+    };
+
+    let b: &dyn Playable = &Video {
+        name: "Yui Hatano.mp4".to_string(),
+        duration: 59.59,
+    };
+
+    let arr: [&dyn Playable; 2] = [a, b];
+    println!("{:#?}", arr);
+}
+```
+
+### 返回dyn
 
 可以简单理解为返回基类指针
 
@@ -13319,14 +13491,75 @@ fn main() {
 
 ```
 
-# 继承与多态
+## 多态，Trait对象和泛型
 
 - Rust中并没有传统面向对象语言中的继承的概念。Rust通过trait将类型和行为明确地进行了区分，充分贯彻了“组合优于继承”和“面向接口编程”的编程思想。
+- 泛型不是一种数据类型，它可被看作是数据类型的参数形式或抽象形式，在编译期间会被替换为具体的数据类型。所以是零成本、静多态
+- Trait对象可以被看作一种数据类型，它总是以引用的方式被使用，在运行期间，它在栈中保存了具体类型的实例数据和实现自该Trait的方法。动多态
 - 在Rust中使⽤泛型来构建不同类型的抽象，并使⽤trait约束来决定类型必须提供的具体特性。这⼀技术有时也被称作限定参数化多态（bounded parametric polymorphism）
 
-## 静态多态与动态多态
+案例：Trait对象方式、动多态。类型Square和类型Rectangle都实现了Trait Area以及方法get_area，现在要创建一个vec，这个vec中包含了任意能够调用get_area方法的类型实例。
 
-- 静多态就是一种零成本抽象。
+``` rust
+fn main() {
+    let mut sharps: Vec<&dyn Area> = vec![];
+    sharps.push(&Square(3.0));
+    sharps.push(&Rectangle(3.0, 2.0));
+    println!("{}", sharps[0].get_area());
+    println!("{}", sharps[1].get_area());
+}
+
+trait Area {
+    fn get_area(&self) -> f64;
+}
+
+struct Square(f64);
+struct Rectangle(f64, f64);
+impl Area for Square {
+    fn get_area(&self) -> f64 {
+        self.0 * self.0
+    }
+}
+impl Area for Rectangle {
+    fn get_area(&self) -> f64 {
+        self.0 * self.1
+    }
+}
+
+```
+
+案例：静多态形式、泛型方式，可以解决多种不同的类型参数（如i32、f32、u8）而导致的冗余问题
+
+``` rust
+use std::ops::Mul;
+fn main() {
+    let sharps: Vec<Sharp<_>> = vec![Sharp::Square(3.0_f64), Sharp::Rectangle(3.0_f64, 2.0_f64)];
+    sharps[0].get_area();
+}
+
+trait Area<T> {
+    fn get_area(&self) -> T;
+}
+
+enum Sharp<T> {
+    Square(T),
+    Rectangle(T, T),
+}
+
+impl<T> Area<T> for Sharp<T>
+where
+    T: Mul<Output = T> + Clone + Copy,
+{
+    fn get_area(&self) -> T {
+        match *self {
+            Sharp::Rectangle(a, b) => return a * b,
+            Sharp::Square(a) => return a * a,
+        }
+    }
+}
+```
+
+另一个案例
 
 ``` rust
 struct Duck;
