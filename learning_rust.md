@@ -2036,6 +2036,10 @@ true
 
 - 位运算符
 
+## 运算符重载
+
+https://mirrors.gitcode.host/rust-lang-cn/rust-by-example-cn/trait/ops.html
+
 ## 类型推导
 
 Rust只允许“局部变量/全局变量”实现类型推导，而函数签名等场景下是不允许的，这是故意这样设计的。这是因为局部变量只有局部的影响，全局变量必须当场初始化而函数签名具有全局性影响。函数签名如果使用自动类型推导，可能导致某个调用的地方使用方式发生变化，它的参数、返回值类型就发生了变化，进而导致远处另一个地方的编译错误，这是设计者不希望看到的情况。
@@ -7443,6 +7447,150 @@ functional style: 5456
 
 ```
 
+## 自定义Iterator
+
+- 该接口在标准库中定义，用于（如范围、数组、矢量和哈希映射）这些容器。
+- Iterator 具有方法 next（还有很多其它方法），调用时它将返回 Option<Item>。 只要有元素，next 方法就会返回 Some(Item)。 用尽所有元素后，它将返回 None 以指示迭代已完成。
+
+``` rust
+trait Iterator {
+    type Item; // 为了实现Iterator trait必须要定义⼀个具体的Item类型（关联类型），⽽这个Item类型会被⽤作next⽅法的返回值类型。
+    fn next(&mut self) -> Option<Self::Item>;
+}
+```
+
+案例1，简单的自定义实现
+
+``` rust
+struct Counter {
+    length: usize,
+    count: usize,
+}
+
+impl Counter {
+    fn new(length: usize) -> Counter {
+        Counter { count: 0, length }
+    }
+}
+
+impl Iterator for Counter {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.count += 1;
+        if self.count <= self.length {
+            Some(self.count)
+        } else {
+            None
+        }
+    }
+}
+
+fn main() {
+    for number in Counter::new(10) {
+        println!("{}", number);
+    }
+
+    let sum_until_10: usize = Counter::new(10).sum();
+    assert_eq!(sum_until_10, 55);
+
+    let powers_of_2: Vec<usize> = Counter::new(8).map(|n| 2usize.pow(n as u32)).collect();
+    assert_eq!(powers_of_2, vec![2, 4, 8, 16, 32, 64, 128, 256]);
+}
+
+huaw@huaw:~/playground/rust/tut$ cargo run
+   Compiling tut v0.1.0 (/home/huaw/playground/rust/tut)
+    Finished dev [unoptimized + debuginfo] target(s) in 0.48s
+     Running `target/debug/tut`
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+```
+
+案例2，复杂的实现
+
+``` rust
+目标：输入[ 1, 1, 2, 1, 3, 3 ]，输出[ [1, 1], [2], [1], [3, 3] ]
+
+struct Groups<T> {
+    inner: Vec<T>,
+}
+
+impl<T> Groups<T> {
+    fn new(inner: Vec<T>) -> Self {
+        Groups { inner }
+    }
+}
+
+impl<T: PartialEq> Iterator for Groups<T> {
+    type Item = Vec<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // if the inner vector is empty, we are done
+        if self.inner.is_empty() {
+            return None;
+        }
+
+        // lets check the span of equal items
+        let mut cursor = 1;
+        let first = &self.inner[0];
+        for element in &self.inner[1..] {
+            if element == first {
+                cursor += 1;
+            } else {
+                break;
+            }
+        }
+
+        // we use the `Vec::drain` to extract items up until the cursor
+        let items = self.inner.drain(0..cursor).collect();
+
+        // return the extracted items
+        Some(items)
+    }
+}
+
+fn main() {
+    let data = vec![4, 1, 1, 2, 1, 3, 3, -2, -2, -2, 5, 5];
+    // groups:     |->|---->|->|->|--->|----------->|--->|
+    assert_eq!(
+        Groups::new(data).into_iter().collect::<Vec<Vec<_>>>(),
+        vec![
+            vec![4],
+            vec![1, 1],
+            vec![2],
+            vec![1],
+            vec![3, 3],
+            vec![-2, -2, -2],
+            vec![5, 5],
+        ]
+    );
+
+    let data2 = vec![1, 2, 2, 1, 1, 2, 2, 3, 4, 4, 3];
+    // groups:      |->|---->|---->|----|->|----->|->|
+    assert_eq!(
+        Groups::new(data2).into_iter().collect::<Vec<Vec<_>>>(),
+        vec![
+            vec![1],
+            vec![2, 2],
+            vec![1, 1],
+            vec![2, 2],
+            vec![3],
+            vec![4, 4],
+            vec![3],
+        ]
+    )
+}
+
+```
+
 # 断言
 
 ## assert!
@@ -11205,14 +11353,6 @@ let mut a = 10;
 - Rust中的泛型属于静多态，它是一种编译期多态。在编译期，不管是泛型枚举，还是泛型函数和泛型结构体，都会被展开为具体类型代码。
 - 静态分发的好处是性能好，没有运行时开销；缺点是容易造成编译后生成的二进制文件膨胀 。
 
-泛型数据类型是根据其他部分未知类型定义的类型，例如：
-
-``` rust
-Option<T> 枚举在类型 T 上是泛型类型，后者是其 Some 变体包含的值。
-Result<T, E> 在其成功和失败类型上都是泛型类型，分别包含在其 Ok 和 Err 变体中。
-Vec<T>、数组类型 [T; n] 以及哈希映射 HashMap<K, V> 在其所包含的类型上是泛型类型。
-```
-
 ## 带有类型参数的结构
 
 一个类型参数的结构
@@ -11248,6 +11388,103 @@ fn main() {
 }
 ```
 
+其它案例
+
+``` rust
+struct Container_tuple<T> (T)
+struct Container_named<T: std::fmt::Display> {
+  field: T,
+}
+
+pub struct Vec<T> {
+    buf: RawVec<T>,
+    len: usize,
+}
+
+struct Container<T>{
+  item: T,
+}
+
+// impl后的T是声明泛型T
+// Container<T>的T对应Struct类型Container<T>
+impl<T> Container<T> {
+  fn new(item: T) -> Self {
+    Container {item}
+  }
+}
+```
+
+## 约束泛型的类型 Trait Bound
+
+用于限制泛型的类型，语法有两种，绑定多个Trait使用加号
+
+- 在定义泛型类型T时，使用类似于T: Trait_Name这种语法进行限制
+- 在返回值后面、大括号前面使用where关键字，如where T: Trait_Name
+
+``` rust
+fn f<T: Clone + Copy>(i: T) -> T{}  // 限制类型T是实现了Clone与Copy的数据类型
+
+fn f<T>(i: T) -> T
+  where T: Clone + Copy {}
+
+// 更复杂的示例：
+fn query<M: Mapper + Serialize, R: Reducer + Serialize>(
+    data: &DataSet, map: M, reduce: R) -> Results 
+{
+    ...
+}
+
+// 此时，下面写法更友好、可读性更高
+fn query<M, R>(data: &DataSet, map: M, reduce: R) -> Results 
+    where M: Mapper + Serialize,
+          R: Reducer + Serialize
+{
+    ...
+}
+
+fn double<T>(i: T) -> T
+  where T: Add<Output=T> + Clone + Copy {
+  i + i
+}
+
+```
+
+案例
+
+``` rust
+use std::fmt::Debug;
+use std::iter::Iterator;
+fn use_iter<ITEM, ITER>(mut iter: ITER)
+where
+    ITER: Iterator<Item = ITEM>,
+    ITEM: Debug,
+{
+    while let Some(i) = iter.next() {
+        println!("{:?}", i);
+    }
+}
+fn main() {
+    let v: Vec<i32> = vec![1, 2, 3, 4, 5];
+    use_iter(v.iter());
+}
+
+1
+2
+3
+4
+5
+```
+
+## 泛型的引用类型
+
+如果参数是一个引用，且又使用泛型，则需要使用泛型的引用&T或&mut T。
+
+``` rust
+fn f<T: Display>(i: &T) {
+  println!("{}", *i);
+}
+```
+
 ## 带有类型参数的函数
 
 - 一个类型参数的函数案例
@@ -11272,8 +11509,21 @@ fn main() {
     let result = largest(&char_list);
     println!("The largest char is {}", result);
 }
+```
 
+案例：实现了加1的泛型函数
 
+```
+use std::ops::Add;
+fn double<T>(i: T) -> T
+  where T: Add<Output=T> + Clone + Copy {
+  i + i
+}
+
+fn main(){
+  println!("{}",double(3_i16));
+  println!("{}",double(3_i32));
+}
 ```
 
 - 一个类型参数的struct案例
@@ -11322,6 +11572,8 @@ fn main() {
     println!("p3.x = {}, p3.y = {}", p3.x, p3.y);
 }
 ```
+
+其余更多案例参考 [函数参数是Trait]
 
 ## 带有类型参数的枚举
 
@@ -11384,7 +11636,7 @@ fn main() {
 }
 ```
 
-# Trait 特征
+# Trait
 
 可以说trait是Rust的灵魂。Rust中所有的抽象，比如接口抽象、OOP范式抽象、函数式范式抽象等，均基于trait来完成。同时，trait也保证了这些抽象几乎都是运行时零开销的。
 
@@ -11397,6 +11649,9 @@ fn main() {
 - 特征中带有self参数的方法（self得是第一个参数）可以理解为类的成员函数。不以self作为参数的方法可以理解为类的静态方法。
 - 实现者可以是任何结构体、枚举、基元类型、函数及闭包，甚至特征
 - Rust中的很多操作符都是基于trait来实现的。比如加法操作符就是一个trait，加法操作不仅可以针对整数、浮点数，也可以针对字符串。
+- Trait描述了一种通用功能，这种通用功能要求具有某些行为，这种通用功能可以被很多种类型实现，每个实现了这种通用功能的类型，都可以被称之为是【具有该功能的类型】
+- 一个类型可以实现很多种Trait，使得这个类型具有很多种功能，可以调用这些Trait的方法。
+- 通过实现Trait而具备相应的功能，是组合而非继承。
 
 ## 简单定义与使用
 
@@ -11443,133 +11698,158 @@ fn main() {
     println!("Rectangle area: {}", rectangle.area());
 }
 
-
-huaw@huaw:~/playground/rust/tut$ cargo run
-    Finished dev [unoptimized + debuginfo] target(s) in 0.02s
-     Running `target/debug/tut`
 Circle area: 78.53981633974483
 Rectangle area: 200
 ```
 
-案例2，可以在trait里定义多个api，而有默认实现（非纯虚函数）。以及演示trait作为参数的使用方式
+案例2，可以在trait里定义多个api并提供默认实现（非纯虚函数）
 
 ``` rust
-// Behavior里的eat提供了默认实现，后面的具体类型可以选择保留或重载
-// 允许调用相同 trait 中的其他方法，如Cat的eat里有调用了make_sound
-// 可以用作函数参数，也可作为函数返回值类型
+trait Playable {
+    fn play(&self);
+    fn pause(&self) { // 可以提供api的默认实现，具体类型可以进行覆盖也可以不覆盖
+        println!("pause");
+    }
+    fn get_duration(&self) -> f32;
+}
 
-pub trait Behavior {
-    fn eat(&self) {
-        println!("真香")
-    }
-    fn make_sound(&self)-> String;
+struct Audio {
+    name: String,
+    duration: f32,
 }
-struct Dog;
-impl Behavior for Dog {
-    fn make_sound(&self)-> String {
-        "汪！".to_string()
+
+impl Playable for Audio {   // 为audio实现trait
+    fn play(&self) {
+        println!("listening audio: {}", self.name);
     }
-}
-struct Cat;
-impl Behavior for Cat {
-    fn make_sound(&self)-> String {
-        "喵~".to_string()
-    }
-    fn eat(&self) {
-        println!("{} 真香真香真香", self.make_sound())
+    fn get_duration(&self) -> f32 {
+        self.duration
     }
 }
 
-// impl Trait 语法
-fn feed(item: &impl Behavior) {
-    item.eat();
+struct Video {
+    name: String,
+    duration: f32,
 }
 
-// Trait Bound 语法
-fn feed2<T: Behavior>(item: &T) {
-    item.eat();
-}
-
-/* 因为 impl Trait 工作方式的限制这里不能编译，仅做演示
-fn getani(isdog: bool) -> impl Behavior {
-    if isdog{
-        return Dog;
-    }else
-    {
-        return Cat;
+impl Playable for Video { // 为audio实现trait，此处覆盖了pause
+    fn play(&self) {
+        println!("watching video: {}", self.name);
+    }
+    fn pause(&self) {
+        println!("video paused");
+    }
+    fn get_duration(&self) -> f32 {
+        self.duration
     }
 }
-*/
 
 fn main() {
-    let dog = Dog;
-    let cat = Cat;
-    dog.eat();
-    println!("{}", dog.make_sound());
-    cat.eat();
-    println!("{}", cat.make_sound());
+    let audio = Audio {
+        name: "telephone.mp3".to_string(),
+        duration: 4.32,
+    };
+    audio.play();
+    audio.pause();  // 调用了trait的实现
+    println!("{}", audio.get_duration());
 
-    feed(&dog);
-    feed2(&dog);
+    let video = Video {
+        name: "Yui Hatano.mp4".to_string(),
+        duration: 59.59,
+    };
+    video.play();
+    video.pause();  // 调用了自身的实现
+    println!("{}", video.get_duration());
 }
 
-
-
-真香
-汪！
-喵~ 真香真香真香
-喵~
+listening audio: telephone.mp3
+pause
+4.32
+watching video: Yui Hatano.mp4
+video paused
+59.59
 ```
 
-如果NewsArticle完全使用Summary的默认实现则可以这样书写
+案例3：为video实现playable，但并不添加新内容可以这样写。。。
 
 ``` rust
-impl Summary for NewsArticle {}
+impl Playable for Video {}
 ```
 
-## Trait的继承
+## 使用derive派⽣Trait
+
+对于Struct类型、Enum类型，需要自己手动去实现各Trait。但对于一些常见的Trait，可在Struct类型或Enum类型前使用#[derive()]简单方便地实现这些Trait，Rust会自动为Struct类型和Enum类型定义好这些Trait所要求实现的方法。
+
+有的Trait可以直接继承（自动派生一些内置的特征，这有助于我们实现更高级的功能），有的则需要手动实现，看下面的代码
 
 ``` rust
-trait Vehicle {
-    fn get_price(&self) -> u64;
+struct Point {
+    x: i32,
+    y: i32,
 }
-trait Car: Vehicle {
-    fn model(&self) -> String;
-}
-struct TeslaRoadster {
-    model: String,
-    release_date: u16,
-}
-impl TeslaRoadster {
-    fn new(model: &str, release_date: u16) -> Self {
-        Self {
-            model: model.to_string(),
-            release_date,
-        }
-    }
-}
-impl Car for TeslaRoadster {
-    fn model(&self) -> String {
-        "Tesla Roadster I".to_string()
-    }
-}
-impl Vehicle for TeslaRoadster {
-    fn get_price(&self) -> u64 {
-        200_000
-    }
-}
+
 fn main() {
-    let my_roadster = TeslaRoadster::new("Tesla Roadster II", 2020);
-    println!(
-        "{} is priced at ${}",
-        my_roadster.model,
-        my_roadster.get_price()
-    );
-}
+    let p1 = Point { x: 1, y: 2 };
+    let p2 = Point { x: 4, y: -3 };
 
+    if p1 == p2 { // can't compare two Point values!
+        println!("equal!");
+    } else {
+        println!("not equal!");
+    }
+
+    println!("{}", p1); // can't print using the '{}' format specifier!
+    println!("{:?}", p1); //  can't print using the '{:?}' format specifier!
+}
 ```
 
-## 标准库的常用trait
+上面的代码编译失败，因为Point 类型没有实现以下特征：
+
+- Debug 特征，允许使用 {:?} 格式说明符来设置类型的格式，在面向程序员的调试上下文中使用。
+- Display 特征，允许使用 {} 格式说明符来设置类型的格式，与 Debug 类似。 但 Display 更适合面向用户的输出。
+- PartialEq 特征，允许比较实现器是否相等。
+
+修改为如下即可通过：
+
+``` rust
+// 使用 #[derive(Trait)] 属性自动实现 Debug 和 PartialEq 特征
+#[derive(Debug, PartialEq)]
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+// 手动实现Display特征
+use std::fmt;
+impl fmt::Display for Point {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
+    }
+}
+
+fn main() {
+    let p1 = Point { x: 1, y: 2 };
+    let p2 = Point { x: 4, y: -3 };
+
+    if p1 == p2 {
+        println!("equal!");
+    } else {
+        println!("not equal!");
+    }
+
+    println!("{}", p1);
+    println!("{:?}", p1);
+}
+
+huaw@huaw:~/playground/rust/tut$ cargo run
+    Finished dev [unoptimized + debuginfo] target(s) in 0.02s
+     Running `target/debug/tut`
+not equal!
+(1, 2)
+Point { x: 1, y: 2 }
+```
+
+## 标准库的常用Trait
 
 标准库中提供了很多有用的trait，其中一些trait可应用于结构体或枚举定义的derive属性中。对于使用＃[derive]语法标记的类型，编译器会自动为其生成对应trait的默认实现代码。
 
@@ -12443,120 +12723,116 @@ fn main() {
 buf: Buffer([1, 2, 3, 4])
 ```
 
-## 通过derive注解派⽣trait
+## Trait的继承
 
-有的Trait可以直接继承（自动派生一些内置的特征，这有助于我们实现更高级的功能），有的则需要手动实现，看下面的代码
+- Rust只支持Trait之间的继承。
+- 如果Trait A继承Trait B，当类型C想要实现Trait A时，将要求同时也要去实现B。
 
 ``` rust
-struct Point {
-    x: i32,
-    y: i32,
+trait B {
+    fn func_in_b(&self);
 }
 
-fn main() {
-    let p1 = Point { x: 1, y: 2 };
-    let p2 = Point { x: 4, y: -3 };
+// Trait A继承Trait B
+trait A: B {
+    fn func_in_a(&self);
+}
 
-    if p1 == p2 { // can't compare two Point values!
-        println!("equal!");
-    } else {
-        println!("not equal!");
+struct C {}
+// C实现Trait A
+impl A for C {
+    fn func_in_a(&self) {
+        println!("impl: func_in_a");
     }
-
-    println!("{}", p1); // can't print using the '{}' format specifier!
-    println!("{:?}", p1); //  can't print using the '{:?}' format specifier!
 }
-```
-
-上面的代码编译失败，因为Point 类型没有实现以下特征：
-
-- Debug 特征，允许使用 {:?} 格式说明符来设置类型的格式，在面向程序员的调试上下文中使用。
-- Display 特征，允许使用 {} 格式说明符来设置类型的格式，与 Debug 类似。 但 Display 更适合面向用户的输出。
-- PartialEq 特征，允许比较实现器是否相等。
-
-修改为如下即可通过：
-
-``` rust
-// 使用 #[derive(Trait)] 属性自动实现 Debug 和 PartialEq 特征
-#[derive(Debug, PartialEq)]
-struct Point {
-    x: i32,
-    y: i32,
-}
-
-// 手动实现Display特征
-use std::fmt;
-impl fmt::Display for Point {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({}, {})", self.x, self.y)
+// C还要实现Trait B
+impl B for C {
+    fn func_in_b(&self) {
+        println!("impl: func_in_b");
     }
 }
 
 fn main() {
-    let p1 = Point { x: 1, y: 2 };
-    let p2 = Point { x: 4, y: -3 };
-
-    if p1 == p2 {
-        println!("equal!");
-    } else {
-        println!("not equal!");
-    }
-
-    println!("{}", p1);
-    println!("{:?}", p1);
+    let c = C {};
+    c.func_in_a();
+    c.func_in_b();
 }
 
-huaw@huaw:~/playground/rust/tut$ cargo run
-    Finished dev [unoptimized + debuginfo] target(s) in 0.02s
-     Running `target/debug/tut`
-not equal!
-(1, 2)
-Point { x: 1, y: 2 }
+impl: func_in_a
+impl: func_in_b
 ```
 
-## 泛型Trait
-
-特征也可以是泛型。这在用户希望为多种类型实现特征的情况下非常有用：
+另一个案例
 
 ``` rust
-pub trait From<T> {
-    fn from(T) -> Self;
+trait Vehicle {
+    fn get_price(&self) -> u64;
+}
+trait Car: Vehicle {
+    fn model(&self) -> String;
+}
+struct TeslaRoadster {
+    model: String,
+    release_date: u16,
+}
+impl TeslaRoadster {
+    fn new(model: &str, release_date: u16) -> Self {
+        Self {
+            model: model.to_string(),
+            release_date,
+        }
+    }
+}
+impl Car for TeslaRoadster {
+    fn model(&self) -> String {
+        "Tesla Roadster I".to_string()
+    }
+}
+impl Vehicle for TeslaRoadster {
+    fn get_price(&self) -> u64 {
+        200_000
+    }
+}
+fn main() {
+    let my_roadster = TeslaRoadster::new("Tesla Roadster II", 2020);
+    println!(
+        "{} is priced at ${}",
+        my_roadster.model,
+        my_roadster.get_price()
+    );
 }
 ```
 
-## 关联类型特征
+## Trait使用泛型
 
-trait中不仅可以包含方法（包括静态方法）、常量，还可以包含“类型”。关联类型是trait的“泛型参数”。只有指定了所有的泛型参数和关联类型，这个trait才能真正地具体化。
+特征也可以是泛型。这在用户希望为多种类型实现特征的情况下非常有用。应当尽量不在定义类型时限制泛型的范围，除非确实有必要去限制。这是因为，泛型本就是为了描述更为抽象、更为通用的类型而存在的，限制泛型将使得类型变得更具体化，适用场景也更窄。但是在impl类型时，应当去限制泛型，并且遵守缺失什么功能就添加什么限制的规范，这样可以使得所定义的方法不会过度泛化，也不会过度具体化。简单来说，尽量不去限制类型是什么，而是限制类型能做什么。
 
 ``` rust
 use std::fmt::Debug;
-use std::iter::Iterator;
-fn use_iter<ITEM, ITER>(mut iter: ITER)
-where
-    ITER: Iterator<Item = ITEM>,
-    ITEM: Debug,
-{
-    while let Some(i) = iter.next() {
-        println!("{:?}", i);
-    }
-}
-fn main() {
-    let v: Vec<i32> = vec![1, 2, 3, 4, 5];
-    use_iter(v.iter());
+
+pub trait From<T> {
+    fn from(T) -> Self;
 }
 
-1
-2
-3
-4
-5
+trait Eatable {
+  fn eat_me(&self);
+}
+
+#[derive(Debug)]
+struct Food<T>(T);
+
+impl<T: Debug> Eatable for Food<T> { // 表示了Food<T>类型的T必须实现了Debug
+  fn eat_me(&self) {
+    println!("Eating: {:?}", self);
+  }
+}
 ```
 
-## Trait作为参数
+## 函数参数是Trait
 
 trait作为参数的两种常用方式，一是使用impl Trait语法表示参数类型，二是使用trait对泛型参数进行约束。
 
-### impl Trait
+### impl Trait方式
 
 ``` rust
 trait Geometry {
@@ -12684,15 +12960,11 @@ rect.area: 57.75, circle.area: 28.26, total area:
     86.01
 ```
 
-### trait约束
+### Trait Bound方式
 
-trait约束是指使用trait对泛型进行约束。trait约束与泛型类型的参数声明在一起，适用于复杂的开发场景，其语法如下：
+trait约束是指使用trait对泛型进行约束。trait约束与泛型类型的参数声明在一起，适用于复杂的开发场景
 
-``` rust
-fn generic<T: MyTrait + MyOtherTrait + SomeStandarTrait>(t: T){
-
-}
-```
+案例
 
 ``` rust
 trait Geometry {
@@ -12979,81 +13251,19 @@ pub fn notify<T: Summary + Display>(item: T) {
 }
 ```
 
-### 多类型参数与where
-
-如果泛型参数有多个trait约束，那么拥有多个泛型参数的函数，在函数名和参数列表之间会有很长的trait约束信息，使得函数签名可读性差。比如：
-
-``` rust
-fn area_add<T: Geometry + Display + Clone, U: Geometry + Display + Debug>(geo1: T, geo2: U) {
-
-}
-```
-
-Rust提供where关键字来处理这种情况，对上面的area_add函数进行重构。下述代码在函数签名后面跟上where从句，为每个泛型参数指定trait约束，这样函数签名的可读性就提高了。
-
-``` rust
-fn area_add<T, U>(geo1: T, geo2: U)
-    where T: Geometry + Display + Clone,
-        U: Geometry + Display + Debug {
-
-        }
-```
-
-下面两种写法效果一样
-
-``` rust
-fn some_function<T: Display + Clone, U: Clone + Debug>(t: T, u: U) -> i32 {
-}
-
-函数名、参数列表及返回类型的排布要紧密得多，与没有trait约束的函数相差⽆⼏。
-
-fn some_function<T, U>(t: T, u: U) -> i32
-    where T: Display + Clone, U: Clone + Debug{
-}
-```
-
-## 使⽤trait约束来有条件地实现⽅法
-
-没看懂，见“RUST权威指南”的“使⽤trait约束来有条件地实现⽅法”一节
-
-``` rust
-use std::fmt::Display;
-struct Pair<T> {
-    x: T,
-    y: T,
-}
-impl<T> Pair<T> {
-    fn new(x: T, y: T) -> Self {
-        Self { x, y }
-    }
-}
-impl<T: Display + PartialOrd> Pair<T> {
-    fn cmp_display(&self) {
-        if self.x >= self.y {
-            println!("The largest member is x = {}", self.x);
-        } else {
-            println!("The largest member is y = {}", self.y);
-        }
-    }
-}
-fn main() {}
-
-```
-
 ## 函数返回Trait
 
-函数的返回值类型也可以使用impl Trait语法，返回某个实现了trait的类型
+函数的返回值也可以是实现了trait的类型
+
+案例：return_geometry函数的返回值类型是Geometry，函数体中返回了实现Geometry trait的Rectangle类型。需要注意的是，这只适用于返回单一类型的情况，如果返回可能为Rectangle，也可能为Circle，将会导致程序错误。
 
 ``` rust
-return_geometry函数的返回值类型是impl Geometry，函数体中返回了实现Geometry trait的Rectangle类型。需要注意的是，这只适用于返回单一类型的情况，如果返回可能为Rectangle，也可能为Circle，将会导致程序错误。
-
 fn return_geometry() -> impl Geometry {
     Rectangle {
         width: 12.5,
         height: 5.5,
     }
 }
-
 
 fn returns_summarizable() -> impl Summary {
     Tweet {
@@ -13108,154 +13318,6 @@ fn main() {
 }
 
 ```
-
-## 自定义Iterator
-
-- 该接口在标准库中定义，用于（如范围、数组、矢量和哈希映射）这些容器。
-- Iterator 具有方法 next（还有很多其它方法），调用时它将返回 Option<Item>。 只要有元素，next 方法就会返回 Some(Item)。 用尽所有元素后，它将返回 None 以指示迭代已完成。
-
-``` rust
-trait Iterator {
-    type Item; // 为了实现Iterator trait必须要定义⼀个具体的Item类型（关联类型），⽽这个Item类型会被⽤作next⽅法的返回值类型。
-    fn next(&mut self) -> Option<Self::Item>;
-}
-```
-
-案例1，简单的自定义实现
-
-``` rust
-struct Counter {
-    length: usize,
-    count: usize,
-}
-
-impl Counter {
-    fn new(length: usize) -> Counter {
-        Counter { count: 0, length }
-    }
-}
-
-impl Iterator for Counter {
-    type Item = usize;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.count += 1;
-        if self.count <= self.length {
-            Some(self.count)
-        } else {
-            None
-        }
-    }
-}
-
-fn main() {
-    for number in Counter::new(10) {
-        println!("{}", number);
-    }
-
-    let sum_until_10: usize = Counter::new(10).sum();
-    assert_eq!(sum_until_10, 55);
-
-    let powers_of_2: Vec<usize> = Counter::new(8).map(|n| 2usize.pow(n as u32)).collect();
-    assert_eq!(powers_of_2, vec![2, 4, 8, 16, 32, 64, 128, 256]);
-}
-
-huaw@huaw:~/playground/rust/tut$ cargo run
-   Compiling tut v0.1.0 (/home/huaw/playground/rust/tut)
-    Finished dev [unoptimized + debuginfo] target(s) in 0.48s
-     Running `target/debug/tut`
-1
-2
-3
-4
-5
-6
-7
-8
-9
-10
-```
-
-案例2，复杂的实现
-
-``` rust
-目标：输入[ 1, 1, 2, 1, 3, 3 ]，输出[ [1, 1], [2], [1], [3, 3] ]
-
-struct Groups<T> {
-    inner: Vec<T>,
-}
-
-impl<T> Groups<T> {
-    fn new(inner: Vec<T>) -> Self {
-        Groups { inner }
-    }
-}
-
-impl<T: PartialEq> Iterator for Groups<T> {
-    type Item = Vec<T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // if the inner vector is empty, we are done
-        if self.inner.is_empty() {
-            return None;
-        }
-
-        // lets check the span of equal items
-        let mut cursor = 1;
-        let first = &self.inner[0];
-        for element in &self.inner[1..] {
-            if element == first {
-                cursor += 1;
-            } else {
-                break;
-            }
-        }
-
-        // we use the `Vec::drain` to extract items up until the cursor
-        let items = self.inner.drain(0..cursor).collect();
-
-        // return the extracted items
-        Some(items)
-    }
-}
-
-fn main() {
-    let data = vec![4, 1, 1, 2, 1, 3, 3, -2, -2, -2, 5, 5];
-    // groups:     |->|---->|->|->|--->|----------->|--->|
-    assert_eq!(
-        Groups::new(data).into_iter().collect::<Vec<Vec<_>>>(),
-        vec![
-            vec![4],
-            vec![1, 1],
-            vec![2],
-            vec![1],
-            vec![3, 3],
-            vec![-2, -2, -2],
-            vec![5, 5],
-        ]
-    );
-
-    let data2 = vec![1, 2, 2, 1, 1, 2, 2, 3, 4, 4, 3];
-    // groups:      |->|---->|---->|----|->|----->|->|
-    assert_eq!(
-        Groups::new(data2).into_iter().collect::<Vec<Vec<_>>>(),
-        vec![
-            vec![1],
-            vec![2, 2],
-            vec![1, 1],
-            vec![2, 2],
-            vec![3],
-            vec![4, 4],
-            vec![3],
-        ]
-    )
-}
-
-```
-
-## 运算符重载
-
-https://mirrors.gitcode.host/rust-lang-cn/rust-by-example-cn/trait/ops.html
 
 # 继承与多态
 
