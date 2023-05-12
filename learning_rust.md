@@ -19437,6 +19437,8 @@ Runtime::new() 创建的运行时，会有一个主线程和 CPU 逻辑核数相
 
 ``` rust
 [dependencies]
+// 开启全部功能的tokio，
+// 在了解tokio之后，只开启需要的特性，减少编译时间，减小编译大小
 tokio = { version ="1.26.0", features = ["full"] }
 ```
 
@@ -19451,6 +19453,17 @@ fn main() -> io::Result<()> {
     });
     runtime.shutdown_timeout(Duration::from_secs(4));
     Ok(())
+}
+```
+
+或更简单
+
+``` rust
+use tokio;
+
+fn main() {
+  // 创建runtime
+  let rt = tokio::runtime::Runtime::new().unwrap();
 }
 ```
 
@@ -19476,6 +19489,33 @@ fn main() -> io::Result<()> {
     println!("{}", thread::current().name().unwrap());
     runtime.shutdown_timeout(Duration::from_secs(4));
     Ok(())
+}
+```
+
+### 几个线程好呢
+
+tokio提供了两种工作模式的runtime：
+
+- 单一线程的runtime(single thread runtime，也称为current thread runtime)
+- 多线程(线程池)的runtime(multi thread runtime)
+
+这里的所说的线程是Rust线程，而每一个Rust线程都是一个OS线程。IO并发类任务较多时，单一线程的runtime性能不如多线程的runtime，但因为多线程runtime使用了多线程，使得线程间的通信变得更为复杂，也加重了线程间切换的开销，使得有些情况下的性能不如使用单线程runtime。因此，在要求极限性能的时候，建议测试两种工作模式的性能差距来选择更优解。在后面深入了一些tokio后，我会再花一个小节来解释单一线程的runtime和多线程的runtime的调度区别以及如何选择合适的runtime。
+
+默认情况下(比如以上两种方式)，创建出来的runtime都是多线程runtime，且没有指定工作线程数量时，默认的工作线程数量将和CPU核数(虚拟核，即CPU线程数)相同。只有明确指定，才能创建出单一线程的runtime。例如：
+
+``` rust
+// 创建单一线程的runtime
+let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
+```
+
+例如，创建一个多线程的runtime，然后使用ps aux|grep xxx 查看其线程数：
+
+``` rust
+use tokio;
+
+fn main(){
+  let rt = tokio::runtime::Runtime::new().unwrap();
+  std::thread::sleep(std::time::Duration::from_secs(10));
 }
 ```
 
@@ -19505,34 +19545,65 @@ fn main() -> io::Result<()> {
 }
 
 ```
+
+或更简单
+
+``` rust
+use tokio;
+
+fn main() {
+  // 创建带有线程池的runtime
+  let rt = tokio::runtime::Builder::new_multi_thread()
+    .worker_threads(8)  // 8个工作线程
+    .enable_io()        // 可在runtime中使用异步IO
+    .enable_time()      // 可在runtime中使用异步计时器(timer)
+    .build()            // 创建runtime
+    .unwrap();
+}
+```
+
 ### 使用宏创建运行时
 
 除了使用明确编写代码来新建运行时，也可以使用宏来创建。
 
-- 普通 #[tokio::main]
-- 多线程 #[tokio::main(flavor = "multi_thread")]
-- 当前线程 #[tokio::main(flavor = "current_thread")]
-- 工作线程数 #[tokio::main(flavor = "multi_thread", worker_threads = 4)]
+- 创建的是多线程runtime
 
 ``` rust
-use std::{io, thread};
+#[tokio::main(flavor = "multi_thread"] // 等价于#[tokio::main]
+#[tokio::main(flavor = "multi_thread", worker_threads = 10))]
+#[tokio::main(worker_threads = 10))]
+它们等价于如下没有使用#[tokio::main]的代码：
 
-#[tokio::main]
-async fn main() -> io::Result<()> {
-    tokio::spawn(async {
-        println!("hello tokio");
-        println!("{}", thread::current().name().unwrap());
-    });
-
-    println!("{}", thread::current().name().unwrap());
-    Ok(())
+fn main(){
+  tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(N)  
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async { ... });
 }
 
 ```
 
-### 最大空闲时间
+- 创建单一线程的main runtime
 
-对于阻塞任务，Tokio 会新启动一个线程来运行，这个也是在一个线程池中，任务完成后，不会立即销毁。经过空余时间后，还是没有任务，就会进行销毁，默认 10 秒。使用 thread_keep_alive 方法来定义阻塞线程的最大空闲时间。
+``` rust
+#[tokio::main(flavor = "current_thread")]
+等价于：
+
+fn main() {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async { ... })
+}
+```
+
+### 最大空闲时间 thread_keep_alive
+
+blocking thread执行完对应任务后，并不会立即释放，而是继续保持活动状态一段时间，此时它们的状态是空闲状态。当空闲时长超出一定时间后（默认 10 秒，可在runtime build时通过thread_keep_alive()配置空闲的超时时长)，该空闲线程将被释放。
+
 
 ``` rust
 use std::{io, thread, time::Duration};
@@ -19556,31 +19627,48 @@ fn main() -> io::Result<()> {
 }
 ```
 
-### 进入
+### 非阻塞进入 enter
 
-- enter 方法可以进入异步运行时的上下文。
-
-输出了2次
+enter是进入runtime的方式（另一种是block_on），enter()进入runtime时，不会阻塞当前线程，它会返回一个EnterGuard。EnterGuard没有其它作用，它仅仅只是声明从它开始的所有异步任务都将在runtime上下文中执行，直到删除该EnterGuard。删除EnterGuard并不会删除runtime，只是释放之前的runtime上下文声明。因此，删除EnterGuard之后，可以声明另一个EnterGuard，这可以再次进入runtime的上下文环境。
 
 ``` rust
-use std::{io, time::Duration};
+use chrono::Local;
+use std::thread;
+use tokio::{self, runtime::Runtime, time};
 
-use tokio::runtime::Runtime;
-
-fn main() -> io::Result<()> {
-    let runtime = Runtime::new()?;
-
-    runtime.spawn(hello());
-    // 删除它将导致异常
-    let _guard = runtime.enter();
-    // 如果没有前面的进入异步运行时的上下文，将会失败
-    tokio::spawn(hello());
-    runtime.shutdown_timeout(Duration::from_secs(4));
-    Ok(())
+fn now() -> String {
+    Local::now().format("%F %T").to_string()
 }
 
-async fn hello() {
-    println!("hello tokio");
+fn main() {
+    let rt = Runtime::new().unwrap();
+
+    // 进入runtime，但不阻塞当前线程
+    let guard1 = rt.enter();
+
+    // 生成的异步任务将放入当前的runtime上下文中执行
+    tokio::spawn(async {
+        println!("task1 sleep start: {}", now());
+        time::sleep(time::Duration::from_secs(5)).await;
+        println!("task1 sleep over: {}", now());
+    });
+
+    // 释放runtime上下文，这并不会删除runtime
+    drop(guard1);
+    println!("drop guard1, {}", now());
+
+    // 可以再次进入runtime
+    let guard2 = rt.enter();
+    tokio::spawn(async {
+        println!("task2 sleep start: {}", now());
+        time::sleep(time::Duration::from_secs(4)).await;
+        println!("task2 sleep over: {}", now());
+    });
+
+    drop(guard2);
+    println!("drop guard2, {}", now());
+    // 阻塞当前线程，等待异步任务的完成
+    thread::sleep(std::time::Duration::from_secs(10));
 }
 
 ```
@@ -19657,17 +19745,70 @@ fn main() -> io::Result<()> {
 
 ```
 
-## 工作线程 task
+## task
 
-- 一个 Tokio 任务是一个异步的绿色线程，它们通过 tokio::spawn 进行创建，该函数会返回一个 JoinHandle 类型的句柄，调用者可以使用该句柄跟创建的任务进行交互。
-- spawn 函数的参数是一个 async 语句块，该语句块甚至可以返回一个值，然后调用者可以通过 JoinHandle 句柄获取该值
-- 任务是调度器管理的执行单元。spawn生成的任务会首先提交给调度器，然后由它负责调度执行。需要注意的是，执行任务的线程未必是创建任务的线程，任务完全有可能运行在另一个不同的线程上，而且任务在生成后，它还可能会在线程间被移动。
-- 创建一个任务仅仅需要一次64字节大小的内存分配。
+- 异步的绿色线程（用户空间的线程）由程序自身提供的调度器负责调度，由于不涉及系统调用，同一个OS线程内的多个绿色线程之间的上下文切换的开销非常小，因此非常的轻量级。可以认为，它们就是一种特殊的协程。
+- 每定义一个Future(例如一个async语句块就是一个Future)，就定义了一个静止的尚未执行的task，当它在runtime中开始运行的时候，它就是真正的task，一个真正的异步任务。
+- tokio严格区分异步任务和同步任务，只有完全受tokio调度管理的异步任务才算是tokio task。而不是脱离tokio调度控制的同步任务，同步任务应放入blocking thread中运行。
 
-### 异步运行任务 spawn
+### 异步任务 task::spawn
 
-- spawn 方法可以接收一个异步任务，在工作线程中运行，并不产生阻塞
-- Tokio 执行异步任务后，可以有返回值，其中也有可能是出现了错误。
+Tokio 执行异步任务后，可以有返回值，其中也有可能是出现了错误。
+
+``` rust
+use chrono::Local;
+use std::thread;
+use tokio::{self, task, runtime::Runtime, time};
+
+fn now() -> String {
+    Local::now().format("%F %T").to_string()
+}
+
+fn main() {
+    let rt = Runtime::new().unwrap();
+    let _guard = rt.enter();
+    task::spawn(async {
+        println!("task sleep start: {}", now());
+        time::sleep(time::Duration::from_secs(3)).await;
+        println!("task sleep start: {}", now());
+    });
+    println!("main sleep start: {}", now());
+    thread::sleep(time::Duration::from_secs(4));
+    println!("main sleep over: {}", now());
+}
+```
+
+
+
+
+
+
+案例：runtime的spawn
+
+``` rust
+use chrono::Local;
+use tokio::{self, runtime::Runtime};
+
+fn now() -> String {
+    Local::now().format("%F %T").to_string()
+}
+
+fn async_task(rt: &Runtime) {
+    rt.spawn(async {
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        println!("async task over: {}", now());
+    });
+}
+
+fn main() {
+    let rt = Runtime::new().unwrap();
+    rt.block_on(async {
+        async_task(&rt);
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        println!("main over: {}", now());
+    });
+}
+```
 
 案例：一个是主线程，一个是工作线程。因为存在两个线程，所以输出的顺序不固定。main 可能在最前，也可能在最后。
 
@@ -19685,6 +19826,35 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
+```
+
+案例：使用tokio::spawn()来生成异步任务
+
+``` rust
+use chrono::Local;
+use tokio::{self, runtime::Runtime, time};
+
+fn now() -> String {
+    Local::now().format("%F %T").to_string()
+}
+
+// 在runtime外部定义一个异步任务，且该函数返回值不是Future类型
+fn async_task() {
+    println!("create an async task: {}", now());
+    tokio::spawn(async {
+        time::sleep(time::Duration::from_secs(1)).await;
+        println!("async task over: {}", now());
+    });
+}
+
+fn main() {
+    let rt1 = Runtime::new().unwrap();
+    rt1.block_on(async {
+        // 调用函数，该函数内创建了一个异步任务，将在当前runtime内执行
+        async_task();
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    });
+}
 ```
 
 带返回值的案例
@@ -19719,9 +19889,11 @@ async fn main() -> io::Result<()> {
 }
 ```
 
-### 当前线程任务 block_on
+### 阻塞当前线程的异步任务 block_on
 
-- 提交给 block_on 的任务，会在主线程中运行，并且会一直阻塞，直到任务完成才往下执行。
+- block_on()是进入runtime的主要方式，（另一个是enter），block_on()进入runtime时，会阻塞当前线程直到其指定的异步任务树(可能有子任务)全部完成。
+- block_on是等待异步任务完成，而不是等待runtime中的所有任务都完成
+- block_on也有返回值，其返回值为其所执行异步任务的返回值
 
 案例：运行后永远是按顺序输出123
 
@@ -19743,7 +19915,7 @@ fn main() -> io::Result<()> {
 }
 ```
 
-- 带返回值的block_on任务
+案例：带返回值的block_on任务
 
 ``` rust
 use std::{io, thread, time::Duration};
@@ -19765,11 +19937,12 @@ fn main() -> io::Result<()> {
 }
 ```
 
-### 阻塞线程任务 spawn_blocking
+### 阻塞线程任务非异步任务 spawn_blocking
 
-- spawn_blocking 方法可以接收一个闭包，用来提交阻塞任务。
+- blocking thread用于长时间计算的或阻塞整个线程的任务，调用spawn_blocking()时才会创建一个对应的blocking thread。参数是闭包。
+- blocking thread是在runtime内的，可以在runtime内对它们使用一些异步操作，例如await。
 
-案例运行永远输出312
+案例：运行永远输出312
 
 ``` rust
 use std::{io, thread, time::Duration};
@@ -19887,9 +20060,9 @@ fn main() -> io::Result<()> {
 }
 ```
 
-### 最大阻塞线程数
+### 最大阻塞线程数 max_blocking_threads
 
-对于阻塞任务，Tokio 会新启动一个线程来运行，可以设置启动的最大线程数，默认是 512。使用 max_blocking_threads 方法来定义最大的阻塞任务线程数。
+tokio允许的blocking thread队列很长(默认512个)，且可以在runtime build时通过max_blocking_threads()配置最大长度。如果超出了最大队列长度，新的任务将放在一个等待队列中进行等待(比如当前已经有512个正在运行的任务，下一个任务将等待，直到有某个blocking thread空闲)。
 
 ``` rust
 use std::{io, thread, time::Duration};
@@ -20825,6 +20998,20 @@ async fn main() -> io::Result<()> {
     Ok(())
 }
 
+```
+
+``` rust
+use tokio::runtime::Runtime;
+use chrono::Local;
+
+fn main() {
+    let rt = Runtime::new().unwrap();
+    rt.block_on(async {
+        println!("before sleep: {}", Local::now().format("%F %T.%3f"));
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        println!("after sleep: {}", Local::now().format("%F %T.%3f"));
+    });
+}
 ```
 
 ### 异步超时任务 timeout
