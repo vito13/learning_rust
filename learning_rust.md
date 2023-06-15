@@ -104,6 +104,25 @@ https://kumakichi.github.io/easy_rust_chs/Chapter_1.html
 
 ### 在centos中配置网络
 
+#### 方案1
+
+``` shell
+cd /etc/sysconfig/network-scripts/
+su
+vi ./ifcfg-enp0s8
+
+修改
+BOOTPROTO=static
+ONBOOT=yes
+IPADDR=192.168.56.103
+
+保存退出后
+service network restart
+完毕
+```
+
+#### 方案2
+
 - 修改网卡1（网络地址转换NAT）配置为如下，HWADDR可以不用，UUID可以使用uuidgen生成。保存后, service network restart，此时应可正常访问外网
 
 ``` shell
